@@ -1,0 +1,26 @@
+version: "3.8"
+
+# Development Docker Compose
+# Usage: docker-compose -f docker-compose.dev.yml up
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: brigada-db-dev
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=brigada_db
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: brigada-redis-dev
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_dev_data:

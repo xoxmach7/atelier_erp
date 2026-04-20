@@ -1,0 +1,259 @@
+"""
+Domain Events System
+Used for loose coupling between aggregates
+"""
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import List, Optional, Dict, Any
+from uuid import UUID, uuid4
+
+
+@dataclass(frozen=True)
+class DomainEvent:
+    """Base class for all domain events"""
+    event_id: UUID = field(default_factory=uuid4)
+    timestamp: datetime = field(default_factory=datetime.now)
+    correlation_id: Optional[UUID] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize event to dict for storage/transmission"""
+        return {
+            'event_type': self.__class__.__name__,
+            'event_id': str(self.event_id),
+            'timestamp': self.timestamp.isoformat(),
+            'correlation_id': str(self.correlation_id) if self.correlation_id else None,
+            'data': {
+                k: str(v) if isinstance(v, UUID) else v
+                for k, v in self.__dict__.items()
+                if k not in ('event_id', 'timestamp', 'correlation_id')
+            }
+        }
+
+
+# ============================================
+# ORDER EVENTS
+# ============================================
+
+@dataclass(frozen=True)
+class OrderCreated(DomainEvent):
+    order_id: UUID
+    order_number: str
+    customer_id: UUID
+    total_amount: str
+    created_by: Optional[UUID] = None
+
+
+@dataclass(frozen=True)
+class OrderStatusChanged(DomainEvent):
+    order_id: UUID
+    old_status: str
+    new_status: str
+    changed_by: Optional[str] = None
+    reason: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class OrderConfirmed(DomainEvent):
+    """Customer confirmed the order (quote approved)"""
+    order_id: UUID
+    customer_id: UUID
+    quote_id: Optional[UUID] = None
+
+
+@dataclass(frozen=True)
+class OrderMaterialsReserved(DomainEvent):
+    order_id: UUID
+    fabric_reservations: List[Dict[str, Any]]  # List of {fabric_id, reserved_meters, reservation_id}
+    cornice_allocations: List[Dict[str, Any]]  # List of {cornice_id, quantity}
+
+
+@dataclass(frozen=True)
+class OrderProductionStarted(DomainEvent):
+    order_id: UUID
+    assigned_to: Optional[UUID] = None
+    deadline: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class OrderCompleted(DomainEvent):
+    order_id: UUID
+    customer_id: UUID
+    completion_date: str
+    total_amount: str
+    total_paid: str
+
+
+@dataclass(frozen=True)
+class OrderCancelled(DomainEvent):
+    order_id: UUID
+    reason: str
+    cancelled_by: Optional[str] = None
+    inventory_to_release: List[Dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class OrderPaymentReceived(DomainEvent):
+    order_id: UUID
+    payment_id: UUID
+    amount: str
+    payment_type: str
+    is_fully_paid: bool
+
+
+# ============================================
+# INVENTORY EVENTS
+# ============================================
+
+@dataclass(frozen=True)
+class FabricReserved(DomainEvent):
+    reservation_id: UUID
+    fabric_id: UUID
+    order_id: UUID
+    reserved_meters: str
+    expires_at: str
+
+
+@dataclass(frozen=True)
+class FabricReservationConverted(DomainEvent):
+    """Reservation converted to actual deduction"""
+    reservation_id: UUID
+    fabric_id: UUID
+    order_id: UUID
+    deducted_meters: str
+    remaining_stock: str
+
+
+@dataclass(frozen=True)
+class FabricReservationCancelled(DomainEvent):
+    reservation_id: UUID
+    fabric_id: UUID
+    released_meters: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class StockDeducted(DomainEvent):
+    fabric_id: Optional[UUID]
+    cornice_id: Optional[UUID]
+    order_id: UUID
+    quantity_deducted: str
+    remaining_stock: str
+
+
+@dataclass(frozen=True)
+class StockReturned(DomainEvent):
+    """Inventory returned on order cancellation"""
+    fabric_id: Optional[UUID]
+    cornice_id: Optional[UUID]
+    order_id: UUID
+    quantity_returned: str
+    new_stock_level: str
+
+
+@dataclass(frozen=True)
+class LowStockAlert(DomainEvent):
+    fabric_id: UUID
+    fabric_name: str
+    hanger_number: str
+    current_stock: str
+    reserved_amount: str
+    available: str
+
+
+# ============================================
+# TASK EVENTS
+# ============================================
+
+@dataclass(frozen=True)
+class TaskCreated(DomainEvent):
+    task_id: UUID
+    task_number: str
+    client_name: str
+    client_phone: str
+    source: str
+    created_by: Optional[UUID] = None
+
+
+@dataclass(frozen=True)
+class TaskConvertedToOrder(DomainEvent):
+    task_id: UUID
+    order_id: UUID
+    order_number: str
+
+
+# ============================================
+# PRODUCTION EVENTS
+# ============================================
+
+@dataclass(frozen=True)
+class ProductionAssigned(DomainEvent):
+    assignment_id: UUID
+    order_id: UUID
+    seamstress_id: UUID
+    deadline: Optional[str] = None
+    complexity: str = 'medium'
+
+
+@dataclass(frozen=True)
+class ProductionStatusChanged(DomainEvent):
+    assignment_id: UUID
+    order_id: UUID
+    old_status: str
+    new_status: str
+    changed_by: Optional[UUID] = None
+
+
+@dataclass(frozen=True)
+class WorkCompleted(DomainEvent):
+    assignment_id: UUID
+    order_id: UUID
+    seamstress_id: UUID
+    completed_at: str
+    payment_due: str
+
+
+# ============================================
+# EVENT BUS / DISPATCHER
+# ============================================
+
+class EventBus:
+    """
+    Simple event bus for publishing and subscribing to domain events.
+    In production, this would use Celery, Redis Pub/Sub, or message queue.
+    """
+    
+    def __init__(self):
+        self._subscribers: Dict[str, List[callable]] = {}
+    
+    def subscribe(self, event_type: str, handler: callable):
+        """Subscribe handler to event type"""
+        if event_type not in self._subscribers:
+            self._subscribers[event_type] = []
+        self._subscribers[event_type].append(handler)
+    
+    def publish(self, event: DomainEvent):
+        """Publish event to all subscribers"""
+        event_type = event.__class__.__name__
+        handlers = self._subscribers.get(event_type, [])
+        
+        for handler in handlers:
+            try:
+                handler(event)
+            except Exception as e:
+                # Log error but don't break other handlers
+                print(f"Error handling event {event_type}: {e}")
+    
+    def publish_all(self, events: List[DomainEvent]):
+        """Publish multiple events"""
+        for event in events:
+            self.publish(event)
+
+
+# Global event bus instance
+_event_bus = EventBus()
+
+
+def get_event_bus() -> EventBus:
+    """Get global event bus instance"""
+    return _event_bus

@@ -1,0 +1,86 @@
+[
+  {
+    "model": "atelier_erp.service",
+    "pk": 1,
+    "fields": {
+      "name": "Пошив штор (простой)",
+      "description": "Базовый пошив штор без сложных элементов",
+      "unit": "meter",
+      "price_per_unit": "2000.00",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "atelier_erp.service",
+    "pk": 2,
+    "fields": {
+      "name": "Пошив штор (средний)",
+      "description": "Пошив с подхватами, кистями, бахромой",
+      "unit": "meter",
+      "price_per_unit": "3500.00",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "atelier_erp.service",
+    "pk": 3,
+    "fields": {
+      "name": "Пошив штор (сложный)",
+      "description": "Ламбрекены, фестоны, сложная геометрия",
+      "unit": "meter",
+      "price_per_unit": "5500.00",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "atelier_erp.service",
+    "pk": 4,
+    "fields": {
+      "name": "Пошив штор (премиум)",
+      "description": "Ручная вышивка, кружево, авторская работа",
+      "unit": "meter",
+      "price_per_unit": "8000.00",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "atelier_erp.service",
+    "pk": 5,
+    "fields": {
+      "name": "Монтаж карниза",
+      "description": "Установка карниза на стену или потолок",
+      "unit": "piece",
+      "price_per_unit": "5000.00",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "atelier_erp.service",
+    "pk": 6,
+    "fields": {
+      "name": "Установка электрокарниза",
+      "description": "Монтаж и настройка электрического карниза",
+      "unit": "piece",
+      "price_per_unit": "15000.00",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "atelier_erp.service",
+    "pk": 7,
+    "fields": {
+      "name": "Выезд замерщика",
+      "description": "Выезд специалиста для замеров и консультации",
+      "unit": "piece",
+      "price_per_unit": "3000.00",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  }
+]

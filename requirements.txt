@@ -1,0 +1,39 @@
+# Atelier ERP - Django Backend Requirements
+
+# Core
+Django>=4.2,<5.0
+python-dotenv>=1.0.0
+
+# Database
+psycopg2-binary>=2.9.0
+
+# API
+# Django REST Framework and extensions
+djangorestframework>=3.14.0
+django-filter>=23.0.0
+django-cors-headers>=4.0.0
+
+# Caching & Queue
+django-redis>=5.3.0
+celery>=5.3.0
+redis>=4.6.0
+
+# Auth
+# djangorestframework-simplejwt>=5.3.0  # Uncomment for JWT
+
+# Validation
+pydantic>=2.0.0
+
+# Utilities
+Pillow>=10.0.0  # Image handling
+python-dateutil>=2.8.0
+
+# Production
+gunicorn>=21.0.0
+whitenoise>=6.5.0  # Static files
+
+# Development (optional)
+# django-debug-toolbar>=4.0.0
+# pytest-django>=4.5.0
+# black>=23.0.0
+# flake8>=6.0.0
