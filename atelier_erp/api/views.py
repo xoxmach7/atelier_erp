@@ -44,7 +44,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     """Customer management API"""
     queryset = Customer.objects.filter(is_active=True)
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['city', 'is_active']
+    filterset_fields = ['address_city', 'is_active']
     search_fields = ['full_name', 'phone', 'email']
     ordering_fields = ['full_name', 'created_at', 'updated_at']
     
