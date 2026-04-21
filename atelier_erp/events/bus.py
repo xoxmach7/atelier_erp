@@ -396,7 +396,9 @@ class EventBus:
         else:
             # Async processing for normal events (fallback to sync if no event loop)
             try:
-                asyncio.create_task(self.async_bus.publish(event))
+                loop = asyncio.get_running_loop()
+                # Use ensure_future to schedule the coroutine properly
+                asyncio.ensure_future(self.async_bus.publish(event))
                 return {
                     'event_type': event.event_type,
                     'mode': 'async',

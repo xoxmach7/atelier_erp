@@ -3,6 +3,8 @@ Atelier ERP - API v1 Serializers
 Minimal serializers for orders, tasks, inventory
 """
 
+from decimal import Decimal
+
 from rest_framework import serializers
 from atelier_erp.models import Order, Task, Fabric, OrderItem, Customer
 
@@ -132,7 +134,7 @@ class FabricAvailabilitySerializer(serializers.ModelSerializer):
 class InventoryCheckRequestSerializer(serializers.Serializer):
     """Request to check inventory availability"""
     fabric_id = serializers.UUIDField()
-    required_meters = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0.01)
+    required_meters = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0.01"))
 
 
 class InventoryCheckResponseSerializer(serializers.Serializer):

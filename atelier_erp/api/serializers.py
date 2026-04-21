@@ -177,7 +177,7 @@ class TaskListSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             'id', 'task_number', 'client_name', 'client_phone',
-            'status', 'priority', 'assigned_to',
+            'status', 'priority', 'assigned_designer',
             'created_at', 'updated_at'
         ]
 
@@ -188,9 +188,10 @@ class TaskSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             'id', 'task_number', 'client_name', 'client_phone',
+            'client_address_city', 'client_address_street', 'client_address_building',
             'source', 'description', 'priority',
-            'status', 'address', 'measurement_date',
-            'assigned_to', 'converted_to_order', 'converted_at',
+            'status', 'preferred_date', 'deadline',
+            'assigned_designer', 'converted_to_order', 'converted_at',
             'created_at', 'updated_at'
         ]
         read_only_fields = [
@@ -229,18 +230,19 @@ class ProductionAssignmentSerializer(serializers.ModelSerializer):
 class PaymentSerializer(serializers.ModelSerializer):
     """Payment serializer"""
     order_number = serializers.CharField(source='order.order_number', read_only=True)
-    received_by_name = serializers.CharField(source='received_by.get_full_name', read_only=True)
-    
+    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+
     class Meta:
         model = Payment
         fields = [
             'id', 'order', 'order_number',
             'amount', 'payment_type', 'payment_method',
-            'received_by', 'received_by_name', 'reference_number',
-            'notes', 'is_reconciled',
+            'external_transaction_id',
+            'created_by', 'created_by_name',
+            'notes', 'received_at',
             'created_at'
         ]
-        read_only_fields = ['created_at', 'is_reconciled']
+        read_only_fields = ['created_at', 'received_at']
 
 
 class DashboardSummarySerializer(serializers.Serializer):

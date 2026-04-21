@@ -244,7 +244,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     """Task/Lead management API"""
     queryset = Task.objects.all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'priority', 'assigned_to']
+    filterset_fields = ['status', 'priority', 'assigned_designer']
     search_fields = ['client_name', 'client_phone', 'task_number']
     ordering_fields = ['priority', 'created_at', 'measurement_date']
     
@@ -304,7 +304,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['order', 'payment_type', 'payment_method', 'is_reconciled']
+    filterset_fields = ['order', 'payment_type', 'payment_method']
     ordering_fields = ['created_at', 'amount']
     
     def perform_create(self, serializer):
