@@ -19,7 +19,7 @@ celery>=5.3.0
 redis>=4.6.0
 
 # Auth
-# djangorestframework-simplejwt>=5.3.0  # Uncomment for JWT
+djangorestframework-simplejwt>=5.3.0  # JWT authentication
 
 # Validation
 pydantic>=2.0.0

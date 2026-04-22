@@ -7,7 +7,7 @@ from decimal import Decimal
 from django.db.models import Q, Sum, Count
 from django.utils import timezone
 from rest_framework import viewsets, status, filters
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django_filters.rest_framework import DjangoFilterBackend
@@ -432,3 +432,27 @@ class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ['entity_type', 'action', 'performed_by']
     ordering_fields = ['created_at']
     ordering = ['-created_at']
+
+
+# ============================================
+# AUTH ENDPOINTS
+# ============================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def me(request):
+    """
+    Current user endpoint for JWT auth.
+    Returns authenticated user details including groups.
+    """
+    user = request.user
+    return Response({
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'is_staff': user.is_staff,
+        'is_superuser': user.is_superuser,
+        'groups': [group.name for group in user.groups.all()],
+    })
