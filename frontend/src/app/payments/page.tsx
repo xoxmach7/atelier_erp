@@ -10,9 +10,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { usePayments } from "@/hooks/usePayments";
-import type { PaymentDTO, PaymentType, PaymentMethod } from "@/types";
+import type { PaymentDTO } from "@/types";
 import { Plus, CreditCard, Wallet, Banknote, CreditCard as CardIcon, ArrowRightLeft } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
+
+// Local type definitions
+ type PaymentType = "prepayment" | "final" | "additional";
+ type PaymentMethod = "cash" | "card" | "transfer" | "kaspi";
 
 function formatCurrency(value: string | null): string {
   if (!value) return "₸ 0";
@@ -25,19 +30,26 @@ function formatDate(value: string | null): string {
 }
 
 function PaymentsContent() {
-  const { data, isLoading, isError, error } = usePayments();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get("order");
+
+  const { data, isLoading, isError, error } = usePayments({
+    pageSize: 100,
+    order: orderId || undefined,
+  });
 
   // Loading state
   if (isLoading) {
     return (
       <>
-        <PageHeader title="Payments" description="Manage and track payments">
+        <PageHeader title="Платежи" description="Управление и отслеживание платежей">
           <Button disabled>
             <Plus className="mr-2 h-4 w-4" />
-            Record Payment
+            Записать платеж
           </Button>
         </PageHeader>
-        <LoadingState message="Loading payments..." />
+        <LoadingState message="Загрузка платежей..." />
       </>
     );
   }
@@ -46,16 +58,16 @@ function PaymentsContent() {
   if (isError) {
     return (
       <>
-        <PageHeader title="Payments" description="Manage and track payments">
+        <PageHeader title="Платежи" description="Управление и отслеживание платежей">
           <Button disabled>
             <Plus className="mr-2 h-4 w-4" />
-            Record Payment
+            Записать платеж
           </Button>
         </PageHeader>
 
         <ErrorState
-          title="Failed to load payments"
-          description={error?.message || "Something went wrong. Please try again later."}
+          title="Ошибка загрузки платежей"
+          description={error?.message || "Что-то пошло не так. Попробуйте позже."}
         />
       </>
     );
@@ -67,19 +79,19 @@ function PaymentsContent() {
   if (payments.length === 0) {
     return (
       <>
-        <PageHeader title="Payments" description="Manage and track payments">
+        <PageHeader title="Платежи" description="Управление и отслеживание платежей">
           <Button disabled>
             <Plus className="mr-2 h-4 w-4" />
-            Record Payment
+            Записать платеж
           </Button>
         </PageHeader>
 
         <EmptyState
-          title="No payments recorded"
-          description="Record payments to track order transactions"
+          title="Платежей пока нет"
+          description="Записывайте платежи для отслеживания транзакций по заказам"
           icon={<CreditCard className="h-6 w-6 text-slate-600" />}
           action={{
-            label: "Record First Payment",
+            label: "Записать первый платеж",
             onClick: () => {},
           }}
         />
@@ -94,13 +106,29 @@ function PaymentsContent() {
   return (
     <>
       <PageHeader
-        title="Payments"
-        description={`${data?.count || 0} payments recorded`}
+        title={orderId ? "Платежи по заказу" : "Платежи"}
+        description={orderId 
+          ? `Фильтр по заказу ${orderId.slice(0, 8)}... • ${data?.count || 0} платежей`
+          : `${data?.count || 0} платежей записано`
+        }
       >
-        <Button disabled>
-          <Plus className="mr-2 h-4 w-4" />
-          Record Payment
-        </Button>
+        {orderId ? (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/orders/${orderId}`}>
+                К заказу
+              </Link>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => router.push("/payments")}>
+              Сбросить фильтр
+            </Button>
+          </div>
+        ) : (
+          <Button disabled>
+            <Plus className="mr-2 h-4 w-4" />
+            Записать платеж
+          </Button>
+        )}
       </PageHeader>
 
       <Card>
@@ -109,13 +137,13 @@ function PaymentsContent() {
             <table className="w-full text-sm">
               <thead className="border-b bg-slate-50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium text-slate-700">Order</th>
-                  <th className="px-4 py-3 text-left font-medium text-slate-700">Type</th>
-                  <th className="px-4 py-3 text-left font-medium text-slate-700">Method</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-700">Amount</th>
-                  <th className="px-4 py-3 text-left font-medium text-slate-700">Received</th>
-                  <th className="px-4 py-3 text-left font-medium text-slate-700">Recorded By</th>
-                  <th className="px-4 py-3 text-left font-medium text-slate-700">Notes</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Заказ</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Тип</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Способ</th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-700">Сумма</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Получен</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Кем записан</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Примечания</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -166,8 +194,8 @@ function PaymentsContent() {
 
           {data && data.count > 0 && (
             <div className="border-t px-4 py-3 text-sm text-slate-500 flex justify-between">
-              <span>Showing {payments.length} of {data.count} payments</span>
-              <span className="font-medium">Total: {formatCurrency(String(totalAmount))}</span>
+              <span>Показано {payments.length} из {data.count} платежей</span>
+              <span className="font-medium">Итого: {formatCurrency(String(totalAmount))}</span>
             </div>
           )}
         </CardContent>
@@ -178,9 +206,9 @@ function PaymentsContent() {
 
 function getPaymentTypeLabel(type: PaymentType): string {
   const labels: Record<PaymentType, string> = {
-    prepayment: "Prepayment",
-    final: "Final Payment",
-    additional: "Additional",
+    prepayment: "Предоплата",
+    final: "Окончательный",
+    additional: "Дополнительный",
   };
   return labels[type] || type;
 }
@@ -199,15 +227,17 @@ function getPaymentMethodIcon(method: PaymentMethod): React.ReactNode {
     cash: <Wallet className="h-4 w-4" />,
     card: <CardIcon className="h-4 w-4" />,
     transfer: <ArrowRightLeft className="h-4 w-4" />,
+    kaspi: <CreditCard className="h-4 w-4" />,
   };
   return icons[method] || <Banknote className="h-4 w-4" />;
 }
 
 function getPaymentMethodLabel(method: PaymentMethod): string {
   const labels: Record<PaymentMethod, string> = {
-    cash: "Cash",
-    card: "Card",
-    transfer: "Bank Transfer",
+    cash: "Наличные",
+    card: "Карта",
+    transfer: "Банковский перевод",
+    kaspi: "Kaspi",
   };
   return labels[method] || method;
 }

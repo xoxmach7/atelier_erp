@@ -32,7 +32,7 @@ function StockIndicator({ fabric }: { fabric: FabricDTO }) {
   if (available <= 0) {
     return (
       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-        Out of stock
+        Нет в наличии
       </span>
     );
   }
@@ -40,7 +40,7 @@ function StockIndicator({ fabric }: { fabric: FabricDTO }) {
   if (available < 10) {
     return (
       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-        Low stock
+        Мало на складе
       </span>
     );
   }
@@ -48,14 +48,14 @@ function StockIndicator({ fabric }: { fabric: FabricDTO }) {
   if (available / stock < 0.3) {
     return (
       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-        Low stock
+        Мало на складе
       </span>
     );
   }
 
   return (
     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-      In stock
+      В наличии
     </span>
   );
 }
@@ -69,15 +69,15 @@ function InventoryContent() {
     return (
       <>
         <PageHeader
-          title="Inventory"
-          description="Track fabrics, materials, and stock levels"
+          title="Склад"
+          description="Учет тканей, материалов и уровня запасов"
         >
           <Button disabled>
             <Plus className="mr-2 h-4 w-4" />
-            Add Fabric
+            Добавить ткань
           </Button>
         </PageHeader>
-        <LoadingState message="Loading inventory..." />
+        <LoadingState message="Загрузка склада..." />
       </>
     );
   }
@@ -87,19 +87,19 @@ function InventoryContent() {
     return (
       <>
         <PageHeader
-          title="Inventory"
-          description="Track fabrics, materials, and stock levels"
+          title="Склад"
+          description="Учет тканей, материалов и уровня запасов"
         >
           <Button disabled>
             <Plus className="mr-2 h-4 w-4" />
-            Add Fabric
+            Добавить ткань
           </Button>
         </PageHeader>
 
         <ErrorState
-          title="Failed to load inventory"
-          description={error?.message || "Something went wrong. Please try again later."}
-          context={`Make sure the backend is running at ${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api"}`}
+          title="Ошибка загрузки склада"
+          description={error?.message || "Что-то пошло не так. Попробуйте позже."}
+          context={`Убедитесь, что бэкенд запущен: ${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api"}`}
         />
       </>
     );
@@ -110,21 +110,21 @@ function InventoryContent() {
     return (
       <>
         <PageHeader
-          title="Inventory"
-          description="Track fabrics, materials, and stock levels"
+          title="Склад"
+          description="Учет тканей, материалов и уровня запасов"
         >
           <Button disabled>
             <Plus className="mr-2 h-4 w-4" />
-            Add Fabric
+            Добавить ткань
           </Button>
         </PageHeader>
 
         <EmptyState
-          title="No fabrics in inventory"
-          description="Add fabrics to your inventory to start tracking stock levels"
+          title="На складе нет тканей"
+          description="Добавьте ткани для начала учета запасов"
           icon={<Package className="h-6 w-6 text-slate-600" />}
           action={{
-            label: "Add First Fabric",
+            label: "Добавить первую ткань",
             onClick: () => {},
           }}
         />
@@ -136,19 +136,19 @@ function InventoryContent() {
   return (
     <>
       <PageHeader
-        title="Inventory"
-        description={`${data?.count || 0} fabrics in stock`}
+        title="Склад"
+        description={`${data?.count || 0} тканей в наличии`}
       >
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" asChild>
             <Link href="/estimate">
               <Calculator className="mr-2 h-4 w-4" />
-              Go to Estimate
+              К смете
             </Link>
           </Button>
           <Button disabled>
             <Plus className="mr-2 h-4 w-4" />
-            Add Fabric
+            Добавить ткань
           </Button>
         </div>
       </PageHeader>
@@ -156,14 +156,14 @@ function InventoryContent() {
       {/* Contextual info card - links Inventory to Estimate workflow */}
       <div className="mb-6">
         <WorkflowInfoCard
-          title="Inventory → Estimate Workflow"
+          title="Склад → Смета"
           description={
             <>
-              Fabrics shown here are available in the{" "}
+              Ткани из этого списка доступны в{" "}
               <Link href="/estimate" className="underline hover:text-blue-800">
-                Estimate Builder
+                конструкторе смет
               </Link>
-              . Low stock items are highlighted.
+              . Товары с низким запасом выделены.
             </>
           }
           icon={<Calculator className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />}
@@ -176,14 +176,14 @@ function InventoryContent() {
             <table className="w-full text-sm">
               <thead className="border-b bg-slate-50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium text-slate-700">Hanger #</th>
-                  <th className="px-4 py-3 text-left font-medium text-slate-700">Fabric</th>
-                  <th className="px-4 py-3 text-left font-medium text-slate-700">Color</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-700">Stock</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-700">Reserved</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-700">Available</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-700">Price/m</th>
-                  <th className="px-4 py-3 text-center font-medium text-slate-700">Status</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Вешалка №</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Ткань</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Цвет</th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-700">Запас</th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-700">Резерв</th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-700">Доступно</th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-700">Цена/м</th>
+                  <th className="px-4 py-3 text-center font-medium text-slate-700">Статус</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -237,7 +237,7 @@ function InventoryContent() {
 
           {data && data.count > 0 && (
             <div className="border-t px-4 py-3 text-sm text-slate-500">
-              Showing {fabrics.length} of {data.count} fabrics
+              Показано {fabrics.length} из {data.count} тканей
             </div>
           )}
         </CardContent>

@@ -23,15 +23,15 @@ function OrdersContent() {
     return (
       <>
         <PageHeader
-          title="Orders"
-          description="Manage customer orders and track their progress"
+          title="Заказы"
+          description="Управление заказами и отслеживание прогресса"
         >
           <Button disabled>
             <Plus className="mr-2 h-4 w-4" />
-            New Order
+            Новый заказ
           </Button>
         </PageHeader>
-        <LoadingState message="Loading orders..." />
+        <LoadingState message="Загрузка заказов..." />
       </>
     );
   }
@@ -41,21 +41,21 @@ function OrdersContent() {
     return (
       <>
         <PageHeader
-          title="Orders"
-          description="Manage customer orders and track their progress"
+          title="Заказы"
+          description="Управление заказами и отслеживание прогресса"
         >
           <Button asChild>
             <Link href="/orders/new">
               <Plus className="mr-2 h-4 w-4" />
-              New Order
+              Новый заказ
             </Link>
           </Button>
         </PageHeader>
 
         <ErrorState
-          title="Failed to load orders"
-          description={error?.message || "Something went wrong. Please try again later."}
-          context={`Make sure the backend is running at ${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api"}`}
+          title="Ошибка загрузки заказов"
+          description={error?.message || "Что-то пошло не так. Попробуйте позже."}
+          context={`Убедитесь, что бэкенд запущен: ${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api"}`}
         />
       </>
     );
@@ -68,23 +68,23 @@ function OrdersContent() {
     return (
       <>
         <PageHeader
-          title="Orders"
-          description="Manage customer orders and track their progress"
+          title="Заказы"
+          description="Управление заказами и отслеживание прогресса"
         >
           <Button asChild>
             <Link href="/orders/new">
               <Plus className="mr-2 h-4 w-4" />
-              New Order
+              Новый заказ
             </Link>
           </Button>
         </PageHeader>
 
         <EmptyState
-          title="No orders yet"
-          description="Start by creating your first customer order"
+          title="Заказов пока нет"
+          description="Создайте первый заказ клиента"
           icon={<ClipboardList className="h-6 w-6 text-slate-600" />}
           action={{
-            label: "Create Order",
+            label: "Создать заказ",
             onClick: () => {},
           }}
         />
@@ -96,13 +96,13 @@ function OrdersContent() {
   return (
     <>
       <PageHeader
-        title="Orders"
-        description="Manage customer orders and track their progress"
+        title="Заказы"
+        description="Управление заказами и отслеживание прогресса"
       >
         <Button asChild>
           <Link href="/orders/new">
             <Plus className="mr-2 h-4 w-4" />
-            New Order
+            Новый заказ
           </Link>
         </Button>
       </PageHeader>
@@ -113,12 +113,12 @@ function OrdersContent() {
             <table className="w-full text-sm">
               <thead className="border-b bg-slate-50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium text-slate-700">Order #</th>
-                  <th className="px-4 py-3 text-left font-medium text-slate-700">Customer</th>
-                  <th className="px-4 py-3 text-left font-medium text-slate-700">Status</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-700">Total</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-700">Balance</th>
-                  <th className="px-4 py-3 text-left font-medium text-slate-700">Created</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Заказ №</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Клиент</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Статус</th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-700">Итого</th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-700">Баланс</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Создан</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -155,7 +155,7 @@ function OrdersContent() {
 
           {data && data.count > 0 && (
             <div className="border-t px-4 py-3 text-sm text-slate-500">
-              Showing {orders.length} of {data.count} orders
+              Показано {orders.length} из {data.count} заказов
             </div>
           )}
         </CardContent>

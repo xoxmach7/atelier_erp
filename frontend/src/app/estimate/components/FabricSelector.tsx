@@ -35,7 +35,7 @@ export function FabricSelector({
         onChange={(e) => onSelect(e.target.value || null)}
         className="h-8 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
       >
-        <option value="">— No fabric —</option>
+        <option value="">— Без ткани —</option>
         {fabrics.map((fabric) => (
           <option key={fabric.id} value={fabric.id}>
             {fabric.hanger_number} • {fabric.name} ({formatMeters(parseFloat(fabric.available_meters))})
@@ -46,11 +46,11 @@ export function FabricSelector({
       {selectedFabric && (
         <div className="text-xs space-y-1">
           <div className="flex justify-between">
-            <span className="text-slate-500">Price:</span>
+            <span className="text-slate-500">Цена:</span>
             <span>{formatCurrency(parseFloat(selectedFabric.price_per_meter))}/м</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-slate-500">Available:</span>
+            <span className="text-slate-500">Доступно:</span>
             <span className={enoughStock ? "text-green-600" : "text-red-600"}>
               {enoughStock ? (
                 <span className="flex items-center gap-1">
@@ -60,7 +60,7 @@ export function FabricSelector({
               ) : (
                 <span className="flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" />
-                  Only {formatMeters(parseFloat(selectedFabric.available_meters))}
+                  Только {formatMeters(parseFloat(selectedFabric.available_meters))}
                 </span>
               )}
             </span>

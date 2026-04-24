@@ -1,9 +1,10 @@
 /**
- * Measurement Types - Frontend Domain Types (Sprint 7 MVP)
+ * Measurement Types - Backend Integration Sprint
  *
- * NOTE: MVP uses localStorage persistence only.
- * Backend Measurement model exists but has NO API endpoint yet.
- * When backend adds MeasurementViewSet, migrate to API persistence.
+ * NOTE: Backend integration complete.
+ * - Measurement API endpoints: /api/measurements/
+ * - CRUD operations via REST API
+ * - Data persistence: PostgreSQL via Django backend
  */
 
 export type MountingType = "ceiling" | "wall" | "niche" | "window_recess" | "";
@@ -87,6 +88,7 @@ export interface MeasurementDTO {
   selected_cornice_type: string;
   notes: string;
   measured_by: string | null; // User ID
+  measured_by_name: string | null; // Display name from backend
   measured_at: string;
 }
 
@@ -98,4 +100,14 @@ export interface MeasurementListResponse {
   next: string | null;
   previous: string | null;
   results: MeasurementDTO[];
+}
+
+/**
+ * Source Task info (when order converted from task)
+ */
+export interface SourceTaskDTO {
+  id: string;
+  task_number: string;
+  client_name: string;
+  status: string;
 }

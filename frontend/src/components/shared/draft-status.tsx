@@ -41,19 +41,19 @@ export function DraftStatusCard({
 }: DraftStatusCardProps) {
   const draftLabels = {
     estimate: {
-      title: "Local Draft (Not Saved to Server)",
+      title: "Локальный черновик (не сохранен на сервере)",
       description:
-        "This estimate exists only in your browser. Data auto-saves locally but is NOT linked to any order yet.",
+        "Эта смета хранится только в браузере. Данные автоматически сохраняются локально, но пока НЕ связаны с заказом.",
     },
     measurements: {
-      title: "Local Draft (Not Saved to Server)",
+      title: "Локальный черновик (не сохранен на сервере)",
       description:
-        "This measurement sheet exists only in your browser. Data auto-saves locally but is NOT linked to any order yet.",
+        "Этот лист замеров хранится только в браузере. Данные автоматически сохраняются локально, но пока НЕ связаны с заказом.",
     },
     general: {
-      title: "Local Draft (Not Saved to Server)",
+      title: "Локальный черновик (не сохранен на сервере)",
       description:
-        "This data exists only in your browser. Auto-saves locally but is NOT linked to any order yet.",
+        "Эти данные хранятся только в браузере. Автосохранение локально, но пока НЕ связано с заказом.",
     },
   };
 
@@ -70,7 +70,7 @@ export function DraftStatusCard({
           </p>
           {hasContent && (
             <p className="text-xs text-amber-600 mt-2 font-medium">
-              ✓ Draft auto-saved to browser storage
+              ✓ Черновик автоматически сохранен
             </p>
           )}
           {extraMessage && (
@@ -105,12 +105,12 @@ export interface WorkflowInfoCardProps {
  * @example
  * ```tsx
  * <WorkflowInfoCard
- *   title="Inventory → Estimate Workflow"
+ *   title="Склад → Смета"
  *   description={
  *     <>
- *       Fabrics shown here are available in the{" "}
- *       <Link href="/estimate" className="underline">Estimate Builder</Link>
- *       . Low stock items are highlighted.
+ *       Ткани из этого списка доступны в{" "}
+ *       <Link href="/estimate" className="underline">конструкторе смет</Link>
+ *       . Мало запаса — выделены.
  *     </>
  *   }
  * />

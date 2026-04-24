@@ -54,8 +54,39 @@ const statusStyles: Record<string, string> = {
   paid: "bg-green-100 text-green-700",
 };
 
+const statusTranslations: Record<string, string> = {
+  // Order statuses
+  draft: "Черновик",
+  measurement_scheduled: "Замер назначен",
+  measurement_done: "Замер выполнен",
+  quoted: "КП отправлено",
+  confirmed: "Подтвержден",
+  in_production: "В производстве",
+  ready_for_installation: "Готов к монтажу",
+  installing: "Монтаж",
+  completed: "Выполнен",
+  cancelled: "Отменен",
+  // Task statuses
+  lead: "Лид",
+  quoting: "Смета",
+  quote_sent: "КП отправлено",
+  converted: "Конвертирован",
+  lost: "Потерян",
+  postponed: "Отложен",
+  // Production statuses
+  pending: "Ожидание",
+  cutting: "Раскрой",
+  sewing: "Пошив",
+  finishing: "Отделка",
+  quality_check: "Контроль качества",
+  ready: "Готов",
+  // Payment statuses
+  partial: "Частично",
+  paid: "Оплачен",
+};
+
 const formatStatus = (status: string): string => {
-  return status
+  return statusTranslations[status] || status
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");

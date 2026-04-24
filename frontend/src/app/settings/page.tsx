@@ -10,18 +10,18 @@ export default function SettingsPage() {
   return (
     <>
       <PageHeader
-        title="Settings"
-        description="Manage your account and application settings"
+        title="Настройки"
+        description="Управление аккаунтом и настройками приложения"
       />
 
       <div className="grid gap-6 max-w-2xl">
         <Card>
           <CardHeader>
-            <CardTitle>Profile</CardTitle>
+            <CardTitle>Профиль</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">Имя</Label>
               <Input id="name" placeholder="Admin User" disabled />
             </div>
             <div className="space-y-2">
@@ -33,11 +33,11 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Preferences</CardTitle>
+            <CardTitle>Настройки</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-slate-600">
-              Preferences will be available in a future update.
+              Настройки будут доступны в следующем обновлении.
             </p>
           </CardContent>
         </Card>

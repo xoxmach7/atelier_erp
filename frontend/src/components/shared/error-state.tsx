@@ -45,8 +45,8 @@ interface ErrorStateProps {
  * ```
  */
 export function ErrorState({
-  title = "Failed to load data",
-  description = "Something went wrong. Please try again later.",
+  title = "Ошибка загрузки данных",
+  description = "Что-то пошло не так. Попробуйте позже.",
   context,
   className,
 }: ErrorStateProps) {
@@ -72,35 +72,35 @@ export function ErrorState({
 export const ErrorStatePresets = {
   /** Generic backend connection error */
   backendConnection: (baseUrl?: string) => ({
-    title: "Failed to load data",
-    description: "Could not connect to the server. Please check your connection and try again.",
+    title: "Ошибка загрузки данных",
+    description: "Не удалось подключиться к серверу. Проверьте соединение и попробуйте снова.",
     context: baseUrl ? `API endpoint: ${baseUrl}` : undefined,
   }),
 
   /** Orders-specific error */
   orders: (error?: Error) => ({
-    title: "Failed to load orders",
-    description: error?.message || "Something went wrong. Please try again later.",
+    title: "Ошибка загрузки заказов",
+    description: error?.message || "Что-то пошло не так. Попробуйте позже.",
   }),
 
   /** Inventory-specific error */
   inventory: (error?: Error, baseUrl?: string) => ({
-    title: "Failed to load inventory",
-    description: error?.message || "Could not load fabric inventory.",
+    title: "Ошибка загрузки склада",
+    description: error?.message || "Не удалось загрузить данные склада.",
     context: baseUrl
-      ? `Make sure the backend is running at ${baseUrl}`
+      ? `Убедитесь, что бэкенд запущен: ${baseUrl}`
       : undefined,
   }),
 
   /** Payments-specific error */
   payments: (error?: Error) => ({
-    title: "Failed to load payments",
-    description: error?.message || "Something went wrong. Please try again later.",
+    title: "Ошибка загрузки платежей",
+    description: error?.message || "Что-то пошло не так. Попробуйте позже.",
   }),
 
   /** Order detail-specific error */
   orderDetail: (error?: Error) => ({
-    title: "Failed to load order",
-    description: error?.message || "Something went wrong. Please try again later.",
+    title: "Ошибка загрузки заказа",
+    description: error?.message || "Что-то пошло не так. Попробуйте позже.",
   }),
 };

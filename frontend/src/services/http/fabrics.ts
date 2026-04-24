@@ -27,7 +27,7 @@ interface FabricsFilter extends Record<string, string | number | boolean | undef
  * Fetch paginated list of fabrics
  */
 export async function fetchFabrics(filters?: FabricsFilter): Promise<FabricsListResponse> {
-  return get<FabricsListResponse>("/v1/fabrics/", {
+  return get<FabricsListResponse>("/v1/inventory/", {
     params: filters,
   });
 }
@@ -36,12 +36,12 @@ export async function fetchFabrics(filters?: FabricsFilter): Promise<FabricsList
  * Fetch single fabric by ID
  */
 export async function fetchFabricById(id: string): Promise<FabricDTO> {
-  return get<FabricDTO>(`/v1/fabrics/${id}/`);
+  return get<FabricDTO>(`/v1/inventory/${id}/`);
 }
 
 /**
  * Fetch fabrics with low stock (< 10 meters)
  */
 export async function fetchLowStockFabrics(): Promise<{ count: number; fabrics: FabricDTO[] }> {
-  return get<{ count: number; fabrics: FabricDTO[] }>("/v1/fabrics/low_stock/");
+  return get<{ count: number; fabrics: FabricDTO[] }>("/v1/inventory/low_stock/");
 }

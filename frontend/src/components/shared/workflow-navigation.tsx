@@ -105,14 +105,14 @@ export const WorkflowNavPatterns = {
     if (backToOrders) {
       links.push({
         href: "/orders",
-        label: "Back to Orders",
+        label: "← К заказам",
         icon: ArrowLeft,
       });
     }
     if (toMeasurements) {
       links.push({
         href: "/measurements",
-        label: "Go to Measurements",
+        label: "К замерам →",
         icon: ArrowRight,
       });
     }
@@ -131,14 +131,14 @@ export const WorkflowNavPatterns = {
     if (backToOrders) {
       links.push({
         href: "/orders",
-        label: "Back to Orders",
+        label: "← К заказам",
         icon: ArrowLeft,
       });
     }
     if (toEstimate) {
       links.push({
         href: "/estimate",
-        label: "Go to Estimate",
+        label: "К смете →",
         icon: ArrowRight,
       });
     }

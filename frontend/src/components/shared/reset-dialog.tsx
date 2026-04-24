@@ -52,10 +52,10 @@ export function ResetConfirmationDialog({
   isOpen,
   onClose,
   onConfirm,
-  title = "Reset Draft?",
-  description = "This will clear all data. This action cannot be undone.",
-  cancelLabel = "Cancel",
-  confirmLabel = "Reset",
+  title = "Сбросить черновик?",
+  description = "Все данные будут удалены. Это действие нельзя отменить.",
+  cancelLabel = "Отмена",
+  confirmLabel = "Сбросить",
 }: ResetConfirmationDialogProps) {
   return (
     <AlertDialog open={isOpen} onOpenChange={(open: boolean) => !open && onClose()}>
@@ -84,19 +84,19 @@ export function ResetConfirmationDialog({
 export const ResetDialogPresets = {
   /** Estimate reset dialog configuration */
   estimate: {
-    title: "Reset Estimate?",
+    title: "Сбросить смету?",
     description:
-      "This will clear all rooms, items, and fabric selections. This action cannot be undone. Your draft will be permanently deleted.",
-    cancelLabel: "Cancel",
-    confirmLabel: "Reset",
+      "Все комнаты, позиции и выбранные ткани будут удалены. Это действие нельзя отменить. Черновик будет безвозвратно удален.",
+    cancelLabel: "Отмена",
+    confirmLabel: "Сбросить",
   },
 
   /** Measurements reset dialog configuration */
   measurements: {
-    title: "Reset Measurements?",
+    title: "Сбросить замеры?",
     description:
-      "This will clear all rooms and measurement data. This action cannot be undone. Your draft will be permanently deleted.",
-    cancelLabel: "Cancel",
-    confirmLabel: "Reset",
+      "Все комнаты и данные замеров будут удалены. Это действие нельзя отменить. Черновик будет безвозвратно удален.",
+    cancelLabel: "Отмена",
+    confirmLabel: "Сбросить",
   },
 };

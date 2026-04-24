@@ -2,6 +2,8 @@
 // Domain Types - Business Logic Layer
 // ============================================================================
 
+import type { MeasurementDTO, SourceTaskDTO } from "./measurement";
+
 export type OrderStatus =
   | "draft"
   | "measurement_scheduled"
@@ -87,6 +89,24 @@ export interface OrderItemDTO {
 }
 
 /**
+ * Payment DTO - matches backend PaymentSerializer
+ */
+export interface PaymentDTO {
+  id: string;
+  order: string;
+  order_number: string;
+  amount: string;
+  payment_type: "prepayment" | "final" | "additional";
+  payment_method: "cash" | "card" | "transfer" | "kaspi";
+  external_transaction_id: string | null;
+  created_by: string;
+  created_by_name: string;
+  notes: string | null;
+  received_at: string;
+  created_at: string;
+}
+
+/**
  * Order detail DTO - matches backend OrderSerializer
  * Used for: GET /v1/orders/{id}/ detail endpoint
  */
@@ -108,6 +128,11 @@ export interface OrderDetailDTO {
 
   // Order items
   items: OrderItemDTO[];
+
+  // Related workflow data
+  measurements: MeasurementDTO[];
+  payments: PaymentDTO[];
+  source_task: SourceTaskDTO | null;
 
   // Installation address
   installation_address_city: string;
@@ -160,28 +185,6 @@ export interface FabricDTO {
 // Payment DTOs - API Response Types
 // ============================================================================
 
-export type PaymentType = "prepayment" | "final" | "additional";
-export type PaymentMethod = "cash" | "card" | "transfer";
-
-/**
- * Payment DTO - matches backend PaymentSerializer
- * Used for: GET /v1/payments/ list endpoint
- */
-export interface PaymentDTO {
-  id: string;
-  order: string;
-  order_number: string;
-  amount: string; // Decimal as string from Django
-  payment_type: PaymentType;
-  payment_method: PaymentMethod;
-  external_transaction_id: string | null;
-  created_by: string;
-  created_by_name: string;
-  notes: string | null;
-  received_at: string | null;
-  created_at: string;
-}
-
 // ============================================================================
 // Estimate Types - Frontend Domain Types (Sprint 6 MVP)
 // ============================================================================
@@ -223,8 +226,8 @@ export interface EstimateProject {
 }
 
 // ============================================================================
-// Measurement Types - Frontend Domain Types (Sprint 7 MVP)
-// NOTE: MVP uses localStorage persistence. Backend model exists but no API yet.
+// Measurement Types - Backend Integration Complete
+// API endpoints: /api/measurements/ - CRUD via REST
 // ============================================================================
 
 export type {
@@ -237,7 +240,20 @@ export type {
   MeasurementSummary,
   MeasurementDTO,
   MeasurementListResponse,
+  SourceTaskDTO,
 } from "./measurement";
+
+// ============================================================================
+// Quote (Estimate) Types - Backend Integration Complete
+// API endpoints: /api/quotes/ - CRUD via REST
+// ============================================================================
+
+export type {
+  QuoteStatus,
+  QuoteItemDTO,
+  QuoteDTO,
+  QuoteListResponse,
+} from "./quote";
 
 // ============================================================================
 // Frontend Domain Models - Internal Application Types

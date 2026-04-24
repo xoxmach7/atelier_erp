@@ -44,7 +44,7 @@ export function RoomSection({
               onChange={(e) => onUpdate({ name: e.target.value })}
               className="font-semibold text-lg border-0 p-0 h-auto focus-visible:ring-0 w-48"
             />
-            <span className="text-sm text-slate-500">({room.items.length} items)</span>
+            <span className="text-sm text-slate-500">({room.items.length} позиций)</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="font-semibold">{formatCurrency(roomTotal)}</span>
@@ -57,7 +57,7 @@ export function RoomSection({
       <CardContent className="space-y-4">
         {room.items.length === 0 ? (
           <div className="text-sm text-slate-500 text-center py-4">
-            No items yet. Add your first window or position.
+            Пока нет позиций. Добавьте первое окно или позицию.
           </div>
         ) : (
           room.items.map((item) => (
@@ -72,7 +72,7 @@ export function RoomSection({
         )}
         <Button variant="outline" size="sm" onClick={onAddItem} className="w-full">
           <Plus className="mr-2 h-4 w-4" />
-          Add Item to {room.name}
+          Добавить позицию в {room.name}
         </Button>
       </CardContent>
     </Card>

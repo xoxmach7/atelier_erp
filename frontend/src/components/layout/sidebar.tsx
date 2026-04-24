@@ -33,28 +33,28 @@ interface NavSection {
  */
 const navSections: NavSection[] = [
   {
-    title: "Overview",
-    items: [{ title: "Dashboard", href: "/dashboard", icon: LayoutDashboard }],
+    title: "Обзор",
+    items: [{ title: "Рабочий стол", href: "/dashboard", icon: LayoutDashboard }],
   },
   {
-    title: "Sales & Pre-Sales",
+    title: "Продажи",
     items: [
-      { title: "Orders", href: "/orders", icon: ClipboardList },
-      { title: "Estimate", href: "/estimate", icon: Calculator },
-      { title: "Measurements", href: "/measurements", icon: Ruler },
+      { title: "Заказы", href: "/orders", icon: ClipboardList },
+      { title: "Смета", href: "/estimate", icon: Calculator },
+      { title: "Замеры", href: "/measurements", icon: Ruler },
     ],
   },
   {
-    title: "Production & Ops",
+    title: "Производство",
     items: [
-      { title: "Inventory", href: "/inventory", icon: Package },
-      { title: "Production", href: "/production", icon: Shirt },
-      { title: "Installation", href: "/installation", icon: Wrench },
+      { title: "Склад", href: "/inventory", icon: Package },
+      { title: "Производство", href: "/production", icon: Shirt },
+      { title: "Монтаж", href: "/installation", icon: Wrench },
     ],
   },
   {
-    title: "Finance",
-    items: [{ title: "Payments", href: "/payments", icon: CreditCard }],
+    title: "Финансы",
+    items: [{ title: "Платежи", href: "/payments", icon: CreditCard }],
   },
 ];
 
@@ -122,7 +122,7 @@ export function Sidebar() {
             )}
           >
             <Settings className="h-4 w-4" />
-            Settings
+            Настройки
           </Link>
         </nav>
       </ScrollArea>

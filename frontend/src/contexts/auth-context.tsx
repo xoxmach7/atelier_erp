@@ -1,11 +1,12 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { setTokenRefreshCallback } from "@/services/http/client";
 import type { User, TokenPair, LoginCredentials, AuthState } from "@/types/auth";
 
 interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<void>;
-  logout: () => void;
+  logout: (redirect?: boolean) => void;
   getAccessToken: () => string | null;
 }
 
@@ -27,6 +28,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated: false,
     isLoading: true,
   });
+
+  // Register token refresh callback with HTTP client
+  // This updates state when HTTP client refreshes the token
+  useEffect(() => {
+    setTokenRefreshCallback((newAccessToken: string) => {
+      setState((prev) => ({
+        ...prev,
+        accessToken: newAccessToken,
+      }));
+    });
+  }, []);
 
   // Load auth state from localStorage on mount
   useEffect(() => {
@@ -104,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, [fetchCurrentUser]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback((redirect: boolean = true) => {
     localStorage.removeItem(STORAGE_KEYS.accessToken);
     localStorage.removeItem(STORAGE_KEYS.refreshToken);
     localStorage.removeItem(STORAGE_KEYS.user);
@@ -117,7 +129,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLoading: false,
     });
 
-    window.location.href = "/login";
+    if (redirect) {
+      window.location.href = "/login";
+    }
   }, []);
 
   const getAccessToken = useCallback(() => {

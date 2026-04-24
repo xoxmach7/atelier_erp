@@ -6,18 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardList, Package, Shirt, CreditCard } from "lucide-react";
 
 const stats = [
-  { title: "Active Orders", value: "24", icon: ClipboardList, change: "+2 from last week" },
-  { title: "In Production", value: "12", icon: Shirt, change: "5 ready this week" },
-  { title: "Low Stock Items", value: "8", icon: Package, change: "Needs attention" },
-  { title: "Pending Payments", value: "₸ 1.2M", icon: CreditCard, change: "3 orders" },
+  { title: "Активные заказы", value: "24", icon: ClipboardList, change: "+2 с прошлой недели" },
+  { title: "В производстве", value: "12", icon: Shirt, change: "5 готовы на этой неделе" },
+  { title: "Товары на исходе", value: "8", icon: Package, change: "Требует внимания" },
+  { title: "Ожидают оплаты", value: "₸ 1.2M", icon: CreditCard, change: "3 заказа" },
 ];
 
 function DashboardContent() {
   return (
     <>
       <PageHeader
-        title="Dashboard"
-        description="Overview of your atelier operations"
+        title="Рабочий стол"
+        description="Обзор операций ателье"
       />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -41,19 +41,19 @@ function DashboardContent() {
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Recent Orders</CardTitle>
+            <CardTitle>Недавние заказы</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-slate-600">No recent orders to display</p>
+            <p className="text-sm text-slate-600">Нет недавних заказов для отображения</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Upcoming Tasks</CardTitle>
+            <CardTitle>Предстоящие задачи</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-slate-600">No upcoming tasks</p>
+            <p className="text-sm text-slate-600">Нет предстоящих задач</p>
           </CardContent>
         </Card>
       </div>

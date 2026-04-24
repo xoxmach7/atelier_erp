@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useOrder } from "@/hooks/useOrders";
-import type { OrderDetailDTO, OrderItemDTO } from "@/types";
+import type { OrderDetailDTO, OrderItemDTO, MeasurementDTO, PaymentDTO, TaskStatus } from "@/types";
 import {
   ArrowLeft,
   Edit,
@@ -26,6 +26,9 @@ import {
   Ruler,
   ExternalLink,
   ArrowUpRight,
+  Plus,
+  CheckCircle,
+  Clock,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -223,29 +226,29 @@ function OrderNotes({ notes }: { notes: string | null }) {
 
 /**
  * Order Quick Actions - CTA cards for related modules
- * These are contextual navigation links that help users move between modules
+ * Contextual navigation with order prefill where supported
  */
-function OrderQuickActions({ orderId }: { orderId: string }) {
+function OrderQuickActions({ orderId, customerId }: { orderId: string; customerId: string }) {
   const actions = [
     {
       title: "Estimate",
-      description: "Calculate fabric costs",
+      description: "Create quote for customer",
       icon: Calculator,
-      href: "/estimate",
+      href: `/estimate?customer=${customerId}`,
       variant: "default" as const,
     },
     {
       title: "Measurements",
-      description: "View or record measurements",
+      description: "View or add measurements",
       icon: Ruler,
-      href: "/measurements",
+      href: `/measurements?order=${orderId}`,
       variant: "outline" as const,
     },
     {
       title: "Payments",
-      description: "Record and track payments",
+      description: "Record payment",
       icon: CreditCard,
-      href: "/payments",
+      href: `/payments?order=${orderId}`,
       variant: "outline" as const,
     },
   ];
@@ -286,7 +289,7 @@ function OrderQuickActions({ orderId }: { orderId: string }) {
         <div className="mt-3 text-xs text-slate-500">
           <span className="inline-flex items-center gap-1">
             <ExternalLink className="h-3 w-3" />
-            Links open in separate workflows (not yet linked to this order)
+            Prefills context where supported
           </span>
         </div>
       </CardContent>
@@ -299,6 +302,201 @@ function OrderMetadata({ order }: { order: OrderDetailDTO }) {
     <div className="text-xs text-slate-400 mt-4">
       Created: {formatDateTime(order.created_at)} • Updated: {formatDateTime(order.updated_at)}
     </div>
+  );
+}
+
+/**
+ * Measurements Section - Shows related measurements for this order
+ */
+function MeasurementsSection({ orderId, measurements }: { orderId: string; measurements: MeasurementDTO[] }) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Ruler className="h-4 w-4" />
+            Measurements
+            {measurements.length > 0 && (
+              <span className="text-sm font-normal text-slate-500">({measurements.length})</span>
+            )}
+          </CardTitle>
+          <Button variant="ghost" size="sm" asChild>
+            <Link href={`/measurements?order=${orderId}`}>
+              <Plus className="h-4 w-4 mr-1" />
+              Add
+            </Link>
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {measurements.length === 0 ? (
+          <div className="text-sm text-slate-500">
+            No measurements recorded.
+            <Link href={`/measurements?order=${orderId}`} className="ml-2 text-blue-600 hover:underline">
+              Create measurement
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {measurements.slice(0, 3).map((m) => (
+              <div key={m.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                <div>
+                  <div className="font-medium">{m.room_name}</div>
+                  <div className="text-xs text-slate-500">
+                    {m.width_cm}×{m.height_cm} cm • {m.mounting_type || "No mounting"}
+                  </div>
+                </div>
+                <div className="text-xs text-slate-400">
+                  {formatDate(m.measured_at)}
+                </div>
+              </div>
+            ))}
+            {measurements.length > 3 && (
+              <Link 
+                href={`/measurements?order=${orderId}`}
+                className="text-sm text-blue-600 hover:underline block pt-2"
+              >
+                View all {measurements.length} measurements →
+              </Link>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Payments Section - Shows related payments for this order
+ */
+function PaymentsSection({ orderId, payments, totalPaid, balanceDue }: { 
+  orderId: string; 
+  payments: PaymentDTO[];
+  totalPaid: string;
+  balanceDue: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            Payments
+            {payments.length > 0 && (
+              <span className="text-sm font-normal text-slate-500">({payments.length})</span>
+            )}
+          </CardTitle>
+          <Button variant="ghost" size="sm" asChild>
+            <Link href={`/payments?order=${orderId}`}>
+              <Plus className="h-4 w-4 mr-1" />
+              Add
+            </Link>
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Payment Summary */}
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <div className="text-slate-500">Total Paid</div>
+            <div className="font-semibold text-green-600">{formatCurrency(totalPaid)}</div>
+          </div>
+          <div>
+            <div className="text-slate-500">Balance Due</div>
+            <div className={`font-semibold ${parseFloat(balanceDue) > 0 ? "text-amber-600" : "text-green-600"}`}>
+              {formatCurrency(balanceDue)}
+            </div>
+          </div>
+        </div>
+        
+        {/* Recent Payments */}
+        {payments.length > 0 && (
+          <>
+            <Separator />
+            <div className="space-y-2">
+              {payments.slice(0, 2).map((p) => (
+                <div key={p.id} className="flex items-center justify-between py-1">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span className="text-sm">{p.payment_type}</span>
+                  </div>
+                  <div className="font-medium">{formatCurrency(p.amount)}</div>
+                </div>
+              ))}
+              {payments.length > 2 && (
+                <Link 
+                  href={`/payments?order=${orderId}`}
+                  className="text-sm text-blue-600 hover:underline block pt-1"
+                >
+                  View all {payments.length} payments →
+                </Link>
+              )}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Source Task Section - Shows originating task if converted from task
+ */
+function SourceTaskSection({ sourceTask }: { sourceTask: { id: string; task_number: string; client_name: string; status: string } | null }) {
+  if (!sourceTask) return null;
+
+  return (
+    <Card className="bg-slate-50">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Clock className="h-4 w-4" />
+          Source Task
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-medium">{sourceTask.task_number}</div>
+            <div className="text-sm text-slate-500">{sourceTask.client_name}</div>
+          </div>
+          <StatusBadge status={sourceTask.status as TaskStatus} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Related Quotes Section - Honest limitation: quotes are linked to customer/task, not order
+ */
+function RelatedQuotesSection({ order }: { order: OrderDetailDTO }) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Calculator className="h-4 w-4" />
+          Quotes / Estimates
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="text-sm text-slate-600">
+          Quotes are linked to the customer and source task, not directly to orders.
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" asChild className="flex-1">
+            <Link href="/estimate">
+              <Calculator className="h-4 w-4 mr-2" />
+              Open Estimate
+            </Link>
+          </Button>
+        </div>
+        {order.source_task && (
+          <div className="text-xs text-slate-500">
+            Task {order.source_task.task_number} may have related quotes.
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -408,8 +606,16 @@ export default function OrderDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - Main info */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Quick Actions - contextual navigation */}
-          <OrderQuickActions orderId={order.id} />
+          {/* Workflow hub - contextual navigation */}
+          <OrderQuickActions orderId={order.id} customerId={order.customer} />
+          
+          {/* Related Measurements */}
+          <MeasurementsSection 
+            orderId={order.id} 
+            measurements={order.measurements || []} 
+          />
+          
+          {/* Order Items */}
           <OrderItems items={order.items} />
           <OrderNotes notes={order.notes} />
           <OrderMetadata order={order} />
@@ -417,10 +623,24 @@ export default function OrderDetailPage() {
 
         {/* Right column - Sidebar info */}
         <div className="space-y-6">
+          {/* Source Task (if converted from task) */}
+          <SourceTaskSection sourceTask={order.source_task} />
+          
+          {/* Related Payments */}
+          <PaymentsSection 
+            orderId={order.id}
+            payments={order.payments || []}
+            totalPaid={order.paid_amount}
+            balanceDue={order.balance_due}
+          />
+          
           <CustomerInfo order={order} />
           <FinancialSummary order={order} />
           <OrderDates order={order} />
           <InstallationAddress order={order} />
+          
+          {/* Related Quotes - honest limitation */}
+          <RelatedQuotesSection order={order} />
         </div>
       </div>
     </>

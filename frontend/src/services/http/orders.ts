@@ -3,7 +3,7 @@
  * Handles all HTTP operations for orders
  */
 
-import { get } from "./client";
+import { get, post } from "./client";
 import type { OrderListItemDTO, OrderDetailDTO } from "@/types";
 
 interface OrdersListResponse {
@@ -34,4 +34,24 @@ export async function fetchOrders(filters?: OrdersFilter): Promise<OrdersListRes
  */
 export async function fetchOrderById(id: string): Promise<OrderDetailDTO> {
   return get<OrderDetailDTO>(`/v1/orders/${id}/`);
+}
+
+/**
+ * Order creation payload
+ */
+export interface OrderCreateDTO {
+  customer: string;
+  priority?: "low" | "normal" | "high" | "urgent";
+  deadline_date?: string | null;
+  description?: string;
+  total_amount?: string;
+  pickup_address?: string;
+  delivery_address?: string;
+}
+
+/**
+ * Create new order
+ */
+export async function createOrder(data: OrderCreateDTO): Promise<OrderDetailDTO> {
+  return post<OrderDetailDTO>("/v1/orders/", data);
 }

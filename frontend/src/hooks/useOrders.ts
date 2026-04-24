@@ -2,8 +2,8 @@
  * Orders TanStack Query Hooks
  */
 
-import { useQuery } from "@tanstack/react-query";
-import { fetchOrders, fetchOrderById } from "@/services/http/orders";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchOrders, fetchOrderById, createOrder, type OrderCreateDTO } from "@/services/http/orders";
 import type { OrderListItemDTO, OrderDetailDTO } from "@/types";
 
 interface OrdersListResponse {
@@ -50,5 +50,22 @@ export function useOrder(orderId: string | null) {
     queryFn: () => fetchOrderById(orderId!),
     enabled: !!orderId, // Only fetch if orderId is provided
     staleTime: 60 * 1000, // 1 minute
+  });
+}
+
+/**
+ * Hook for creating a new order
+ */
+export function useCreateOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation<OrderDetailDTO, Error, OrderCreateDTO>({
+    mutationFn: createOrder,
+    onSuccess: (data) => {
+      // Invalidate orders list to show new order
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY] });
+      // Pre-populate cache with new order details
+      queryClient.setQueryData([ORDERS_QUERY_KEY, "detail", data.id], data);
+    },
   });
 }

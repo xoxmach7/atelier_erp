@@ -1,19 +1,38 @@
 /**
  * Base HTTP Client for Atelier ERP API
- * Handles request/response logic and error handling
+ * Handles request/response logic, error handling, and automatic token refresh
  */
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
 
 const STORAGE_KEYS = {
   accessToken: "atelier_access_token",
+  refreshToken: "atelier_refresh_token",
+  user: "atelier_user",
 } as const;
+
+/**
+ * Token refresh state management
+ * Prevents multiple simultaneous refresh requests
+ */
+let isRefreshing = false;
+let refreshPromise: Promise<string> | null = null;
+
+/**
+ * Callback to notify AuthContext of token update
+ * Set by AuthProvider on initialization
+ */
+let onTokenRefreshed: ((token: string) => void) | null = null;
+
+export function setTokenRefreshCallback(callback: (token: string) => void): void {
+  onTokenRefreshed = callback;
+}
 
 /**
  * Get the stored access token from localStorage
  * Note: This runs on client-side only
  */
-function getAuthToken(): string | null {
+function getAccessToken(): string | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -21,10 +40,103 @@ function getAuthToken(): string | null {
 }
 
 /**
+ * Get the stored refresh token from localStorage
+ */
+function getRefreshToken(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return localStorage.getItem(STORAGE_KEYS.refreshToken);
+}
+
+/**
+ * Update access token in localStorage and notify AuthContext
+ */
+function setAccessToken(token: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  localStorage.setItem(STORAGE_KEYS.accessToken, token);
+  onTokenRefreshed?.(token);
+}
+
+/**
+ * Clear all auth storage and redirect to login
+ */
+function clearAuthStorage(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  localStorage.removeItem(STORAGE_KEYS.accessToken);
+  localStorage.removeItem(STORAGE_KEYS.refreshToken);
+  localStorage.removeItem(STORAGE_KEYS.user);
+}
+
+/**
+ * Perform token refresh request
+ * Returns new access token or throws error
+ */
+async function refreshAccessToken(): Promise<string> {
+  const refreshToken = getRefreshToken();
+
+  if (!refreshToken) {
+    throw new ApiClientError("No refresh token available", 401);
+  }
+
+  const response = await fetch(`${API_BASE_URL}/auth/token/refresh/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ refresh: refreshToken }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new ApiClientError(
+      errorData.detail || "Token refresh failed",
+      response.status,
+      errorData
+    );
+  }
+
+  const data = await response.json();
+  const newAccessToken = data.access;
+
+  if (!newAccessToken) {
+    throw new ApiClientError("Invalid token response", 500);
+  }
+
+  setAccessToken(newAccessToken);
+  return newAccessToken;
+}
+
+/**
+ * Execute token refresh with lock to prevent concurrent requests
+ */
+async function executeTokenRefresh(): Promise<string> {
+  // If already refreshing, wait for that promise
+  if (isRefreshing && refreshPromise) {
+    return refreshPromise;
+  }
+
+  isRefreshing = true;
+  refreshPromise = refreshAccessToken();
+
+  try {
+    const token = await refreshPromise;
+    return token;
+  } finally {
+    isRefreshing = false;
+    refreshPromise = null;
+  }
+}
+
+/**
  * Build headers with optional auth token
  */
-function buildHeaders(customHeaders?: HeadersInit): HeadersInit {
-  const token = getAuthToken();
+function buildHeaders(customHeaders?: HeadersInit, accessToken?: string | null): HeadersInit {
+  const token = accessToken ?? getAccessToken();
   const headers: HeadersInit = {
     "Content-Type": "application/json",
     ...customHeaders,
@@ -127,67 +239,111 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+/**
+ * Check if response is 401 Unauthorized due to expired token
+ * (not due to missing token or invalid credentials)
+ */
+function isTokenExpiredResponse(response: Response): boolean {
+  return response.status === 401 && getAccessToken() !== null;
+}
+
+/**
+ * Handle token refresh failure by clearing auth and redirecting
+ */
+function handleRefreshFailure(): void {
+  clearAuthStorage();
+  // Trigger auth context logout via redirect
+  // AuthContext will detect missing tokens on next state check
+  window.location.href = "/login";
+}
+
+/**
+ * Execute HTTP request with automatic token refresh on 401
+ * Retries the request once after successful refresh
+ */
+async function executeRequestWithRefresh<T>(
+  requestFn: (accessToken?: string | null) => Promise<Response>
+): Promise<T> {
+  const accessToken = getAccessToken();
+  let response = await requestFn(accessToken);
+
+  // If 401 and we had a token, try to refresh
+  if (isTokenExpiredResponse(response)) {
+    try {
+      const newToken = await executeTokenRefresh();
+      // Retry the original request with new token
+      response = await requestFn(newToken);
+    } catch (refreshError) {
+      // Refresh failed - clear auth and redirect
+      handleRefreshFailure();
+      throw refreshError;
+    }
+  }
+
+  return handleResponse<T>(response);
+}
+
 export async function get<T>(endpoint: string, config?: RequestConfig): Promise<T> {
   const url = buildUrl(endpoint, config?.params);
 
-  const response = await fetch(url, {
-    method: "GET",
-    headers: buildHeaders(config?.headers),
-    ...config,
-  });
-
-  return handleResponse<T>(response);
+  return executeRequestWithRefresh<T>((accessToken) =>
+    fetch(url, {
+      method: "GET",
+      headers: buildHeaders(config?.headers, accessToken),
+      ...config,
+    })
+  );
 }
 
 export async function post<T>(endpoint: string, data: unknown, config?: RequestConfig): Promise<T> {
   const url = buildUrl(endpoint);
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: buildHeaders(config?.headers),
-    body: JSON.stringify(data),
-    ...config,
-  });
-
-  return handleResponse<T>(response);
+  return executeRequestWithRefresh<T>((accessToken) =>
+    fetch(url, {
+      method: "POST",
+      headers: buildHeaders(config?.headers, accessToken),
+      body: JSON.stringify(data),
+      ...config,
+    })
+  );
 }
 
 export async function put<T>(endpoint: string, data: unknown, config?: RequestConfig): Promise<T> {
   const url = buildUrl(endpoint);
 
-  const response = await fetch(url, {
-    method: "PUT",
-    headers: buildHeaders(config?.headers),
-    body: JSON.stringify(data),
-    ...config,
-  });
-
-  return handleResponse<T>(response);
+  return executeRequestWithRefresh<T>((accessToken) =>
+    fetch(url, {
+      method: "PUT",
+      headers: buildHeaders(config?.headers, accessToken),
+      body: JSON.stringify(data),
+      ...config,
+    })
+  );
 }
 
 export async function patch<T>(endpoint: string, data: unknown, config?: RequestConfig): Promise<T> {
   const url = buildUrl(endpoint);
 
-  const response = await fetch(url, {
-    method: "PATCH",
-    headers: buildHeaders(config?.headers),
-    body: JSON.stringify(data),
-    ...config,
-  });
-
-  return handleResponse<T>(response);
+  return executeRequestWithRefresh<T>((accessToken) =>
+    fetch(url, {
+      method: "PATCH",
+      headers: buildHeaders(config?.headers, accessToken),
+      body: JSON.stringify(data),
+      ...config,
+    })
+  );
 }
 
 export async function del<T>(endpoint: string, config?: RequestConfig): Promise<T> {
   const url = buildUrl(endpoint);
 
-  const response = await fetch(url, {
-    method: "DELETE",
-    headers: buildHeaders(config?.headers),
-    ...config,
-  });
-
-  return handleResponse<T>(response);
+  return executeRequestWithRefresh<T>((accessToken) =>
+    fetch(url, {
+      method: "DELETE",
+      headers: buildHeaders(config?.headers, accessToken),
+      ...config,
+    })
+  );
 }
 
 export { ApiClientError, API_BASE_URL };
