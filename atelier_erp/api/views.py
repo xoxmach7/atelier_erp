@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 
 from ..models import (
     Customer, Fabric, Cornice, Service, Order, OrderItem,
-    Task, Quote, ProductionAssignment, Payment, ActivityLog
+    Task, Quote, QuoteItem, ProductionAssignment, Payment, ActivityLog, Measurement
 )
 from ..services import (
     OrderService, InventoryService, ProductionService,
@@ -31,11 +31,13 @@ from .serializers import (
     CorniceSerializer, ServiceSerializer,
     OrderSerializer, OrderListSerializer, OrderCreateSerializer,
     TaskSerializer, TaskListSerializer,
-    QuoteListSerializer,
+    QuoteListSerializer, QuoteSerializer, QuoteCreateSerializer,
+    QuoteItemSerializer, QuoteItemCreateSerializer,
     ProductionAssignmentSerializer,
     PaymentSerializer,
     DashboardSummarySerializer, InventoryAvailabilitySerializer,
-    ActivityLogSerializer
+    ActivityLogSerializer,
+    MeasurementSerializer, MeasurementListSerializer
 )
 from .permissions import IsManagerOrAdmin, IsWorkerOrManagerOrAdmin
 
@@ -97,11 +99,19 @@ class ServiceViewSet(viewsets.ReadOnlyModelViewSet):
 
 class OrderViewSet(viewsets.ModelViewSet):
     """Order management API with lifecycle actions"""
-    queryset = Order.objects.all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'customer']
     search_fields = ['order_number', 'customer__full_name', 'customer__phone']
     ordering_fields = ['created_at', 'planned_completion', 'total_amount']
+    
+    def get_queryset(self):
+        """Optimize with prefetch_related for detail view"""
+        queryset = Order.objects.all()
+        if self.action == 'retrieve':
+            queryset = queryset.prefetch_related(
+                'items', 'measurements', 'payments', 'source_task'
+            )
+        return queryset
     
     def get_serializer_class(self):
         if self.action == 'list':
@@ -282,12 +292,62 @@ class TaskViewSet(viewsets.ModelViewSet):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class QuoteViewSet(viewsets.ReadOnlyModelViewSet):
-    """Quotes API (read-only)"""
-    queryset = Quote.objects.all()
-    serializer_class = QuoteListSerializer
+class QuoteViewSet(viewsets.ModelViewSet):
+    """Quotes API - full CRUD with nested items support
+
+    NOTE: Uses legacy /api/quotes/ endpoint (DRF ViewSet).
+    Not part of /api/v1/ service-layer architecture.
+    """
+    queryset = Quote.objects.all().prefetch_related('items')
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'customer', 'task']
+    search_fields = ['quote_number', 'task__client_name']
+    ordering_fields = ['created_at', 'valid_until', 'total']
+    ordering = ['-created_at']
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return QuoteListSerializer
+        if self.action == 'create':
+            return QuoteCreateSerializer
+        return QuoteSerializer
+
+    def perform_create(self, serializer):
+        """Set created_by to current user"""
+        serializer.save(created_by=self.request.user, updated_by=self.request.user)
+
+    def perform_update(self, serializer):
+        """Set updated_by to current user"""
+        serializer.save(updated_by=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def add_item(self, request, pk=None):
+        """Add item to quote"""
+        quote = self.get_object()
+        serializer = QuoteItemCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            item = QuoteItem.objects.create(quote=quote, **serializer.validated_data)
+            return Response(QuoteItemSerializer(item).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class QuoteItemViewSet(viewsets.ModelViewSet):
+    """Quote items API - manage individual line items
+
+    NOTE: Uses legacy /api/quote-items/ endpoint.
+    Items can also be managed via quote.add_item action.
+    """
+    queryset = QuoteItem.objects.all()
+    serializer_class = QuoteItemSerializer
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['status']
+    filterset_fields = ['quote', 'room_name', 'fabric']
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return QuoteItemCreateSerializer
+        return QuoteItemSerializer
 
 
 class ProductionAssignmentViewSet(viewsets.ModelViewSet):
@@ -432,6 +492,26 @@ class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ['entity_type', 'action', 'performed_by']
     ordering_fields = ['created_at']
     ordering = ['-created_at']
+
+
+class MeasurementViewSet(viewsets.ModelViewSet):
+    """Measurement API for window measurements linked to orders"""
+    queryset = Measurement.objects.all()
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['order', 'room_name', 'mounting_type', 'measured_by']
+    search_fields = ['room_name', 'window_name', 'notes']
+    ordering_fields = ['measured_at', 'room_name', 'width_cm', 'height_cm']
+    ordering = ['-measured_at']
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return MeasurementListSerializer
+        return MeasurementSerializer
+
+    def perform_create(self, serializer):
+        """Set measured_by to current user on creation"""
+        serializer.save(measured_by=self.request.user)
 
 
 # ============================================

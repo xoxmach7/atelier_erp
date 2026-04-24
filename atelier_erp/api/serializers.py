@@ -7,7 +7,7 @@ from decimal import Decimal
 from rest_framework import serializers
 from ..models import (
     Customer, Fabric, Cornice, Service, Order, OrderItem,
-    Task, Quote, ProductionAssignment, Payment, ActivityLog
+    Task, Quote, QuoteItem, ProductionAssignment, Payment, ActivityLog, Measurement
 )
 
 
@@ -130,16 +130,21 @@ class OrderListSerializer(serializers.ModelSerializer):
 
 
 class OrderSerializer(serializers.ModelSerializer):
-    """Full order serializer"""
+    """Full order serializer with related workflow data"""
     customer_details = CustomerListSerializer(source='customer', read_only=True)
     items = OrderItemSerializer(many=True, read_only=True)
     balance_due = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    
+    # Related workflow data
+    measurements = serializers.SerializerMethodField()
+    payments = serializers.SerializerMethodField()
+    source_task = serializers.SerializerMethodField()
     
     class Meta:
         model = Order
         fields = [
             'id', 'order_number', 'customer', 'customer_details',
-            'status', 'items',
+            'status', 'items', 'measurements', 'payments', 'source_task',
             'installation_address_city', 'installation_address_street',
             'installation_address_building', 'installation_address_apartment',
             'installation_address_notes',
@@ -153,6 +158,43 @@ class OrderSerializer(serializers.ModelSerializer):
             'actual_completion', 'created_at', 'updated_at',
             'created_by', 'updated_by'
         ]
+    
+    def get_measurements(self, obj):
+        """Get measurements for this order"""
+        measurements = obj.measurements.all()
+        if measurements:
+            from .serializers import MeasurementListSerializer
+            return MeasurementListSerializer(measurements, many=True).data
+        return []
+    
+    def get_measurements(self, obj):
+        """Get measurements for this order"""
+        measurements = obj.measurements.all()
+        if measurements:
+            # Lazy import to avoid circular dependency
+            return MeasurementListSerializer(measurements, many=True).data
+        return []
+    
+    def get_payments(self, obj):
+        """Get payments for this order"""
+        payments = obj.payments.all()
+        if payments:
+            # Lazy import to avoid circular dependency
+            return PaymentSerializer(payments, many=True).data
+        return []
+    
+    def get_source_task(self, obj):
+        """Get source task if order was converted from task"""
+        task = getattr(obj, 'source_task', None)
+        if task and task.first():
+            t = task.first()
+            return {
+                'id': str(t.id),
+                'task_number': t.task_number,
+                'client_name': t.client_name,
+                'status': t.status
+            }
+        return None
 
 
 class OrderCreateSerializer(serializers.ModelSerializer):
@@ -200,16 +242,91 @@ class TaskSerializer(serializers.ModelSerializer):
         ]
 
 
+class QuoteItemSerializer(serializers.ModelSerializer):
+    """Quote item serializer"""
+    fabric_details = FabricListSerializer(source='fabric', read_only=True)
+    cornice_details = CorniceSerializer(source='cornice', read_only=True)
+
+    class Meta:
+        model = QuoteItem
+        fields = [
+            'id', 'quote', 'room_name',
+            'window_width_cm', 'window_height_cm', 'folds_count',
+            'fabric', 'fabric_details', 'fabric_meters', 'fabric_cost',
+            'sewing_type', 'complexity', 'sewing_cost',
+            'accessories_cost',
+            'cornice', 'cornice_details', 'cornice_cost',
+            'line_total', 'created_at'
+        ]
+        read_only_fields = ['line_total', 'created_at']
+
+
+class QuoteItemCreateSerializer(serializers.ModelSerializer):
+    """Quote item create/update serializer"""
+    class Meta:
+        model = QuoteItem
+        fields = [
+            'id', 'room_name',
+            'window_width_cm', 'window_height_cm', 'folds_count',
+            'fabric', 'fabric_meters', 'fabric_cost',
+            'sewing_type', 'complexity', 'sewing_cost',
+            'accessories_cost',
+            'cornice', 'cornice_cost'
+        ]
+
+
 class QuoteListSerializer(serializers.ModelSerializer):
     """Quote list serializer"""
     customer_name = serializers.CharField(source='task.client_name', read_only=True)
-    
+    task_number = serializers.CharField(source='task.task_number', read_only=True)
+
     class Meta:
         model = Quote
         fields = [
-            'id', 'quote_number', 'customer_name',
-            'total_amount', 'status', 'valid_until', 'created_at'
+            'id', 'quote_number', 'customer_name', 'task_number',
+            'total', 'status', 'valid_until', 'created_at'
         ]
+
+
+class QuoteSerializer(serializers.ModelSerializer):
+    """Full quote serializer with items"""
+    items = QuoteItemSerializer(many=True, read_only=True)
+    customer_name = serializers.CharField(source='task.client_name', read_only=True)
+    task_number = serializers.CharField(source='task.task_number', read_only=True)
+
+    class Meta:
+        model = Quote
+        fields = [
+            'id', 'quote_number', 'task', 'task_number', 'customer', 'customer_name',
+            'status', 'subtotal', 'discount_amount', 'installation_cost',
+            'delivery_cost', 'total', 'prepayment_percent', 'valid_until',
+            'pdf_generated', 'pdf_url', 'items',
+            'created_at', 'updated_at', 'created_by', 'updated_by'
+        ]
+        read_only_fields = [
+            'quote_number', 'total', 'pdf_generated', 'pdf_url',
+            'created_at', 'updated_at', 'created_by', 'updated_by'
+        ]
+
+
+class QuoteCreateSerializer(serializers.ModelSerializer):
+    """Quote create serializer"""
+    items = QuoteItemCreateSerializer(many=True, required=False)
+
+    class Meta:
+        model = Quote
+        fields = [
+            'task', 'customer', 'status', 'valid_until',
+            'subtotal', 'discount_amount', 'installation_cost', 'delivery_cost',
+            'prepayment_percent', 'items'
+        ]
+
+    def create(self, validated_data):
+        items_data = validated_data.pop('items', [])
+        quote = Quote.objects.create(**validated_data)
+        for item_data in items_data:
+            QuoteItem.objects.create(quote=quote, **item_data)
+        return quote
 
 
 class ProductionAssignmentSerializer(serializers.ModelSerializer):
@@ -273,4 +390,35 @@ class ActivityLogSerializer(serializers.ModelSerializer):
             'id', 'entity_type', 'entity_id', 'entity_repr',
             'action', 'old_values', 'new_values',
             'performed_by_name', 'created_at'
+        ]
+
+
+class MeasurementSerializer(serializers.ModelSerializer):
+    """Measurement serializer for CRUD operations"""
+    selected_fabric_details = FabricListSerializer(source='selected_fabric', read_only=True)
+    measured_by_name = serializers.CharField(source='measured_by.get_full_name', read_only=True, allow_null=True)
+
+    class Meta:
+        model = Measurement
+        fields = [
+            'id', 'order', 'room_name', 'window_name',
+            'width_cm', 'height_cm', 'depth_cm', 'ceiling_height_cm',
+            'mounting_type', 'window_type', 'has_radiator', 'has_slope',
+            'obstacles', 'selected_fabric', 'selected_fabric_details',
+            'selected_cornice_type', 'notes',
+            'measured_by', 'measured_by_name', 'measured_at'
+        ]
+        read_only_fields = ['measured_at']
+
+
+class MeasurementListSerializer(serializers.ModelSerializer):
+    """Minimal measurement serializer for list views"""
+    selected_fabric_hanger = serializers.CharField(source='selected_fabric.hanger_number', read_only=True, allow_null=True)
+
+    class Meta:
+        model = Measurement
+        fields = [
+            'id', 'order', 'room_name', 'window_name',
+            'width_cm', 'height_cm', 'mounting_type',
+            'selected_fabric_hanger', 'measured_at'
         ]

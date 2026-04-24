@@ -23,6 +23,12 @@ router.register(r'services', views.ServiceViewSet, basename='service')
 router.register(r'production-assignments', views.ProductionAssignmentViewSet, basename='production')
 router.register(r'payments', views.PaymentViewSet, basename='payment')
 
+# Measurements
+router.register(r'measurements', views.MeasurementViewSet, basename='measurement')
+
+# Quote items endpoint (QuoteViewSet already registered above)
+router.register(r'quote-items', views.QuoteItemViewSet, basename='quoteitem')
+
 # Audit
 router.register(r'activity-logs', views.ActivityLogViewSet, basename='activity')
 
