@@ -37,7 +37,7 @@ import {
 const STATUS_LABELS: Record<string, string> = {
   draft: "Черновик",
   sent: "Отправлено",
-  accepted: "Принято",
+  approved: "Принято",
   rejected: "Отклонено",
   expired: "Просрочено",
 };
@@ -45,7 +45,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-slate-100 text-slate-700",
   sent: "bg-blue-100 text-blue-700",
-  accepted: "bg-green-100 text-green-700",
+  approved: "bg-green-100 text-green-700",
   rejected: "bg-red-100 text-red-700",
   expired: "bg-amber-100 text-amber-700",
 };
@@ -77,12 +77,12 @@ export default function QuotesPage() {
 function QuotesContent() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [customerFilter, setCustomerFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("__all__");
+  const [customerFilter, setCustomerFilter] = useState<string>("__all__");
 
   const { data: quotesData, isLoading, isError, error } = useQuotes({
-    status: statusFilter || undefined,
-    customer: customerFilter || undefined,
+    status: statusFilter !== "__all__" ? statusFilter : undefined,
+    customer: customerFilter !== "__all__" ? customerFilter : undefined,
     search: searchQuery || undefined,
     pageSize: 50,
   });
@@ -155,10 +155,10 @@ function QuotesContent() {
                 <SelectValue placeholder="Все статусы" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Все статусы</SelectItem>
+                <SelectItem value="__all__">Все статусы</SelectItem>
                 <SelectItem value="draft">Черновик</SelectItem>
                 <SelectItem value="sent">Отправлено</SelectItem>
-                <SelectItem value="accepted">Принято</SelectItem>
+                <SelectItem value="approved">Принято</SelectItem>
                 <SelectItem value="rejected">Отклонено</SelectItem>
                 <SelectItem value="expired">Просрочено</SelectItem>
               </SelectContent>
@@ -168,7 +168,7 @@ function QuotesContent() {
                 <SelectValue placeholder="Все клиенты" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Все клиенты</SelectItem>
+                <SelectItem value="__all__">Все клиенты</SelectItem>
                 {customers.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.full_name}
@@ -176,13 +176,13 @@ function QuotesContent() {
                 ))}
               </SelectContent>
             </Select>
-            {(statusFilter || customerFilter || searchQuery) && (
+            {(statusFilter !== "__all__" || customerFilter !== "__all__" || searchQuery) && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setStatusFilter("");
-                  setCustomerFilter("");
+                  setStatusFilter("__all__");
+                  setCustomerFilter("__all__");
                   setSearchQuery("");
                 }}
               >

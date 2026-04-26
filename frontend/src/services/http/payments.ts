@@ -21,11 +21,13 @@ interface PaymentsFilter extends Record<string, string | number | boolean | unde
   page_size?: number;
 }
 
+const PAYMENTS_ENDPOINT = "/payments";
+
 /**
  * Fetch paginated list of payments
  */
 export async function fetchPayments(filters?: PaymentsFilter): Promise<PaymentsListResponse> {
-  return get<PaymentsListResponse>("/v1/payments/", {
+  return get<PaymentsListResponse>(PAYMENTS_ENDPOINT, {
     params: filters,
   });
 }
@@ -34,5 +36,5 @@ export async function fetchPayments(filters?: PaymentsFilter): Promise<PaymentsL
  * Fetch single payment by ID
  */
 export async function fetchPaymentById(id: string): Promise<PaymentDTO> {
-  return get<PaymentDTO>(`/v1/payments/${id}/`);
+  return get<PaymentDTO>(`${PAYMENTS_ENDPOINT}/${id}/`);
 }

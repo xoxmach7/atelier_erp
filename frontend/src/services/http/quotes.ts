@@ -7,10 +7,10 @@
  */
 
 import { get, post, patch, del } from "./client";
-import type { QuoteDTO, QuoteListResponse, QuoteItemDTO, QuoteStatus } from "@/types";
+import type { QuoteDTO, QuoteListResponse, QuoteItemDTO, QuoteStatus, OrderDetailDTO } from "@/types";
 import type { CreateQuoteInput } from "@/hooks/useQuotes";
 
-const QUOTES_ENDPOINT = "/quotes";
+const QUOTES_ENDPOINT = "/quotes/";
 const QUOTE_ITEMS_ENDPOINT = "/quote-items";
 
 interface FetchQuotesOptions extends Record<string, string | number | undefined> {
@@ -36,7 +36,7 @@ export async function fetchQuotes(
  * Fetch single quote by ID
  */
 export async function fetchQuoteById(quoteId: string): Promise<QuoteDTO> {
-  return get<QuoteDTO>(`${QUOTES_ENDPOINT}/${quoteId}/`);
+  return get<QuoteDTO>(`${QUOTES_ENDPOINT}${quoteId}/`);
 }
 
 /**
@@ -53,14 +53,14 @@ export async function updateQuote(
   quoteId: string,
   data: Partial<Omit<QuoteDTO, "id" | "quote_number" | "total" | "pdf_generated" | "pdf_url" | "created_at" | "updated_at" | "created_by" | "updated_by" | "items">>
 ): Promise<QuoteDTO> {
-  return patch<QuoteDTO>(`${QUOTES_ENDPOINT}/${quoteId}/`, data);
+  return patch<QuoteDTO>(`${QUOTES_ENDPOINT}${quoteId}/`, data);
 }
 
 /**
  * Delete quote
  */
 export async function deleteQuote(quoteId: string): Promise<void> {
-  return del<void>(`${QUOTES_ENDPOINT}/${quoteId}/`);
+  return del<void>(`${QUOTES_ENDPOINT}${quoteId}/`);
 }
 
 // Quote Items API
@@ -122,4 +122,12 @@ export async function updateQuoteItem(
  */
 export async function deleteQuoteItem(itemId: string): Promise<void> {
   return del<void>(`${QUOTE_ITEMS_ENDPOINT}/${itemId}/`);
+}
+
+/**
+ * Convert quote to order
+ * POST /api/quotes/{quoteId}/convert_to_order/
+ */
+export async function convertQuoteToOrder(quoteId: string): Promise<OrderDetailDTO> {
+  return post<OrderDetailDTO>(`${QUOTES_ENDPOINT}${quoteId}/convert_to_order/`, {});
 }

@@ -152,7 +152,7 @@ function MeasurementsContent() {
       measured_by: null, // Set by backend
     });
 
-    setFormData(EMPTY_FORM);
+    setFormData({ ...EMPTY_FORM, order: formData.order });
     setIsCreateDialogOpen(false);
   };
 
@@ -228,7 +228,10 @@ function MeasurementsContent() {
               </Link>
             </Button>
           )}
-          <Button onClick={() => setIsCreateDialogOpen(true)}>
+          <Button onClick={() => {
+            setFormData({ ...EMPTY_FORM, order: orderId || "" });
+            setIsCreateDialogOpen(true);
+          }}>
             <Plus className="mr-2 h-4 w-4" />
             Новый замер
           </Button>
@@ -256,7 +259,10 @@ function MeasurementsContent() {
           icon={<Ruler className="h-6 w-6 text-slate-600" />}
           action={{
             label: "Создать первый замер",
-            onClick: () => setIsCreateDialogOpen(true),
+            onClick: () => {
+              setFormData({ ...EMPTY_FORM, order: orderId || "" });
+              setIsCreateDialogOpen(true);
+            },
           }}
         />
       ) : (

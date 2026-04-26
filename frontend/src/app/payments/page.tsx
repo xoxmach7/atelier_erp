@@ -34,6 +34,9 @@ function PaymentsContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("order");
 
+  // Check if orderId is valid (not a placeholder)
+  const isInvalidOrderId = orderId && (orderId === "[id]" || orderId === "%5Bid%5D" || orderId.includes("["));
+
   const { data, isLoading, isError, error } = usePayments({
     pageSize: 100,
     order: orderId || undefined,
@@ -112,16 +115,17 @@ function PaymentsContent() {
           : `${data?.count || 0} платежей записано`
         }
       >
-        {orderId ? (
+        {orderId && !isInvalidOrderId ? (
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" asChild>
               <Link href={`/orders/${orderId}`}>
                 К заказу
               </Link>
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => router.push("/payments")}>
-              Сбросить фильтр
-            </Button>
+          </div>
+        ) : isInvalidOrderId ? (
+          <div className="text-red-600 text-sm">
+            ⚠️ Некорректный ID заказа в URL
           </div>
         ) : (
           <Button disabled>

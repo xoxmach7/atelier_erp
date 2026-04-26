@@ -12,6 +12,7 @@ import {
   addQuoteItem,
   updateQuoteItem,
   deleteQuoteItem,
+  convertQuoteToOrder,
 } from "@/services/http/quotes";
 import type { QuoteDTO, QuoteListResponse, QuoteItemDTO } from "@/types";
 
@@ -65,7 +66,7 @@ export function useQuote(quoteId: string | null) {
  * Hook for creating a new quote
  */
 export interface CreateQuoteInput {
-  task: string;
+  task?: string;
   customer: string;
   status?: string;
   valid_until?: string | null;
@@ -195,6 +196,28 @@ export function useDeleteQuoteItem() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [QUOTES_QUERY_KEY, "detail", variables.quoteId] });
       queryClient.invalidateQueries({ queryKey: [QUOTES_QUERY_KEY] });
+    },
+  });
+}
+
+import type { OrderDetailDTO } from "@/types";
+const ORDERS_QUERY_KEY = "orders";
+
+/**
+ * Hook for converting quote to order
+ */
+export function useConvertQuoteToOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation<OrderDetailDTO, Error, { quoteId: string }>({
+    mutationFn: ({ quoteId }) => convertQuoteToOrder(quoteId),
+    onSuccess: (data, variables) => {
+      // Invalidate quotes to show updated converted_order
+      queryClient.invalidateQueries({ queryKey: [QUOTES_QUERY_KEY, "detail", variables.quoteId] });
+      queryClient.invalidateQueries({ queryKey: [QUOTES_QUERY_KEY] });
+      // Pre-populate order cache with created order
+      queryClient.setQueryData([ORDERS_QUERY_KEY, "detail", data.id], data);
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY] });
     },
   });
 }

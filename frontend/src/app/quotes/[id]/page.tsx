@@ -19,12 +19,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useQuote, useUpdateQuote, useDeleteQuote } from "@/hooks/useQuotes";
+import { useQuote, useUpdateQuote, useDeleteQuote, useConvertQuoteToOrder } from "@/hooks/useQuotes";
 import { useCustomers } from "@/hooks/useCustomers";
 import type { QuoteDTO, QuoteItemDTO, QuoteStatus } from "@/types";
 import {
   Calculator,
   ArrowLeft,
+  ArrowRight,
   Edit2,
   Save,
   X,
@@ -34,6 +35,7 @@ import {
   Package,
   Calendar,
   CheckCircle,
+  CheckCircle2,
   AlertCircle,
   Plus,
 } from "lucide-react";
@@ -41,7 +43,7 @@ import {
 const STATUS_LABELS: Record<string, string> = {
   draft: "Черновик",
   sent: "Отправлено",
-  accepted: "Принято",
+  approved: "Принято",
   rejected: "Отклонено",
   expired: "Просрочено",
 };
@@ -49,7 +51,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-slate-100 text-slate-700",
   sent: "bg-blue-100 text-blue-700",
-  accepted: "bg-green-100 text-green-700",
+  approved: "bg-green-100 text-green-700",
   rejected: "bg-red-100 text-red-700",
   expired: "bg-amber-100 text-amber-700",
 };
@@ -96,6 +98,7 @@ function QuoteDetailContent() {
   const { data: customersData } = useCustomers();
   const updateQuote = useUpdateQuote();
   const deleteQuote = useDeleteQuote();
+  const convertToOrder = useConvertQuoteToOrder();
 
   const customers = customersData?.results || [];
 
@@ -145,6 +148,38 @@ function QuoteDetailContent() {
     }
   };
 
+  const handleConvertToOrder = async () => {
+    if (!confirm("Создать заказ из этого КП?")) return;
+    try {
+      const order = await convertToOrder.mutateAsync({ quoteId });
+      // Redirect to the created order detail page
+      router.push(`/orders/${order.id}`);
+    } catch (err: any) {
+      // Check if it's a duplicate conversion error (409)
+      // ApiClientError stores status on err.status and data on err.data
+      const status = err?.status || err?.response?.status;
+      const data = err?.data || err?.response?.data;
+
+      if (status === 409 || data?.error?.includes('already converted')) {
+        const existingOrderId = data?.order_id;
+        if (existingOrderId) {
+          // Redirect without alert - clean UX
+          router.push(`/orders/${existingOrderId}`);
+        } else {
+          alert('Этот КП уже конвертирован в заказ.');
+        }
+      } else {
+        console.error("Failed to convert quote to order:", err);
+        alert(err?.message || "Не удалось создать заказ. Попробуйте позже.");
+      }
+    }
+  };
+
+  // Check if quote already has a linked order
+  const hasConvertedOrder = !!quote?.converted_order;
+  // Check if quote is approved (backend requires approved status for conversion)
+  const isApprovedQuote = quote?.status === "approved";
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -185,16 +220,39 @@ function QuoteDetailContent() {
                 <Edit2 className="mr-2 h-4 w-4" />
                 Редактировать
               </Button>
-              <Button
-                variant="default"
-                size="sm"
-                asChild
-              >
-                <Link href={`/orders/new?customer=${quote.customer}&source=quote&ref=${encodeURIComponent(quote.quote_number)}`}>
+              {hasConvertedOrder ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-green-600 border-green-600"
+                  asChild
+                >
+                  <Link href={`/orders/${quote.converted_order!.id}`}>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Заказ {quote.converted_order!.order_number}
+                  </Link>
+                </Button>
+              ) : !isApprovedQuote ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled
+                  title="КП должно быть в статусе 'Принято' для конвертации в заказ"
+                >
+                  <AlertCircle className="mr-2 h-4 w-4" />
+                  Требуется статус "Принято"
+                </Button>
+              ) : (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleConvertToOrder}
+                  disabled={convertToOrder.isPending}
+                >
                   <Plus className="mr-2 h-4 w-4" />
-                  Создать заказ
-                </Link>
-              </Button>
+                  {convertToOrder.isPending ? "Создание..." : "Создать заказ"}
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -244,7 +302,7 @@ function QuoteDetailContent() {
                       <SelectContent>
                         <SelectItem value="draft">Черновик</SelectItem>
                         <SelectItem value="sent">Отправлено</SelectItem>
-                        <SelectItem value="accepted">Принято</SelectItem>
+                        <SelectItem value="approved">Принято</SelectItem>
                         <SelectItem value="rejected">Отклонено</SelectItem>
                         <SelectItem value="expired">Просрочено</SelectItem>
                       </SelectContent>
@@ -415,6 +473,29 @@ function QuoteDetailContent() {
             </CardContent>
           </Card>
 
+          {/* Conversion Status */}
+          {hasConvertedOrder && (
+            <Card className="bg-green-50 border-green-200">
+              <CardContent className="pt-4">
+                <div className="flex items-start gap-2 text-sm text-green-800">
+                  <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium mb-1">КП конвертирован в заказ</p>
+                    <p className="text-xs">
+                      Этот КП был преобразован в заказ{" "}
+                      <Link
+                        href={`/orders/${quote.converted_order!.id}`}
+                        className="font-semibold underline hover:text-green-900"
+                      >
+                        {quote.converted_order!.order_number}
+                      </Link>
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Honest Limitation */}
           <Card className="bg-slate-50 border-slate-200">
             <CardContent className="pt-4">
@@ -423,7 +504,7 @@ function QuoteDetailContent() {
                 <div>
                   <p className="font-medium mb-1">Ограничения КП</p>
                   <ul className="space-y-1 text-xs">
-                    <li>• КП не связаны напрямую с заказами</li>
+                    <li>• Один КП → один заказ (дубликаты запрещены)</li>
                     <li>• Редактирование позиций требует создания новой сметы</li>
                     <li>• Статусы меняются только вручную</li>
                   </ul>

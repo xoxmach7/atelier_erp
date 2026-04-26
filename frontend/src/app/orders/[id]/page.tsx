@@ -29,6 +29,7 @@ import {
   Plus,
   CheckCircle,
   Clock,
+  FileSpreadsheet,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -79,21 +80,21 @@ function FinancialSummary({ order }: { order: OrderDetailDTO }) {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <CreditCard className="h-4 w-4" />
-          Financial Summary
+          Финансовая сводка
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex justify-between">
-          <span className="text-slate-600">Total Amount</span>
+          <span className="text-slate-600">Сумма</span>
           <span className="font-semibold">{formatCurrency(order.total_amount)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate-600">Paid Amount</span>
+          <span className="text-slate-600">Оплачено</span>
           <span className="font-medium text-green-600">{formatCurrency(order.paid_amount)}</span>
         </div>
         <Separator />
         <div className="flex justify-between">
-          <span className="text-slate-900 font-medium">Balance Due</span>
+          <span className="text-slate-900 font-medium">Остаток</span>
           <span className={`font-bold ${parseFloat(order.balance_due) > 0 ? "text-amber-600" : "text-green-600"}`}>
             {formatCurrency(order.balance_due)}
           </span>
@@ -104,19 +105,24 @@ function FinancialSummary({ order }: { order: OrderDetailDTO }) {
 }
 
 function CustomerInfo({ order }: { order: OrderDetailDTO }) {
+  // V1 API returns customer as nested object {id, full_name, phone} or string
+  const customerData = typeof order.customer === 'object' ? order.customer : null;
+  const customerName = customerData?.full_name || 'Неизвестный клиент';
+  const customerPhone = customerData?.phone || 'Нет телефона';
+
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <User className="h-4 w-4" />
-          Customer
+          Клиент
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        <div className="font-medium text-lg">{order.customer_details.full_name}</div>
+        <div className="font-medium text-lg">{customerName}</div>
         <div className="flex items-center gap-2 text-slate-600">
           <Phone className="h-4 w-4" />
-          {order.customer_details.phone}
+          {customerPhone}
         </div>
       </CardContent>
     </Card>
@@ -136,7 +142,7 @@ function InstallationAddress({ order }: { order: OrderDetailDTO }) {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <MapPin className="h-4 w-4" />
-          Installation Address
+          Адрес установки
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -157,24 +163,24 @@ function OrderDates({ order }: { order: OrderDetailDTO }) {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Calendar className="h-4 w-4" />
-          Dates
+          Даты
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
         <div className="flex justify-between">
-          <span className="text-slate-600">Measurement</span>
+          <span className="text-slate-600">Измерение</span>
           <span>{formatDate(order.measurement_date)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate-600">Installation</span>
+          <span className="text-slate-600">Установка</span>
           <span>{formatDate(order.installation_date)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate-600">Planned Completion</span>
+          <span className="text-slate-600">Плановое завершение</span>
           <span>{formatDate(order.planned_completion)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate-600">Actual Completion</span>
+          <span className="text-slate-600">Фактическое завершение</span>
           <span>{formatDate(order.actual_completion)}</span>
         </div>
       </CardContent>
@@ -188,12 +194,12 @@ function OrderItems({ items }: { items: OrderItemDTO[] }) {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Package className="h-4 w-4" />
-          Order Items ({items.length})
+          Позиции заказа ({items.length})
         </CardTitle>
       </CardHeader>
       <CardContent>
         {items.length === 0 ? (
-          <div className="text-sm text-slate-500 italic">No items</div>
+          <div className="text-sm text-slate-500 italic">Нет позиций</div>
         ) : (
           <div>
             {items.map((item) => (
@@ -214,7 +220,7 @@ function OrderNotes({ notes }: { notes: string | null }) {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <FileText className="h-4 w-4" />
-          Notes
+          Примечания
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -229,26 +235,29 @@ function OrderNotes({ notes }: { notes: string | null }) {
  * Contextual navigation with order prefill where supported
  */
 function OrderQuickActions({ orderId, customerId }: { orderId: string; customerId: string }) {
+  // Check if orderId is valid (not a placeholder)
+  const isValidOrderId = orderId && orderId !== "[id]" && orderId !== "%5Bid%5D" && !orderId.includes("[");
+
   const actions = [
     {
-      title: "Estimate",
-      description: "Create quote for customer",
+      title: "Смета",
+      description: "Создать смету для клиента",
       icon: Calculator,
       href: `/estimate?customer=${customerId}`,
       variant: "default" as const,
     },
     {
-      title: "Measurements",
-      description: "View or add measurements",
+      title: "Замеры",
+      description: "Смотреть или добавить замеры",
       icon: Ruler,
-      href: `/measurements?order=${orderId}`,
+      href: isValidOrderId ? `/measurements?order=${orderId}` : "/measurements",
       variant: "outline" as const,
     },
     {
-      title: "Payments",
-      description: "Record payment",
+      title: "Платежи",
+      description: "Записать платеж",
       icon: CreditCard,
-      href: `/payments?order=${orderId}`,
+      href: isValidOrderId ? `/payments?order=${orderId}` : "/payments",
       variant: "outline" as const,
     },
   ];
@@ -256,7 +265,7 @@ function OrderQuickActions({ orderId, customerId }: { orderId: string; customerI
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Quick Actions</CardTitle>
+        <CardTitle className="text-base">Быстрые действия</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -289,7 +298,7 @@ function OrderQuickActions({ orderId, customerId }: { orderId: string; customerI
         <div className="mt-3 text-xs text-slate-500">
           <span className="inline-flex items-center gap-1">
             <ExternalLink className="h-3 w-3" />
-            Prefills context where supported
+            Подставляет контекст где возможно
           </span>
         </div>
       </CardContent>
@@ -300,7 +309,7 @@ function OrderQuickActions({ orderId, customerId }: { orderId: string; customerI
 function OrderMetadata({ order }: { order: OrderDetailDTO }) {
   return (
     <div className="text-xs text-slate-400 mt-4">
-      Created: {formatDateTime(order.created_at)} • Updated: {formatDateTime(order.updated_at)}
+      Создано: {formatDateTime(order.created_at)} • Обновлено: {formatDateTime(order.updated_at)}
     </div>
   );
 }
@@ -309,21 +318,25 @@ function OrderMetadata({ order }: { order: OrderDetailDTO }) {
  * Measurements Section - Shows related measurements for this order
  */
 function MeasurementsSection({ orderId, measurements }: { orderId: string; measurements: MeasurementDTO[] }) {
+  // Check if orderId is valid (not a placeholder)
+  const isValidOrderId = orderId && orderId !== "[id]" && orderId !== "%5Bid%5D" && !orderId.includes("[");
+  const measurementsHref = isValidOrderId ? `/measurements?order=${orderId}` : "/measurements";
+
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <Ruler className="h-4 w-4" />
-            Measurements
+            Замеры
             {measurements.length > 0 && (
               <span className="text-sm font-normal text-slate-500">({measurements.length})</span>
             )}
           </CardTitle>
           <Button variant="ghost" size="sm" asChild>
-            <Link href={`/measurements?order=${orderId}`}>
+            <Link href={measurementsHref}>
               <Plus className="h-4 w-4 mr-1" />
-              Add
+              Добавить
             </Link>
           </Button>
         </div>
@@ -331,9 +344,9 @@ function MeasurementsSection({ orderId, measurements }: { orderId: string; measu
       <CardContent>
         {measurements.length === 0 ? (
           <div className="text-sm text-slate-500">
-            No measurements recorded.
-            <Link href={`/measurements?order=${orderId}`} className="ml-2 text-blue-600 hover:underline">
-              Create measurement
+            Замеры не записаны.
+            <Link href={measurementsHref} className="ml-2 text-blue-600 hover:underline">
+              Создать замер
             </Link>
           </div>
         ) : (
@@ -343,7 +356,7 @@ function MeasurementsSection({ orderId, measurements }: { orderId: string; measu
                 <div>
                   <div className="font-medium">{m.room_name}</div>
                   <div className="text-xs text-slate-500">
-                    {m.width_cm}×{m.height_cm} cm • {m.mounting_type || "No mounting"}
+                    {m.width_cm}×{m.height_cm} cm • {m.mounting_type || "Без крепления"}
                   </div>
                 </div>
                 <div className="text-xs text-slate-400">
@@ -353,10 +366,10 @@ function MeasurementsSection({ orderId, measurements }: { orderId: string; measu
             ))}
             {measurements.length > 3 && (
               <Link 
-                href={`/measurements?order=${orderId}`}
+                href={measurementsHref}
                 className="text-sm text-blue-600 hover:underline block pt-2"
               >
-                View all {measurements.length} measurements →
+                Смотреть все {measurements.length} замеров →
               </Link>
             )}
           </div>
@@ -375,21 +388,25 @@ function PaymentsSection({ orderId, payments, totalPaid, balanceDue }: {
   totalPaid: string;
   balanceDue: string;
 }) {
+  // Check if orderId is valid (not a placeholder)
+  const isValidOrderId = orderId && orderId !== "[id]" && orderId !== "%5Bid%5D" && !orderId.includes("[");
+  const paymentsHref = isValidOrderId ? `/payments?order=${orderId}` : "/payments";
+
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
-            Payments
+            Платежи
             {payments.length > 0 && (
               <span className="text-sm font-normal text-slate-500">({payments.length})</span>
             )}
           </CardTitle>
           <Button variant="ghost" size="sm" asChild>
-            <Link href={`/payments?order=${orderId}`}>
+            <Link href={paymentsHref}>
               <Plus className="h-4 w-4 mr-1" />
-              Add
+              Новый платеж
             </Link>
           </Button>
         </div>
@@ -398,11 +415,11 @@ function PaymentsSection({ orderId, payments, totalPaid, balanceDue }: {
         {/* Payment Summary */}
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <div className="text-slate-500">Total Paid</div>
+            <div className="text-slate-500">Общая сумма</div>
             <div className="font-semibold text-green-600">{formatCurrency(totalPaid)}</div>
           </div>
           <div>
-            <div className="text-slate-500">Balance Due</div>
+            <div className="text-slate-500">Остаток</div>
             <div className={`font-semibold ${parseFloat(balanceDue) > 0 ? "text-amber-600" : "text-green-600"}`}>
               {formatCurrency(balanceDue)}
             </div>
@@ -425,10 +442,10 @@ function PaymentsSection({ orderId, payments, totalPaid, balanceDue }: {
               ))}
               {payments.length > 2 && (
                 <Link 
-                  href={`/payments?order=${orderId}`}
+                  href={paymentsHref}
                   className="text-sm text-blue-600 hover:underline block pt-1"
                 >
-                  View all {payments.length} payments →
+                  Смотреть все {payments.length} платежей →
                 </Link>
               )}
             </div>
@@ -450,7 +467,7 @@ function SourceTaskSection({ sourceTask }: { sourceTask: { id: string; task_numb
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Clock className="h-4 w-4" />
-          Source Task
+          Исходная задача
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -467,34 +484,93 @@ function SourceTaskSection({ sourceTask }: { sourceTask: { id: string; task_numb
 }
 
 /**
- * Related Quotes Section - Honest limitation: quotes are linked to customer/task, not order
+ * Source Quote Section - Shows originating quote if created from quote
+ */
+function SourceQuoteSection({ sourceQuote }: { sourceQuote: { id: string; quote_number: string; total: string; status: string } | null }) {
+  if (!sourceQuote) return null;
+
+  return (
+    <Card className="bg-blue-50 border-blue-200">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2 text-blue-900">
+          <FileSpreadsheet className="h-4 w-4" />
+          Исходное КП
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-medium text-blue-900">{sourceQuote.quote_number}</div>
+            <div className="text-sm text-blue-700">
+              Сумма КП: {formatCurrency(sourceQuote.total)}
+            </div>
+          </div>
+          <Button variant="outline" size="sm" asChild className="border-blue-300 text-blue-700 hover:bg-blue-100">
+            <Link href={`/quotes/${sourceQuote.id}`}>
+              <ExternalLink className="h-4 w-4 mr-1" />
+              Открыть КП
+            </Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Related Quotes Section - Shows source quote if exists
  */
 function RelatedQuotesSection({ order }: { order: OrderDetailDTO }) {
+  // If order was created from a quote, that's the related quote
+  if (order.source_quote) {
+    return (
+      <Card className="bg-blue-50 border-blue-200">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2 text-blue-900">
+            <Calculator className="h-4 w-4" />
+            КП / Сметы
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-medium text-blue-900">{order.source_quote.quote_number}</div>
+              <div className="text-sm text-blue-700">
+                Сумма: {formatCurrency(order.source_quote.total)}
+              </div>
+            </div>
+            <Button variant="outline" size="sm" asChild className="border-blue-300 text-blue-700 hover:bg-blue-100">
+              <Link href={`/quotes/${order.source_quote.id}`}>
+                <ExternalLink className="h-4 w-4 mr-1" />
+                Открыть КП
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Calculator className="h-4 w-4" />
-          Quotes / Estimates
+          КП / Сметы
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="text-sm text-slate-600">
-          Quotes are linked to the customer and source task, not directly to orders.
+          Заказ не создан из КП. Вы можете создать новое КП для клиента.
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" asChild className="flex-1">
-            <Link href="/estimate">
+            <Link href={`/estimate?customer=${typeof order.customer === 'object' ? order.customer.id : order.customer}`}>
               <Calculator className="h-4 w-4 mr-2" />
-              Open Estimate
+              Новое КП
             </Link>
           </Button>
         </div>
-        {order.source_task && (
-          <div className="text-xs text-slate-500">
-            Task {order.source_task.task_number} may have related quotes.
-          </div>
-        )}
       </CardContent>
     </Card>
   );
@@ -504,6 +580,27 @@ export default function OrderDetailPage() {
   const params = useParams();
   const orderId = params.id as string;
 
+  // Guard: detect when literal [id] or placeholder is in URL
+  const isPlaceholderId = !orderId || orderId === "[id]" || orderId === "%5Bid%5D" || (orderId.startsWith("[") && orderId.endsWith("]"));
+  if (isPlaceholderId) {
+    return (
+      <>
+        <PageHeader title="Ошибка навигации" description="Некорректный ID заказа">
+          <Button variant="outline" asChild>
+            <Link href="/orders">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              ← К заказам
+            </Link>
+          </Button>
+        </PageHeader>
+        <ErrorState
+          title="Некорректный ID заказа"
+          description={`Обнаружен неверный идентификатор: "${orderId}". Убедитесь, что вы перешли по ссылке с реальным ID заказа.`}
+        />
+      </>
+    );
+  }
+
   const { data: order, isLoading, isError, error } = useOrder(orderId || null);
 
   // Loading state
@@ -511,15 +608,15 @@ export default function OrderDetailPage() {
     return (
       <>
         <PageHeader
-          title={`Order ${orderId}`}
-          description="Loading order details..."
+          title={`Заказ ${orderId}`}
+          description="Загрузка деталей заказа..."
         >
           <Button variant="outline" disabled>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
+            Назад
           </Button>
         </PageHeader>
-        <LoadingState message="Loading order details..." />
+        <LoadingState message="Загрузка деталей заказа..." />
       </>
     );
   }
@@ -529,20 +626,20 @@ export default function OrderDetailPage() {
     return (
       <>
         <PageHeader
-          title={`Order ${orderId}`}
-          description="Error loading order"
+          title={`Заказ ${orderId}`}
+          description="Ошибка загрузки заказа"
         >
           <Button variant="outline" asChild>
             <Link href="/orders">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Orders
+              ← К заказам
             </Link>
           </Button>
         </PageHeader>
 
         <ErrorState
-          title="Failed to load order"
-          description={error?.message || "Something went wrong. Please try again later."}
+          title="Не удалось загрузить заказ"
+          description={error?.message || "Что-то пошло не так. Попробуйте позже."}
         />
       </>
     );
@@ -553,23 +650,23 @@ export default function OrderDetailPage() {
     return (
       <>
         <PageHeader
-          title="Order Not Found"
-          description="The requested order could not be found"
+          title="Заказ не найден"
+          description="Запрашиваемый заказ не найден"
         >
           <Button variant="outline" asChild>
             <Link href="/orders">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Orders
+              ← К заказам
             </Link>
           </Button>
         </PageHeader>
 
         <EmptyState
-          title="Order not found"
-          description={`Order with ID "${orderId}" does not exist or has been deleted.`}
+          title="Заказ не найден"
+          description={`Заказ с ID "${orderId}" не существует или был удален.`}
           icon={<Package className="h-6 w-6 text-slate-600" />}
           action={{
-            label: "Go to Orders",
+            label: "К заказам",
             onClick: () => window.location.href = "/orders",
           }}
         />
@@ -585,7 +682,7 @@ export default function OrderDetailPage() {
         description={
           <div className="flex items-center gap-2">
             <StatusBadge status={order.status} />
-            <span className="text-slate-500">• Created {formatDate(order.created_at)}</span>
+            <span className="text-slate-500">• Создан {formatDate(order.created_at)}</span>
           </div>
         }
       >
@@ -593,12 +690,12 @@ export default function OrderDetailPage() {
           <Button variant="outline" asChild>
             <Link href="/orders">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back
+              ← К заказам
             </Link>
           </Button>
-          <Button disabled>
-            <Edit className="mr-2 h-4 w-4" />
-            Edit
+          <Button disabled variant="outline" title="Редактирование заказа в разработке">
+            <Edit className="mr-2 h-4 w-4 text-slate-400" />
+            <span className="text-slate-500">В разработке</span>
           </Button>
         </div>
       </PageHeader>
@@ -606,16 +703,16 @@ export default function OrderDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - Main info */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Workflow hub - contextual navigation */}
-          <OrderQuickActions orderId={order.id} customerId={order.customer} />
+          {/* Центр действий — контекстная навигация */}
+          <OrderQuickActions orderId={order.id} customerId={typeof order.customer === 'object' ? order.customer.id : order.customer} />
           
-          {/* Related Measurements */}
+          {/* Связанные замеры */}
           <MeasurementsSection 
             orderId={order.id} 
             measurements={order.measurements || []} 
           />
           
-          {/* Order Items */}
+          {/* Позиции заказа */}
           <OrderItems items={order.items} />
           <OrderNotes notes={order.notes} />
           <OrderMetadata order={order} />
@@ -623,23 +720,26 @@ export default function OrderDetailPage() {
 
         {/* Right column - Sidebar info */}
         <div className="space-y-6">
+          {/* Source Quote (if created from quote) */}
+          <SourceQuoteSection sourceQuote={order.source_quote} />
+
           {/* Source Task (if converted from task) */}
           <SourceTaskSection sourceTask={order.source_task} />
-          
+
           {/* Related Payments */}
-          <PaymentsSection 
+          <PaymentsSection
             orderId={order.id}
             payments={order.payments || []}
             totalPaid={order.paid_amount}
             balanceDue={order.balance_due}
           />
-          
+
           <CustomerInfo order={order} />
           <FinancialSummary order={order} />
           <OrderDates order={order} />
           <InstallationAddress order={order} />
-          
-          {/* Related Quotes - honest limitation */}
+
+          {/* Related Quotes - shows source quote link */}
           <RelatedQuotesSection order={order} />
         </div>
       </div>

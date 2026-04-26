@@ -66,6 +66,16 @@ export interface QuoteItemDTO {
 }
 
 /**
+ * Linked order info when quote is converted to order
+ */
+export interface ConvertedOrderInfo {
+  id: string;
+  order_number: string;
+  status: string;
+  total_amount: string;
+}
+
+/**
  * Quote DTO - matches backend QuoteSerializer
  */
 export interface QuoteDTO {
@@ -92,6 +102,8 @@ export interface QuoteDTO {
   pdf_url: string;
   // Items
   items: QuoteItemDTO[];
+  // Conversion info
+  converted_order: ConvertedOrderInfo | null;
   // Audit
   created_at: string;
   updated_at: string;

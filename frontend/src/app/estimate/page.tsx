@@ -90,10 +90,10 @@ function EstimateContent() {
   
   // Derived state
   const isPersisted = !!savedQuote;
+  // MVP: Task is optional - allow Client -> Quote flow directly
   const canSave = project.rooms.length > 0 && 
                   project.rooms.some(r => r.items.length > 0) &&
-                  selectedCustomerId && 
-                  selectedTaskId;
+                  selectedCustomerId;
 
   // Actions
   const addRoom = () => {
@@ -239,9 +239,8 @@ function EstimateContent() {
         return;
       }
       
-      // Create Quote with items - using REAL customer and task IDs
+      // Create Quote with items - MVP: task is optional
       const quoteData: CreateQuoteInput = {
-        task: selectedTaskId,
         customer: selectedCustomerId,
         status: "draft",
         subtotal,
@@ -250,6 +249,9 @@ function EstimateContent() {
         delivery_cost: 0,
         prepayment_percent: 0.5,
         items: quoteItems,
+        // Only include task if selected (Client -> Task -> Quote flow)
+        // Otherwise allow direct Client -> Quote flow (MVP)
+        ...(selectedTaskId && { task: selectedTaskId }),
       };
       
       const quote = await createQuote.mutateAsync(quoteData);

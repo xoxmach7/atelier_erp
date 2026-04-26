@@ -37,16 +37,33 @@ export async function fetchOrderById(id: string): Promise<OrderDetailDTO> {
 }
 
 /**
- * Order creation payload
+ * Order creation payload - matches backend OrderCreateSerializer
+ * Backend fields: customer_id, items, installation_address_*, measurement_date, planned_completion, notes
  */
 export interface OrderCreateDTO {
-  customer: string;
-  priority?: "low" | "normal" | "high" | "urgent";
-  deadline_date?: string | null;
-  description?: string;
-  total_amount?: string;
-  pickup_address?: string;
-  delivery_address?: string;
+  customer_id: string;
+  items?: Array<{
+    item_type?: string;
+    description?: string;
+    fabric?: string;
+    fabric_meters?: number;
+    cornice?: string;
+    cornice_count?: number;
+    service?: string;
+    unit_price?: string;
+    quantity?: number;
+  }>;
+  // Installation address fields
+  installation_address_city?: string;
+  installation_address_street?: string;
+  installation_address_building?: string;
+  installation_address_apartment?: string;
+  installation_address_notes?: string;
+  // Dates
+  measurement_date?: string | null;
+  planned_completion?: string | null;
+  // Notes
+  notes?: string;
 }
 
 /**

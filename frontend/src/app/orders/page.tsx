@@ -15,6 +15,16 @@ import type { OrderListItemDTO } from "@/types";
 import { Plus, ClipboardList } from "lucide-react";
 import Link from "next/link";
 
+// Check if order ID is valid (not a placeholder/template value)
+function isValidOrderId(id: string): boolean {
+  if (!id) return false;
+  // Block exact placeholder values
+  if (id === "[id]" || id === "%5Bid%5D") return false;
+  // Block any template pattern like [something]
+  if (id.startsWith("[") && id.endsWith("]")) return false;
+  return true;
+}
+
 function OrdersContent() {
   const { data, isLoading, isError, error } = useOrders();
 
@@ -122,12 +132,21 @@ function OrdersContent() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {orders.map((order) => (
+                {orders.map((order) => {
+                  const isValidId = isValidOrderId(order.id);
+                  const displayNumber = order.order_number?.trim() || `Заказ ${order.id.slice(0, 8)}`;
+                  return (
                   <tr key={order.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium">
-                      <Link href={`/orders/${order.id}`} className="text-blue-600 hover:underline">
-                        {order.order_number}
-                      </Link>
+                      {isValidId ? (
+                        <Link href={`/orders/${order.id}`} className="text-blue-600 hover:underline">
+                          {displayNumber}
+                        </Link>
+                      ) : (
+                        <span className="text-red-600" title={`Invalid ID: ${order.id}`}>
+                          {displayNumber} ⚠️
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div>{order.customer_name}</div>
@@ -148,7 +167,8 @@ function OrdersContent() {
                       {new Date(order.created_at).toLocaleDateString()}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

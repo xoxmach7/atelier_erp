@@ -50,12 +50,17 @@ function NewOrderContent() {
 
   const [formData, setFormData] = useState({
     customer: prefillCustomer || "",
-    priority: "normal" as const,
-    deadline_date: "",
-    description: "",
-    total_amount: "",
-    pickup_address: "",
-    delivery_address: "",
+    // Installation address
+    installation_address_city: "",
+    installation_address_street: "",
+    installation_address_building: "",
+    installation_address_apartment: "",
+    installation_address_notes: "",
+    // Dates
+    measurement_date: "",
+    planned_completion: "",
+    // Notes
+    notes: "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -67,9 +72,6 @@ function NewOrderContent() {
     if (!formData.customer) {
       newErrors.customer = "Выберите клиента";
     }
-    if (formData.total_amount && isNaN(parseFloat(formData.total_amount))) {
-      newErrors.total_amount = "Введите корректную сумму";
-    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -80,13 +82,19 @@ function NewOrderContent() {
 
     try {
       const result = await createOrder.mutateAsync({
-        customer: formData.customer,
-        priority: formData.priority,
-        deadline_date: formData.deadline_date || null,
-        description: formData.description,
-        total_amount: formData.total_amount || undefined,
-        pickup_address: formData.pickup_address,
-        delivery_address: formData.delivery_address,
+        customer_id: formData.customer,
+        // Installation address
+        installation_address_city: formData.installation_address_city,
+        installation_address_street: formData.installation_address_street,
+        installation_address_building: formData.installation_address_building,
+        installation_address_apartment: formData.installation_address_apartment,
+        installation_address_notes: formData.installation_address_notes,
+        // Dates
+        measurement_date: formData.measurement_date || null,
+        planned_completion: formData.planned_completion || null,
+        // Notes
+        notes: formData.notes,
+        items: [], // Optional, but explicitly sent
       });
 
       // Redirect to the created order detail
@@ -156,76 +164,105 @@ function NewOrderContent() {
               )}
             </div>
 
-            {/* Priority */}
+            {/* Measurement Date */}
             <div className="space-y-2">
-              <Label htmlFor="priority">Приоритет</Label>
-              <Select
-                value={formData.priority}
-                onValueChange={(value: typeof formData.priority) =>
-                  setFormData((prev) => ({ ...prev, priority: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRIORITY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Deadline */}
-            <div className="space-y-2">
-              <Label htmlFor="deadline" className="flex items-center gap-2">
+              <Label htmlFor="measurement_date" className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
-                Срок выполнения
+                Дата замера
               </Label>
               <Input
-                id="deadline"
+                id="measurement_date"
                 type="date"
-                value={formData.deadline_date}
+                value={formData.measurement_date}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, deadline_date: e.target.value }))
+                  setFormData((prev) => ({ ...prev, measurement_date: e.target.value }))
+                }
+              />
+            </div>
+
+            {/* Planned Completion */}
+            <div className="space-y-2">
+              <Label htmlFor="planned_completion" className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Плановое завершение
+              </Label>
+              <Input
+                id="planned_completion"
+                type="date"
+                value={formData.planned_completion}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, planned_completion: e.target.value }))
                 }
               />
             </div>
           </CardContent>
         </Card>
 
-        {/* Addresses Card */}
+        {/* Installation Address Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MapPin className="h-5 w-5" />
-              Адреса
+              Адрес установки
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="pickup_address">Адрес забора</Label>
-              <Textarea
-                id="pickup_address"
-                placeholder="Введите адрес забора материалов/замеров"
-                value={formData.pickup_address}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, pickup_address: e.target.value }))
-                }
-                rows={2}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="installation_address_city">Город</Label>
+                <Input
+                  id="installation_address_city"
+                  placeholder="Алматы"
+                  value={formData.installation_address_city}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, installation_address_city: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="installation_address_street">Улица</Label>
+                <Input
+                  id="installation_address_street"
+                  placeholder="ул. Примерная"
+                  value={formData.installation_address_street}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, installation_address_street: e.target.value }))
+                  }
+                />
+              </div>
             </div>
-
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="installation_address_building">Дом</Label>
+                <Input
+                  id="installation_address_building"
+                  placeholder="12"
+                  value={formData.installation_address_building}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, installation_address_building: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="installation_address_apartment">Квартира</Label>
+                <Input
+                  id="installation_address_apartment"
+                  placeholder="45"
+                  value={formData.installation_address_apartment}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, installation_address_apartment: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
             <div className="space-y-2">
-              <Label htmlFor="delivery_address">Адрес доставки</Label>
+              <Label htmlFor="installation_address_notes">Примечания к адресу</Label>
               <Textarea
-                id="delivery_address"
-                placeholder="Введите адрес доставки готового изделия"
-                value={formData.delivery_address}
+                id="installation_address_notes"
+                placeholder="Подъезд, этаж, домофон..."
+                value={formData.installation_address_notes}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, delivery_address: e.target.value }))
+                  setFormData((prev) => ({ ...prev, installation_address_notes: e.target.value }))
                 }
                 rows={2}
               />
@@ -233,48 +270,20 @@ function NewOrderContent() {
           </CardContent>
         </Card>
 
-        {/* Financial Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Финансовая информация</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="total_amount">Предварительная сумма (₸)</Label>
-              <Input
-                id="total_amount"
-                type="number"
-                placeholder="0"
-                value={formData.total_amount}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, total_amount: e.target.value }))
-                }
-                className={errors.total_amount ? "border-red-500" : ""}
-              />
-              {errors.total_amount && (
-                <p className="text-sm text-red-500">{errors.total_amount}</p>
-              )}
-              <p className="text-xs text-slate-500">
-                Можно оставить пустым и заполнить позже
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Description Card */}
+        {/* Notes Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Описание
+              Примечания
             </CardTitle>
           </CardHeader>
           <CardContent>
             <Textarea
               placeholder="Описание заказа, особые пожелания клиента..."
-              value={formData.description}
+              value={formData.notes}
               onChange={(e) =>
-                setFormData((prev) => ({ ...prev, description: e.target.value }))
+                setFormData((prev) => ({ ...prev, notes: e.target.value }))
               }
               rows={4}
             />
@@ -317,9 +326,31 @@ function NewOrderContent() {
         {/* Error Display */}
         {createOrder.isError && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-sm text-red-600">
-              Ошибка создания заказа. Проверьте данные и попробуйте снова.
+            <p className="text-sm text-red-600 font-medium">
+              Ошибка создания заказа
             </p>
+            <div className="text-sm text-red-500 mt-1">
+              {(() => {
+                const err = createOrder.error;
+                if (!err) return "Проверьте данные и попробуйте снова.";
+                if (err instanceof Error) {
+                  try {
+                    const parsed = JSON.parse(err.message);
+                    if (typeof parsed === 'object' && parsed !== null) {
+                      return Object.entries(parsed).map(([field, messages]) => (
+                        <div key={field}>
+                          <strong>{field}:</strong> {Array.isArray(messages) ? messages.join(', ') : String(messages)}
+                        </div>
+                      ));
+                    }
+                  } catch {
+                    // Not JSON, show raw message
+                  }
+                  return err.message;
+                }
+                return "Проверьте данные и попробуйте снова.";
+              })()}
+            </div>
           </div>
         )}
       </form>

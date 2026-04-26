@@ -44,6 +44,9 @@ export type ProductionStatus =
 /**
  * Order list item DTO - matches backend OrderListSerializer
  * Used for: GET /v1/orders/ list endpoint
+ * Backend fields: id, order_number, customer, customer_name, customer_phone,
+ *                 status, total_amount, paid_amount, balance_due,
+ *                 measurement_date, planned_completion, created_at
  */
 export interface OrderListItemDTO {
   id: string;
@@ -107,14 +110,24 @@ export interface PaymentDTO {
 }
 
 /**
- * Order detail DTO - matches backend OrderSerializer
+ * Source quote info when order was created from a quote
+ */
+export interface SourceQuoteDTO {
+  id: string;
+  quote_number: string;
+  total: string;
+  status: string;
+}
+
+/**
+ * Order detail DTO - matches backend v1 OrderDetailSerializer
  * Used for: GET /v1/orders/{id}/ detail endpoint
+ * Backend fields: id, order_number, customer (nested), status, items, etc.
  */
 export interface OrderDetailDTO {
   // Core fields (also in OrderListItemDTO)
   id: string;
   order_number: string;
-  customer: string;
   status: OrderStatus;
   total_amount: string;
   paid_amount: string;
@@ -123,8 +136,8 @@ export interface OrderDetailDTO {
   planned_completion: string | null;
   created_at: string;
 
-  // Extended customer info
-  customer_details: CustomerDetailsDTO;
+  // V1 API returns customer as nested object (CustomerMinimalSerializer)
+  customer: CustomerDetailsDTO | string;
 
   // Order items
   items: OrderItemDTO[];
@@ -133,6 +146,7 @@ export interface OrderDetailDTO {
   measurements: MeasurementDTO[];
   payments: PaymentDTO[];
   source_task: SourceTaskDTO | null;
+  source_quote: SourceQuoteDTO | null;
 
   // Installation address
   installation_address_city: string;
@@ -145,13 +159,11 @@ export interface OrderDetailDTO {
   installation_date: string | null;
   actual_completion: string | null;
 
-  // Notes
+  // Notes (called 'notes' in backend, not 'description')
   notes: string | null;
 
-  // Metadata
+  // Metadata (called 'updated_at' in backend, not 'modified_at')
   updated_at: string;
-  created_by: string;
-  updated_by: string;
 }
 
 // ============================================================================
