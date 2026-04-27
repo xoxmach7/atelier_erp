@@ -57,7 +57,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         return OrderDetailSerializer
     
     def create(self, request, *args, **kwargs):
-        """Create order via OrderService"""
+        """Create order via OrderService - supports direct creation without quote"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -66,17 +66,38 @@ class OrderViewSet(viewsets.ModelViewSet):
         count = Order.objects.filter(created_at__year=year).count() + 1
         order_number = f"О-{year}-{count:03d}"
 
+        # Build installation address dict from validated data
+        installation_address = {
+            'city': serializer.validated_data.get('installation_address_city', ''),
+            'street': serializer.validated_data.get('installation_address_street', ''),
+            'building': serializer.validated_data.get('installation_address_building', ''),
+            'apartment': serializer.validated_data.get('installation_address_apartment', ''),
+            'notes': serializer.validated_data.get('installation_address_notes', ''),
+        }
+
         with UnitOfWork() as uow:
             service = OrderService(uow)
             try:
                 order = service.create_order(
                     customer_id=serializer.validated_data['customer_id'],
                     order_number=order_number,
+                    installation_address=installation_address,
                     created_by=request.user.id,
                     notes=serializer.validated_data.get('notes', ''),
-                    planned_completion=serializer.validated_data.get('planned_completion')
+                    planned_completion=serializer.validated_data.get('planned_completion'),
+                    measurements=None  # Measurements added separately
                 )
+                
+                # Set measurement_date if provided
+                measurement_date = serializer.validated_data.get('measurement_date')
+                if measurement_date:
+                    order.measurement_date = measurement_date
+                    order.save(update_fields=['measurement_date'])
+                
                 uow.commit()
+                
+                # Refresh to get related data
+                order.refresh_from_db()
                 
                 response_serializer = OrderDetailSerializer(order)
                 return Response(response_serializer.data, status=status.HTTP_201_CREATED)

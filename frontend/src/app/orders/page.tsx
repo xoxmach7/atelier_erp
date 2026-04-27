@@ -65,7 +65,7 @@ function OrdersContent() {
         <ErrorState
           title="Ошибка загрузки заказов"
           description={error?.message || "Что-то пошло не так. Попробуйте позже."}
-          context={`Убедитесь, что бэкенд запущен: ${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api"}`}
+          context={`Проверьте, что сервер запущен: ${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api"}`}
         />
       </>
     );
@@ -90,12 +90,19 @@ function OrdersContent() {
         </PageHeader>
 
         <EmptyState
-          title="Заказов пока нет"
-          description="Создайте первый заказ клиента"
+          title="Нет заказов"
+          description={
+            <div className="space-y-2">
+              <p>Создайте первый заказ напрямую или через КП</p>
+              <p className="text-sm text-slate-500">
+                Два валидных пути: Клиент → КП → Заказ, или Клиент → Заказ напрямую
+              </p>
+            </div>
+          }
           icon={<ClipboardList className="h-6 w-6 text-slate-600" />}
           action={{
             label: "Создать заказ",
-            onClick: () => {},
+            href: "/orders/new",
           }}
         />
       </>
@@ -126,7 +133,7 @@ function OrdersContent() {
                   <th className="px-4 py-3 text-left font-medium text-slate-700">Заказ №</th>
                   <th className="px-4 py-3 text-left font-medium text-slate-700">Клиент</th>
                   <th className="px-4 py-3 text-left font-medium text-slate-700">Статус</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-700">Итого</th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-700">Сумма</th>
                   <th className="px-4 py-3 text-right font-medium text-slate-700">Баланс</th>
                   <th className="px-4 py-3 text-left font-medium text-slate-700">Создан</th>
                 </tr>
@@ -134,39 +141,39 @@ function OrdersContent() {
               <tbody className="divide-y">
                 {orders.map((order) => {
                   const isValidId = isValidOrderId(order.id);
-                  const displayNumber = order.order_number?.trim() || `Заказ ${order.id.slice(0, 8)}`;
+                  const displayNumber = order.order_number?.trim() || `Order ${order.id.slice(0, 8)}`;
                   return (
-                  <tr key={order.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium">
-                      {isValidId ? (
-                        <Link href={`/orders/${order.id}`} className="text-blue-600 hover:underline">
-                          {displayNumber}
-                        </Link>
-                      ) : (
-                        <span className="text-red-600" title={`Invalid ID: ${order.id}`}>
-                          {displayNumber} ⚠️
+                    <tr key={order.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-medium">
+                        {isValidId ? (
+                          <Link href={`/orders/${order.id}`} className="text-blue-600 hover:underline">
+                            {displayNumber}
+                          </Link>
+                        ) : (
+                          <span className="text-red-600" title={`Некорректный ID: ${order.id}`}>
+                            {displayNumber} ⚠️
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div>{order.customer_name}</div>
+                        <div className="text-xs text-slate-500">{order.customer_phone}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={order.status} />
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        ₸ {(order.total_amount ? parseFloat(order.total_amount).toLocaleString() : "0")}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={(order.balance_due && parseFloat(order.balance_due) > 0) ? "text-amber-600" : "text-green-600"}>
+                          ₸ {(order.balance_due ? parseFloat(order.balance_due).toLocaleString() : "0")}
                         </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div>{order.customer_name}</div>
-                      <div className="text-xs text-slate-500">{order.customer_phone}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={order.status} />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      ₸ {parseFloat(order.total_amount).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <span className={parseFloat(order.balance_due) > 0 ? "text-amber-600" : "text-green-600"}>
-                        ₸ {parseFloat(order.balance_due).toLocaleString()}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-500">
-                      {new Date(order.created_at).toLocaleDateString()}
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="px-4 py-3 text-slate-500">
+                        {new Date(order.created_at).toLocaleDateString()}
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>

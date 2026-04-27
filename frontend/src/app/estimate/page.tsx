@@ -72,8 +72,13 @@ function EstimateContent() {
   const customers = customersData?.results || [];
   const tasks = tasksData?.results || [];
 
-  // Read customer from query params
+  // Read customer and order from query params (order context for direct order flow)
   const customerFromQuery = searchParams.get("customer");
+  const orderFromQuery = searchParams.get("order");
+  
+  // DEBUG: Log order context
+  console.log("[DEBUG] estimate/page.tsx - URL:", window.location.href);
+  console.log("[DEBUG] orderFromQuery:", orderFromQuery);
 
   // Draft state (localStorage-backed)
   const { project, setProject, resetDraft } = useEstimateDraft();
@@ -240,6 +245,7 @@ function EstimateContent() {
       }
       
       // Create Quote with items - MVP: task is optional
+      // If orderFromQuery is present, link quote to existing order (direct order flow)
       const quoteData: CreateQuoteInput = {
         customer: selectedCustomerId,
         status: "draft",
@@ -252,7 +258,13 @@ function EstimateContent() {
         // Only include task if selected (Client -> Task -> Quote flow)
         // Otherwise allow direct Client -> Quote flow (MVP)
         ...(selectedTaskId && { task: selectedTaskId }),
+        // Link to existing order when creating from order context
+        ...(orderFromQuery && { order: orderFromQuery }),
       };
+      
+      // DEBUG: Log quoteData before sending
+      console.log("[DEBUG] quoteData:", JSON.stringify(quoteData, null, 2));
+      console.log("[DEBUG] order in quoteData:", 'order' in quoteData ? quoteData.order : 'NOT INCLUDED');
       
       const quote = await createQuote.mutateAsync(quoteData);
       setSavedQuote(quote);

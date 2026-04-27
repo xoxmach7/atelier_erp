@@ -110,7 +110,7 @@ function QuotesContent() {
     return (
       <ErrorState
         title="Ошибка загрузки КП"
-        description={error?.message || "Произошла ошибка"}
+        description={error?.message || "Что-то пошло не так. Попробуйте позже."}
       />
     );
   }
@@ -119,7 +119,7 @@ function QuotesContent() {
     <div className="space-y-6">
       <PageHeader
         title="Коммерческие предложения"
-        description={`${quotesData?.count || 0} сохраненных смет`}
+        description={`Коммерческие предложения ${quotesData?.count || 0} сохраненных смет`}
       >
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" asChild>

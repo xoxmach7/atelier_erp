@@ -331,6 +331,52 @@ class QuoteViewSet(viewsets.ModelViewSet):
             return Response(QuoteItemSerializer(item).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['post'])
+    def convert_to_order(self, request, pk=None):
+        """
+        Convert quote to order.
+        Creates order from quote data with proper source_quote relation.
+        Duplicate prevention: checks if quote already has a linked order.
+        """
+        quote = self.get_object()
+
+        # Duplicate prevention: check if quote already has a linked order
+        if hasattr(quote, 'converted_orders') and quote.converted_orders.exists():
+            existing_order = quote.converted_orders.first()
+            return Response({
+                'error': 'Quote already converted to order',
+                'order_id': str(existing_order.id),
+                'order_number': existing_order.order_number,
+                'detail': f'This quote was already converted to order {existing_order.order_number}'
+            }, status=status.HTTP_409_CONFLICT)
+
+        from ..services.order_service import OrderService
+        from ..services.unit_of_work import UnitOfWork
+        from ..services.exceptions import OrderValidationError
+
+        uow = UnitOfWork()
+        order_service = OrderService(uow)
+
+        # Generate order number: О-YYYY-NNN
+        year = timezone.now().year
+        count = Order.objects.filter(created_at__year=year).count() + 1
+        order_number = f"О-{year}-{count:03d}"
+
+        try:
+            with uow.atomic():
+                order = order_service.create_order_from_quote(
+                    quote_id=quote.id,
+                    order_number=order_number,
+                    created_by=request.user.id
+                )
+            # Return order detail
+            from .serializers import OrderSerializer
+            return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
+        except OrderValidationError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': f'Failed to create order: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class QuoteItemViewSet(viewsets.ModelViewSet):
     """Quote items API - manage individual line items

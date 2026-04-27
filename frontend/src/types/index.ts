@@ -4,17 +4,18 @@
 
 import type { MeasurementDTO, SourceTaskDTO } from "./measurement";
 
+// Approved MVP Order Status Model:
+// Новый -> В работе -> В производстве -> Готов -> На установке/выдаче -> Ожидает финальной оплаты -> Завершён
+// OR: Отменён (from any status)
 export type OrderStatus =
-  | "draft"
-  | "measurement_scheduled"
-  | "measurement_done"
-  | "quoted"
-  | "confirmed"
-  | "in_production"
-  | "ready_for_installation"
-  | "installing"
-  | "completed"
-  | "cancelled";
+  | "new"           // Новый
+  | "in_work"       // В работе
+  | "in_production" // В производстве
+  | "ready"         // Готов
+  | "on_installation" // На установке / выдаче
+  | "waiting_final_payment" // Ожидает финальной оплаты
+  | "completed"     // Завершён
+  | "cancelled";    // Отменён
 
 // TODO Sprint 3+: Review and clean up unused status types
 export type TaskStatus =
@@ -147,6 +148,7 @@ export interface OrderDetailDTO {
   payments: PaymentDTO[];
   source_task: SourceTaskDTO | null;
   source_quote: SourceQuoteDTO | null;
+  related_quotes?: SourceQuoteDTO[];  // Quotes created from this order (direct order flow)
 
   // Installation address
   installation_address_city: string;

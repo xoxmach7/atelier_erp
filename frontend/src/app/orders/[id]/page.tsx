@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   PageHeader,
   EmptyState,
@@ -14,7 +15,6 @@ import { useOrder } from "@/hooks/useOrders";
 import type { OrderDetailDTO, OrderItemDTO, MeasurementDTO, PaymentDTO, TaskStatus } from "@/types";
 import {
   ArrowLeft,
-  Edit,
   Package,
   MapPin,
   Calendar,
@@ -233,10 +233,16 @@ function OrderNotes({ notes }: { notes: string | null }) {
 /**
  * Order Quick Actions - CTA cards for related modules
  * Contextual navigation with order prefill where supported
+ * Actions filtered based on order status per business rules
  */
-function OrderQuickActions({ orderId, customerId }: { orderId: string; customerId: string }) {
+function OrderQuickActions({ orderId, customerId, orderStatus }: { orderId: string; customerId: string; orderStatus: string }) {
   // Check if orderId is valid (not a placeholder)
   const isValidOrderId = orderId && orderId !== "[id]" && orderId !== "%5Bid%5D" && !orderId.includes("[");
+
+  // Check if order is active (payments allowed)
+  // Allowed: new, in_work, in_production, ready, on_installation, waiting_final_payment
+  // Blocked: completed, cancelled
+  const isActiveOrder = ["new", "in_work", "in_production", "ready", "on_installation", "waiting_final_payment"].includes(orderStatus);
 
   const actions = [
     {
@@ -245,6 +251,7 @@ function OrderQuickActions({ orderId, customerId }: { orderId: string; customerI
       icon: Calculator,
       href: `/estimate?customer=${customerId}`,
       variant: "default" as const,
+      show: true,
     },
     {
       title: "Замеры",
@@ -252,15 +259,17 @@ function OrderQuickActions({ orderId, customerId }: { orderId: string; customerI
       icon: Ruler,
       href: isValidOrderId ? `/measurements?order=${orderId}` : "/measurements",
       variant: "outline" as const,
+      show: true,
     },
     {
       title: "Платежи",
-      description: "Записать платеж",
+      description: isActiveOrder ? "Записать платеж" : "Просмотреть платежи",
       icon: CreditCard,
       href: isValidOrderId ? `/payments?order=${orderId}` : "/payments",
       variant: "outline" as const,
+      show: true,
     },
-  ];
+  ].filter(action => action.show);
 
   return (
     <Card>
@@ -382,15 +391,21 @@ function MeasurementsSection({ orderId, measurements }: { orderId: string; measu
 /**
  * Payments Section - Shows related payments for this order
  */
-function PaymentsSection({ orderId, payments, totalPaid, balanceDue }: { 
+function PaymentsSection({ orderId, payments, totalPaid, balanceDue, orderStatus }: { 
   orderId: string; 
   payments: PaymentDTO[];
   totalPaid: string;
   balanceDue: string;
+  orderStatus: string;
 }) {
   // Check if orderId is valid (not a placeholder)
   const isValidOrderId = orderId && orderId !== "[id]" && orderId !== "%5Bid%5D" && !orderId.includes("[");
   const paymentsHref = isValidOrderId ? `/payments?order=${orderId}` : "/payments";
+
+  // Payments allowed for active order statuses per business rules
+  // Allowed: new, in_work, in_production, ready, on_installation, waiting_final_payment
+  // Blocked: completed, cancelled
+  const canCreatePayment = ["new", "in_work", "in_production", "ready", "on_installation", "waiting_final_payment"].includes(orderStatus);
 
   return (
     <Card>
@@ -403,12 +418,20 @@ function PaymentsSection({ orderId, payments, totalPaid, balanceDue }: {
               <span className="text-sm font-normal text-slate-500">({payments.length})</span>
             )}
           </CardTitle>
-          <Button variant="ghost" size="sm" asChild>
-            <Link href={paymentsHref}>
-              <Plus className="h-4 w-4 mr-1" />
-              Новый платеж
-            </Link>
-          </Button>
+          {canCreatePayment ? (
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={paymentsHref}>
+                <Plus className="h-4 w-4 mr-1" />
+                Новый платеж
+              </Link>
+            </Button>
+          ) : (
+            <span className="text-xs text-slate-400">
+              {orderStatus === "completed" || orderStatus === "cancelled" 
+                ? "Заказ завершен" 
+                : "Прием платежей приостановлен"}
+            </span>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -521,54 +544,85 @@ function SourceQuoteSection({ sourceQuote }: { sourceQuote: { id: string; quote_
  * Related Quotes Section - Shows source quote if exists
  */
 function RelatedQuotesSection({ order }: { order: OrderDetailDTO }) {
-  // If order was created from a quote, that's the related quote
-  if (order.source_quote) {
+  const router = useRouter();
+  
+  // Combine source quote (if order created from quote) and related quotes (created from order)
+  const allRelatedQuotes = [
+    ...(order.source_quote ? [order.source_quote] : []),
+    ...(order.related_quotes || [])
+  ];
+  
+  // Extract customer ID correctly whether customer is object or string
+  const customerId = typeof order.customer === 'object' ? order.customer.id : order.customer;
+  const orderId = order.id;
+  
+  // CRITICAL: Ensure order ID is always included in navigation
+  const handleCreateQuote = () => {
+    if (!orderId) {
+      alert("Ошибка: ID заказа не найден");
+      return;
+    }
+    const url = `/estimate?customer=${customerId}&order=${orderId}`;
+    console.log("[NAVIGATE] To:", url);
+    router.push(url);
+  };
+
+  // If there are any related quotes, show them
+  if (allRelatedQuotes.length > 0) {
     return (
-      <Card className="bg-blue-50 border-blue-200">
+      <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2 text-blue-900">
+          <CardTitle className="text-base flex items-center gap-2">
             <Calculator className="h-4 w-4" />
-            КП / Сметы
+            Связанные КП ({allRelatedQuotes.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-medium text-blue-900">{order.source_quote.quote_number}</div>
-              <div className="text-sm text-blue-700">
-                Сумма: {formatCurrency(order.source_quote.total)}
+          {allRelatedQuotes.map((quote) => (
+            <div key={quote.id} className="flex items-center justify-between p-2 bg-slate-50 rounded">
+              <div>
+                <div className="font-medium">{quote.quote_number}</div>
+                <div className="text-sm text-slate-500">
+                  Сумма: {formatCurrency(quote.total)}
+                </div>
               </div>
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/quotes/${quote.id}`}>
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Открыть
+                </Link>
+              </Button>
             </div>
-            <Button variant="outline" size="sm" asChild className="border-blue-300 text-blue-700 hover:bg-blue-100">
-              <Link href={`/quotes/${order.source_quote.id}`}>
-                <ExternalLink className="h-4 w-4 mr-1" />
-                Открыть КП
-              </Link>
-            </Button>
-          </div>
+          ))}
+          <Button variant="outline" size="sm" onClick={handleCreateQuote} className="w-full">
+            <Calculator className="h-4 w-4 mr-2" />
+            Добавить КП
+          </Button>
         </CardContent>
       </Card>
     );
   }
 
+  // No quotes yet - direct order flow
   return (
-    <Card>
+    <Card className="border-dashed">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
+        <CardTitle className="text-base flex items-center gap-2 text-slate-600">
           <Calculator className="h-4 w-4" />
           КП / Сметы
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="text-sm text-slate-600">
-          Заказ не создан из КП. Вы можете создать новое КП для клиента.
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-medium mr-2">
+            Прямой заказ
+          </span>
+          Этот заказ создан без КП. Это валидный рабочий процесс — можно добавлять позиции, замеры и принимать оплату напрямую.
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" asChild className="flex-1">
-            <Link href={`/estimate?customer=${typeof order.customer === 'object' ? order.customer.id : order.customer}`}>
-              <Calculator className="h-4 w-4 mr-2" />
-              Новое КП
-            </Link>
+          <Button variant="outline" size="sm" onClick={handleCreateQuote} className="flex-1">
+            <Calculator className="h-4 w-4 mr-2" />
+            Создать КП
           </Button>
         </div>
       </CardContent>
@@ -693,10 +747,6 @@ export default function OrderDetailPage() {
               ← К заказам
             </Link>
           </Button>
-          <Button disabled variant="outline" title="Редактирование заказа в разработке">
-            <Edit className="mr-2 h-4 w-4 text-slate-400" />
-            <span className="text-slate-500">В разработке</span>
-          </Button>
         </div>
       </PageHeader>
 
@@ -704,7 +754,11 @@ export default function OrderDetailPage() {
         {/* Left column - Main info */}
         <div className="lg:col-span-2 space-y-6">
           {/* Центр действий — контекстная навигация */}
-          <OrderQuickActions orderId={order.id} customerId={typeof order.customer === 'object' ? order.customer.id : order.customer} />
+          <OrderQuickActions 
+            orderId={order.id} 
+            customerId={typeof order.customer === 'object' ? order.customer.id : order.customer}
+            orderStatus={order.status}
+          />
           
           {/* Связанные замеры */}
           <MeasurementsSection 
@@ -732,6 +786,7 @@ export default function OrderDetailPage() {
             payments={order.payments || []}
             totalPaid={order.paid_amount}
             balanceDue={order.balance_due}
+            orderStatus={order.status}
           />
 
           <CustomerInfo order={order} />

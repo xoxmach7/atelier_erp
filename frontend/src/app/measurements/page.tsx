@@ -60,7 +60,6 @@ import {
   SheetHeader,
   SheetTitle,
   SheetFooter,
-  SheetClose,
 } from "@/components/ui/sheet";
 import {
   Select,
@@ -292,9 +291,9 @@ function MeasurementsContent() {
             />
           </div>
           <SheetFooter className="pt-4 border-t">
-            <SheetClose>
-              <Button variant="outline">Отмена</Button>
-            </SheetClose>
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              Отмена
+            </Button>
             <Button
               onClick={handleCreate}
               disabled={!formData.order || createMutation.isPending}

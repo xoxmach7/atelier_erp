@@ -310,6 +310,17 @@ class Order(UUIDModel, AuditedModel):
     """Order aggregate root - the core entity"""
     
     class Status(models.TextChoices):
+        # Approved MVP Order Status Model
+        NEW = 'new', _('Новый')
+        IN_WORK = 'in_work', _('В работе')
+        IN_PRODUCTION = 'in_production', _('В производстве')
+        READY = 'ready', _('Готов')
+        ON_INSTALLATION = 'on_installation', _('На установке / выдаче')
+        WAITING_FINAL_PAYMENT = 'waiting_final_payment', _('Ожидает финальной оплаты')
+        COMPLETED = 'completed', _('Завершён')
+        CANCELLED = 'cancelled', _('Отменён')
+        
+        # Legacy statuses (to be removed in Sprint 3+)
         DRAFT = 'draft', _('Draft')
         MEASUREMENT = 'measurement', _('Measurement Scheduled')
         DESIGN = 'design', _('Design in Progress')
@@ -318,10 +329,7 @@ class Order(UUIDModel, AuditedModel):
         PREPAYMENT_RECEIVED = 'prepayment_received', _('Prepayment Received')
         FABRIC_RESERVED = 'fabric_reserved', _('Fabric Reserved')
         PRODUCTION = 'production', _('In Production')
-        READY = 'ready', _('Ready for Installation')
         INSTALLATION = 'installation', _('Installation Scheduled')
-        COMPLETED = 'completed', _('Completed')
-        CANCELLED = 'cancelled', _('Cancelled')
     
     # Identity
     order_number = models.CharField(
@@ -346,7 +354,7 @@ class Order(UUIDModel, AuditedModel):
     status = models.CharField(
         max_length=30,
         choices=Status.choices,
-        default=Status.DRAFT,
+        default=Status.NEW,
         db_index=True
     )
     
@@ -421,6 +429,35 @@ class Order(UUIDModel, AuditedModel):
     
     def __str__(self):
         return f"{self.order_number} - {self.customer.full_name}"
+    
+    def save(self, *args, **kwargs):
+        """Auto-generate order_number if not set"""
+        if not self.order_number:
+            self.order_number = self._generate_order_number()
+        super().save(*args, **kwargs)
+    
+    def _generate_order_number(self) -> str:
+        """Generate unique order number О-YYYY-NNN"""
+        import re
+        from datetime import datetime
+        
+        year = datetime.now().year
+        
+        # Get the latest order number for this year (excluding empty ones)
+        latest = Order.objects.filter(
+            order_number__regex=f'^О-{year}-\\d{{3}}$'
+        ).order_by('-order_number').first()
+        
+        if latest:
+            match = re.match(rf'^О-{year}-(\d{{3}})$', latest.order_number)
+            if match:
+                seq = int(match.group(1)) + 1
+            else:
+                seq = 1
+        else:
+            seq = 1
+        
+        return f"О-{year}-{seq:03d}"
     
     @property
     def remaining_amount(self):
@@ -855,15 +892,27 @@ class Quote(UUIDModel, AuditedModel):
     
     task = models.ForeignKey(
         Task,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name='quotes',
-        db_index=True
+        db_index=True,
+        null=True,
+        blank=True
     )
     customer = models.ForeignKey(
         Customer,
         on_delete=models.PROTECT,
         related_name='quotes',
         db_index=True
+    )
+    # Link to existing order when quote is created from order context (direct order flow)
+    order = models.ForeignKey(
+        'Order',
+        on_delete=models.SET_NULL,
+        related_name='related_quotes',
+        db_index=True,
+        null=True,
+        blank=True,
+        help_text='Existing order this quote was created for (direct order flow)'
     )
     
     status = models.CharField(

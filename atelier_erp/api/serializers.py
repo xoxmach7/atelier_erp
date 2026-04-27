@@ -134,17 +134,18 @@ class OrderSerializer(serializers.ModelSerializer):
     customer_details = CustomerListSerializer(source='customer', read_only=True)
     items = OrderItemSerializer(many=True, read_only=True)
     balance_due = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
-    
+
     # Related workflow data
     measurements = serializers.SerializerMethodField()
     payments = serializers.SerializerMethodField()
     source_task = serializers.SerializerMethodField()
+    source_quote = serializers.SerializerMethodField()
     
     class Meta:
         model = Order
         fields = [
             'id', 'order_number', 'customer', 'customer_details',
-            'status', 'items', 'measurements', 'payments', 'source_task',
+            'status', 'items', 'measurements', 'payments', 'source_task', 'source_quote',
             'installation_address_city', 'installation_address_street',
             'installation_address_building', 'installation_address_apartment',
             'installation_address_notes',
@@ -193,6 +194,18 @@ class OrderSerializer(serializers.ModelSerializer):
                 'task_number': t.task_number,
                 'client_name': t.client_name,
                 'status': t.status
+            }
+        return None
+
+    def get_source_quote(self, obj):
+        """Get source quote if order was created from a quote"""
+        quote = getattr(obj, 'quote', None)
+        if quote:
+            return {
+                'id': str(quote.id),
+                'quote_number': quote.quote_number,
+                'total': str(quote.total),
+                'status': quote.status
             }
         return None
 
@@ -263,6 +276,13 @@ class QuoteItemSerializer(serializers.ModelSerializer):
 
 class QuoteItemCreateSerializer(serializers.ModelSerializer):
     """Quote item create/update serializer"""
+    line_total = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        required=False,
+        allow_null=True
+    )
+
     class Meta:
         model = QuoteItem
         fields = [
@@ -271,36 +291,52 @@ class QuoteItemCreateSerializer(serializers.ModelSerializer):
             'fabric', 'fabric_meters', 'fabric_cost',
             'sewing_type', 'complexity', 'sewing_cost',
             'accessories_cost',
-            'cornice', 'cornice_cost'
+            'cornice', 'cornice_cost',
+            'line_total'
         ]
 
 
 class QuoteListSerializer(serializers.ModelSerializer):
     """Quote list serializer"""
-    customer_name = serializers.CharField(source='task.client_name', read_only=True)
+    # MVP: Support both Client->Task->Quote and Client->Quote flows
+    # When task exists, use task.client_name; otherwise use customer.full_name
+    customer_name = serializers.SerializerMethodField()
     task_number = serializers.CharField(source='task.task_number', read_only=True)
+    items_count = serializers.IntegerField(source='items.count', read_only=True)
 
     class Meta:
         model = Quote
         fields = [
             'id', 'quote_number', 'customer_name', 'task_number',
-            'total', 'status', 'valid_until', 'created_at'
+            'total', 'status', 'valid_until', 'created_at', 'items_count'
         ]
+
+    def get_customer_name(self, obj: Quote) -> str:
+        if obj.task and obj.task.client_name:
+            return obj.task.client_name
+        if obj.customer:
+            return obj.customer.full_name
+        return ""
 
 
 class QuoteSerializer(serializers.ModelSerializer):
-    """Full quote serializer with items"""
+    """Full quote serializer with items and order linkage"""
     items = QuoteItemSerializer(many=True, read_only=True)
-    customer_name = serializers.CharField(source='task.client_name', read_only=True)
+    # MVP: Support both Client->Task->Quote and Client->Quote flows
+    customer_name = serializers.SerializerMethodField()
     task_number = serializers.CharField(source='task.task_number', read_only=True)
+    converted_order = serializers.SerializerMethodField()
+    # Link to existing order (direct order flow)
+    order_details = serializers.SerializerMethodField()
 
     class Meta:
         model = Quote
         fields = [
             'id', 'quote_number', 'task', 'task_number', 'customer', 'customer_name',
+            'order', 'order_details',
             'status', 'subtotal', 'discount_amount', 'installation_cost',
             'delivery_cost', 'total', 'prepayment_percent', 'valid_until',
-            'pdf_generated', 'pdf_url', 'items',
+            'pdf_generated', 'pdf_url', 'items', 'converted_order',
             'created_at', 'updated_at', 'created_by', 'updated_by'
         ]
         read_only_fields = [
@@ -308,25 +344,121 @@ class QuoteSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'created_by', 'updated_by'
         ]
 
+    def get_customer_name(self, obj: Quote) -> str:
+        if obj.task and obj.task.client_name:
+            return obj.task.client_name
+        if obj.customer:
+            return obj.customer.full_name
+        return ""
+
+    def get_converted_order(self, obj: Quote) -> dict | None:
+        """Get linked order if this quote has been converted to one"""
+        order = obj.converted_orders.first()
+        if order:
+            return {
+                'id': str(order.id),
+                'order_number': order.order_number,
+                'status': order.status,
+                'total_amount': str(order.total_amount)
+            }
+        return None
+
+    def get_order_details(self, obj: Quote) -> dict | None:
+        """Get linked order details if this quote was created for an existing order"""
+        if obj.order:
+            return {
+                'id': str(obj.order.id),
+                'order_number': obj.order.order_number,
+                'status': obj.order.status,
+                'total_amount': str(obj.order.total_amount)
+            }
+        return None
+
 
 class QuoteCreateSerializer(serializers.ModelSerializer):
-    """Quote create serializer"""
+    """Quote create serializer - supports linking to existing order"""
     items = QuoteItemCreateSerializer(many=True, required=False)
+    task = serializers.PrimaryKeyRelatedField(
+        queryset=Task.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    order = serializers.PrimaryKeyRelatedField(
+        queryset=Order.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text='Existing order to link this quote to (direct order flow)'
+    )
 
     class Meta:
         model = Quote
         fields = [
-            'task', 'customer', 'status', 'valid_until',
+            'task', 'customer', 'order', 'status', 'valid_until',
             'subtotal', 'discount_amount', 'installation_cost', 'delivery_cost',
             'prepayment_percent', 'items'
         ]
 
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])
+        
+        # Auto-generate quote_number if not provided
+        if not validated_data.get('quote_number'):
+            validated_data['quote_number'] = self._generate_quote_number()
+        
+        # Remove subtotal/total from validated_data - will compute from items
+        subtotal = validated_data.pop('subtotal', Decimal('0')) or Decimal('0')
+        discount_amount = validated_data.get('discount_amount', Decimal('0')) or Decimal('0')
+        installation_cost = validated_data.get('installation_cost', Decimal('0')) or Decimal('0')
+        delivery_cost = validated_data.get('delivery_cost', Decimal('0')) or Decimal('0')
+        
         quote = Quote.objects.create(**validated_data)
+
+        computed_subtotal = Decimal('0')
+        
         for item_data in items_data:
+            # Compute line_total from cost fields if not provided
+            if not item_data.get('line_total'):
+                fabric_cost = item_data.get('fabric_cost', Decimal('0')) or Decimal('0')
+                sewing_cost = item_data.get('sewing_cost', Decimal('0')) or Decimal('0')
+                accessories_cost = item_data.get('accessories_cost', Decimal('0')) or Decimal('0')
+                cornice_cost = item_data.get('cornice_cost', Decimal('0')) or Decimal('0')
+                item_data['line_total'] = fabric_cost + sewing_cost + accessories_cost + cornice_cost
+            
+            computed_subtotal += item_data.get('line_total', Decimal('0')) or Decimal('0')
             QuoteItem.objects.create(quote=quote, **item_data)
+        
+        # Recalculate quote totals from items
+        quote.subtotal = computed_subtotal
+        quote.total = computed_subtotal - discount_amount + installation_cost + delivery_cost
+        quote.save(update_fields=['subtotal', 'total'])
+        
+        # Initialize order financial summary from first linked quote (direct order flow)
+        # MVP: Only initialize on first linked quote creation, not on subsequent edits
+        linked_order = validated_data.get('order')
+        if linked_order and linked_order.total_amount == 0:
+            linked_order.total_amount = quote.total
+            linked_order.save(update_fields=['total_amount'])
+        
         return quote
+    
+    def _generate_quote_number(self) -> str:
+        """Generate unique quote number КП-YYYY-NNN"""
+        import re
+        from datetime import datetime
+        from atelier_erp.models import Quote
+        
+        year = datetime.now().year
+        latest = Quote.objects.filter(
+            quote_number__regex=f'^КП-{year}-\\d{{3}}$'
+        ).order_by('-quote_number').first()
+        
+        if latest:
+            match = re.match(rf'^КП-{year}-(\d{{3}})$', latest.quote_number)
+            seq = int(match.group(1)) + 1 if match else 1
+        else:
+            seq = 1
+        
+        return f"КП-{year}-{seq:03d}"
 
 
 class ProductionAssignmentSerializer(serializers.ModelSerializer):

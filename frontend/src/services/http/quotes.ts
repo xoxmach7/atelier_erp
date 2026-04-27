@@ -43,6 +43,8 @@ export async function fetchQuoteById(quoteId: string): Promise<QuoteDTO> {
  * Create new quote
  */
 export async function createQuote(data: CreateQuoteInput): Promise<QuoteDTO> {
+  console.log("[DEBUG] quotes.ts createQuote - data:", JSON.stringify(data, null, 2));
+  console.log("[DEBUG] quotes.ts createQuote - order field:", (data as any).order);
   return post<QuoteDTO>(QUOTES_ENDPOINT, data);
 }
 

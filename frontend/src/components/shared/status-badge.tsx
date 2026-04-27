@@ -21,17 +21,24 @@ interface StatusBadgeProps {
 }
 
 const statusStyles: Record<string, string> = {
-  // Order statuses
+  // MVP Order statuses (approved model)
+  new: "bg-slate-100 text-slate-700",
+  in_work: "bg-blue-100 text-blue-700",
+  in_production: "bg-amber-100 text-amber-700",
+  ready: "bg-orange-100 text-orange-700",
+  on_installation: "bg-yellow-100 text-yellow-700",
+  waiting_final_payment: "bg-purple-100 text-purple-700",
+  completed: "bg-green-100 text-green-700",
+  cancelled: "bg-red-100 text-red-700",
+  
+  // Legacy order statuses (to be removed in Sprint 3+)
   draft: "bg-slate-100 text-slate-700",
   measurement_scheduled: "bg-blue-100 text-blue-700",
   measurement_done: "bg-cyan-100 text-cyan-700",
   quoted: "bg-purple-100 text-purple-700",
   confirmed: "bg-indigo-100 text-indigo-700",
-  in_production: "bg-amber-100 text-amber-700",
   ready_for_installation: "bg-orange-100 text-orange-700",
   installing: "bg-yellow-100 text-yellow-700",
-  completed: "bg-green-100 text-green-700",
-  cancelled: "bg-red-100 text-red-700",
   
   // Task statuses
   lead: "bg-slate-100 text-slate-700",
@@ -47,7 +54,7 @@ const statusStyles: Record<string, string> = {
   sewing: "bg-purple-100 text-purple-700",
   finishing: "bg-amber-100 text-amber-700",
   quality_check: "bg-orange-100 text-orange-700",
-  ready: "bg-green-100 text-green-700",
+  production_ready: "bg-green-100 text-green-700",
   
   // Payment statuses
   partial: "bg-amber-100 text-amber-700",
@@ -55,17 +62,24 @@ const statusStyles: Record<string, string> = {
 };
 
 const statusTranslations: Record<string, string> = {
-  // Order statuses
+  // MVP Order statuses (approved model)
+  new: "Новый",
+  in_work: "В работе",
+  in_production: "В производстве",
+  ready: "Готов",
+  on_installation: "На установке / выдаче",
+  waiting_final_payment: "Ожидает финальной оплаты",
+  completed: "Завершён",
+  cancelled: "Отменён",
+  
+  // Legacy order statuses (to be removed in Sprint 3+)
   draft: "Черновик",
   measurement_scheduled: "Замер назначен",
   measurement_done: "Замер выполнен",
   quoted: "КП отправлено",
   confirmed: "Подтвержден",
-  in_production: "В производстве",
   ready_for_installation: "Готов к монтажу",
   installing: "Монтаж",
-  completed: "Выполнен",
-  cancelled: "Отменен",
   // Task statuses
   lead: "Лид",
   quoting: "Смета",
@@ -79,7 +93,7 @@ const statusTranslations: Record<string, string> = {
   sewing: "Пошив",
   finishing: "Отделка",
   quality_check: "Контроль качества",
-  ready: "Готов",
+  production_ready: "Готов к производству",
   // Payment statuses
   partial: "Частично",
   paid: "Оплачен",

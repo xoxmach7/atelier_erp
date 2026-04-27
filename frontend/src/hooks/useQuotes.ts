@@ -68,6 +68,7 @@ export function useQuote(quoteId: string | null) {
 export interface CreateQuoteInput {
   task?: string;
   customer: string;
+  order?: string;  // Link to existing order when creating quote from order context
   status?: string;
   valid_until?: string | null;
   subtotal?: number;

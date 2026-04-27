@@ -186,7 +186,7 @@ function QuoteDetailContent() {
         title={quote.quote_number}
         description={
           <span className="flex items-center gap-2">
-            Persisted Quote
+            Коммерческое предложение
             <Badge
               className={
                 STATUS_COLORS[quote.status] || "bg-slate-100 text-slate-700"
@@ -216,10 +216,12 @@ function QuoteDetailContent() {
             </>
           ) : (
             <>
-              <Button variant="outline" size="sm" onClick={handleEdit}>
-                <Edit2 className="mr-2 h-4 w-4" />
-                Редактировать
-              </Button>
+              {quote.status === "draft" && (
+                <Button variant="outline" size="sm" onClick={handleEdit}>
+                  <Edit2 className="mr-2 h-4 w-4" />
+                  Редактировать
+                </Button>
+              )}
               {hasConvertedOrder ? (
                 <Button
                   variant="outline"

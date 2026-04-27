@@ -91,12 +91,11 @@ function PaymentsContent() {
 
         <EmptyState
           title="Платежей пока нет"
-          description="Записывайте платежи для отслеживания транзакций по заказам"
-          icon={<CreditCard className="h-6 w-6 text-slate-600" />}
-          action={{
-            label: "Записать первый платеж",
-            onClick: () => {},
-          }}
+          description={orderId && !isInvalidOrderId
+            ? "Записывайте платежи при приеме предоплаты или полного расчета"
+            : "Выберите заказ для записи платежа"
+          }
+          icon={<Banknote className="h-6 w-6 text-slate-600" />}
         />
       </>
     );

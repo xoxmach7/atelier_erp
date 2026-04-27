@@ -104,14 +104,18 @@ function NewOrderContent() {
     }
   };
 
+  // Determine the creation mode
+  const isDirectCreation = !prefillSource;
+  const creationMode = isDirectCreation ? "direct" : "from-source";
+
   return (
     <>
       <PageHeader
-        title="Новый заказ"
+        title={isDirectCreation ? "Новый заказ (напрямую)" : "Новый заказ"}
         description={
-          prefillSource
-            ? `Создание заказа ${prefillRef ? `из ${prefillRef}` : ""}`
-            : "Создать новый заказ клиента"
+          isDirectCreation
+            ? "Создание заказа без КП — заполните данные клиента"
+            : `Создание заказа ${prefillRef ? `из ${prefillRef}` : ""}`
         }
       >
         <Button asChild variant="outline">
@@ -121,6 +125,24 @@ function NewOrderContent() {
           </Link>
         </Button>
       </PageHeader>
+
+      {/* Mode Indicator Banner */}
+      {isDirectCreation && (
+        <div className="mb-6 p-4 bg-linear-to-r from-slate-50 to-slate-100 border border-slate-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-slate-900 rounded-md shrink-0">
+              <FileText className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <h3 className="font-medium text-slate-900">Прямое создание заказа</h3>
+              <p className="text-sm text-slate-600 mt-1">
+                Вы создаете заказ без предварительного КП. Это полностью валидный рабочий процесс. 
+                После создания можно добавить замеры, позиции заказа и принимать оплату.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Main Form Card */}
