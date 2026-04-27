@@ -249,7 +249,10 @@ function OrderQuickActions({ orderId, customerId, orderStatus }: { orderId: stri
       title: "Смета",
       description: "Создать смету для клиента",
       icon: Calculator,
-      href: `/estimate?customer=${customerId}`,
+      // CRITICAL: Include order parameter for direct order -> quote linkage
+      href: isValidOrderId
+        ? `/estimate?customer=${customerId}&order=${orderId}`
+        : `/estimate?customer=${customerId}`,
       variant: "default" as const,
       show: true,
     },
@@ -435,10 +438,10 @@ function PaymentsSection({ orderId, payments, totalPaid, balanceDue, orderStatus
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {/* Payment Summary */}
+        {/* Payment Summary - Shows paid amount and remaining balance */}
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <div className="text-slate-500">Общая сумма</div>
+            <div className="text-slate-500">Оплачено</div>
             <div className="font-semibold text-green-600">{formatCurrency(totalPaid)}</div>
           </div>
           <div>
