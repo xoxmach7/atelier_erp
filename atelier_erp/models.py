@@ -7,6 +7,7 @@ import uuid
 from decimal import Decimal
 
 from django.conf import settings
+from .constants import SupplyMode, MaterialReadiness
 from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
 from django.db import models
 from django.db.models import CheckConstraint, Q, UniqueConstraint, Index
@@ -356,6 +357,15 @@ class Order(UUIDModel, AuditedModel):
         choices=Status.choices,
         default=Status.NEW,
         db_index=True
+    )
+    
+    # Material readiness - operational layer (NOT a replacement for main status)
+    material_readiness = models.CharField(
+        max_length=20,
+        choices=MaterialReadiness.choices,
+        default=MaterialReadiness.NOT_READY,
+        db_index=True,
+        help_text='Operational state: whether order materials are ready for production'
     )
     
     # Address
@@ -976,6 +986,15 @@ class QuoteItem(UUIDModel):
     )
     fabric_meters = models.DecimalField(max_digits=10, decimal_places=2)
     fabric_cost = models.DecimalField(max_digits=12, decimal_places=2)
+    
+    # Material supply mode - how this fabric will be sourced
+    supply_mode = models.CharField(
+        max_length=20,
+        choices=SupplyMode.CHOICES,
+        default=SupplyMode.IN_STOCK,
+        db_index=True,
+        help_text='How the fabric/material will be supplied for this item'
+    )
     
     # Sewing
     sewing_type = models.CharField(max_length=100, blank=True)

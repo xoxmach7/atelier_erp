@@ -84,6 +84,7 @@ export interface CreateQuoteInput {
     fabric?: string | null;
     fabric_meters?: number;
     fabric_cost?: number;
+    supply_mode?: "in_stock" | "purchase_local" | "purchase_import" | "client_supplied";
     sewing_type?: string;
     complexity?: string;
     sewing_cost?: number;

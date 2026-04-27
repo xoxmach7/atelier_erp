@@ -135,8 +135,10 @@ function EstimateContent() {
       height_cm: 0,
       curtain_fabric_id: null,
       curtain_fabric_meters: 0,
+      curtain_supply_mode: 'in_stock',
       tulle_fabric_id: null,
       tulle_fabric_meters: 0,
+      tulle_supply_mode: 'in_stock',
     };
 
     setProject((prev) => ({
@@ -207,6 +209,7 @@ function EstimateContent() {
               fabric: item.curtain_fabric_id,
               fabric_meters: item.curtain_fabric_meters,
               fabric_cost: fabricCost,
+              supply_mode: item.curtain_supply_mode || 'in_stock',
               sewing_type: "standard",
               complexity: "medium",
               sewing_cost: 0,
@@ -227,6 +230,7 @@ function EstimateContent() {
               fabric: item.tulle_fabric_id,
               fabric_meters: item.tulle_fabric_meters,
               fabric_cost: tulleCost,
+              supply_mode: item.tulle_supply_mode || 'in_stock',
               sewing_type: "standard",
               complexity: "medium",
               sewing_cost: 0,

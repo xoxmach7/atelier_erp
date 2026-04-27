@@ -25,6 +25,11 @@
 export type QuoteStatus = "draft" | "sent" | "approved" | "rejected" | "expired";
 
 /**
+ * Material Supply Mode - how fabric/material will be sourced
+ */
+export type SupplyMode = "in_stock" | "purchase_local" | "purchase_import" | "client_supplied";
+
+/**
  * Quote Item DTO - matches backend QuoteItemSerializer
  */
 export interface QuoteItemDTO {
@@ -45,6 +50,7 @@ export interface QuoteItemDTO {
   };
   fabric_meters: number;
   fabric_cost: number;
+  supply_mode: SupplyMode;
   // Sewing
   sewing_type: string;
   complexity: string; // simple, medium, complex, premium

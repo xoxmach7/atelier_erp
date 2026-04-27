@@ -3,10 +3,17 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { FabricDTO, EstimateItem } from "@/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { FabricDTO, EstimateItem, EstimateSupplyMode } from "@/types";
 import { FabricSelector } from "./FabricSelector";
 import { formatCurrency, calculateLineTotal } from "../utils/estimateHelpers";
-import { Trash2 } from "lucide-react";
+import { Trash2, Package, ShoppingCart, Globe, User, AlertCircle, CheckCircle2, Info } from "lucide-react";
 
 interface EstimateItemRowProps {
   item: EstimateItem;
@@ -20,6 +27,85 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
 
   const curtainFabric = fabrics.find((f) => f.id === item.curtain_fabric_id);
   const tulleFabric = fabrics.find((f) => f.id === item.tulle_fabric_id);
+
+  // Helper to get availability status for a fabric
+  const getAvailabilityStatus = (
+    fabric: FabricDTO | undefined,
+    requiredMeters: number,
+    supplyMode: EstimateSupplyMode
+  ): { text: string; color: string; icon: React.ReactNode } => {
+    if (!fabric) {
+      return { text: "", color: "", icon: null };
+    }
+
+    const available = parseFloat(fabric.available_meters || "0");
+    const stock = parseFloat(fabric.stock_meters || "0");
+
+    // For client_supplied - no stock relevance
+    if (supplyMode === "client_supplied") {
+      return {
+        text: "Материал клиента",
+        color: "text-slate-500",
+        icon: <User className="h-3 w-3" />,
+      };
+    }
+
+    // For purchase modes - informative only
+    if (supplyMode === "purchase_local") {
+      return {
+        text: "Будет закуплено локально",
+        color: "text-blue-600",
+        icon: <ShoppingCart className="h-3 w-3" />,
+      };
+    }
+
+    if (supplyMode === "purchase_import") {
+      return {
+        text: "Будет заказано",
+        color: "text-blue-600",
+        icon: <Globe className="h-3 w-3" />,
+      };
+    }
+
+    // For in_stock - check availability
+    if (supplyMode === "in_stock") {
+      if (requiredMeters === 0) {
+        return {
+          text: `В наличии: ${available.toFixed(1)} м`,
+          color: "text-slate-500",
+          icon: <Info className="h-3 w-3" />,
+        };
+      }
+
+      if (available >= requiredMeters) {
+        return {
+          text: `В наличии: ${available.toFixed(1)} м`,
+          color: "text-green-600",
+          icon: <CheckCircle2 className="h-3 w-3" />,
+        };
+      } else {
+        return {
+          text: `Недостаточно: доступно ${available.toFixed(1)} м`,
+          color: "text-amber-600",
+          icon: <AlertCircle className="h-3 w-3" />,
+        };
+      }
+    }
+
+    return { text: "", color: "", icon: null };
+  };
+
+  const curtainAvailability = getAvailabilityStatus(
+    curtainFabric,
+    item.curtain_fabric_meters,
+    item.curtain_supply_mode
+  );
+
+  const tulleAvailability = getAvailabilityStatus(
+    tulleFabric,
+    item.tulle_fabric_meters,
+    item.tulle_supply_mode
+  );
 
   return (
     <div className="border rounded-lg p-4 space-y-4 bg-white">
@@ -69,14 +155,14 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-3">
           <FabricSelector
-            label="Curtain Fabric"
+            label="Ткань штор"
             fabrics={fabrics}
             selectedId={item.curtain_fabric_id}
             onSelect={(id) => onUpdate({ curtain_fabric_id: id })}
             requiredMeters={item.curtain_fabric_meters}
           />
           <div className="flex items-center gap-2">
-            <Label className="text-xs whitespace-nowrap">Meters:</Label>
+            <Label className="text-xs whitespace-nowrap">Метры:</Label>
             <Input
               type="number"
               step="0.1"
@@ -90,18 +176,63 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
               <span className="text-xs text-slate-500">= {formatCurrency(curtainCost)}</span>
             )}
           </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs whitespace-nowrap">Поставка:</Label>
+            <Select
+              value={item.curtain_supply_mode || 'in_stock'}
+              onValueChange={(value: EstimateSupplyMode) =>
+                onUpdate({ curtain_supply_mode: value })
+              }
+            >
+              <SelectTrigger className="h-7 text-xs w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="in_stock">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-3 w-3" />
+                    <span>На складе</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="purchase_local">
+                  <div className="flex items-center gap-2">
+                    <ShoppingCart className="h-3 w-3" />
+                    <span>Закупить (локально)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="purchase_import">
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-3 w-3" />
+                    <span>Закупить (импорт)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="client_supplied">
+                  <div className="flex items-center gap-2">
+                    <User className="h-3 w-3" />
+                    <span>Клиентский</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {curtainFabric && curtainAvailability.text && (
+            <div className={`flex items-center gap-1 text-xs ${curtainAvailability.color}`}>
+              {curtainAvailability.icon}
+              <span>{curtainAvailability.text}</span>
+            </div>
+          )}
         </div>
 
         <div className="space-y-3">
           <FabricSelector
-            label="Tulle Fabric"
+            label="Ткань тюль"
             fabrics={fabrics}
             selectedId={item.tulle_fabric_id}
             onSelect={(id) => onUpdate({ tulle_fabric_id: id })}
             requiredMeters={item.tulle_fabric_meters}
           />
           <div className="flex items-center gap-2">
-            <Label className="text-xs whitespace-nowrap">Meters:</Label>
+            <Label className="text-xs whitespace-nowrap">Метры:</Label>
             <Input
               type="number"
               step="0.1"
@@ -115,7 +246,55 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
               <span className="text-xs text-slate-500">= {formatCurrency(tulleCost)}</span>
             )}
           </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs whitespace-nowrap">Поставка:</Label>
+            <Select
+              value={item.tulle_supply_mode || 'in_stock'}
+              onValueChange={(value: EstimateSupplyMode) =>
+                onUpdate({ tulle_supply_mode: value })
+              }
+            >
+              <SelectTrigger className="h-7 text-xs w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="in_stock">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-3 w-3" />
+                    <span>На складе</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="purchase_local">
+                  <div className="flex items-center gap-2">
+                    <ShoppingCart className="h-3 w-3" />
+                    <span>Закупить (локально)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="purchase_import">
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-3 w-3" />
+                    <span>Закупить (импорт)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="client_supplied">
+                  <div className="flex items-center gap-2">
+                    <User className="h-3 w-3" />
+                    <span>Клиентский</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {tulleFabric && tulleAvailability.text && (
+            <div className={`flex items-center gap-1 text-xs ${tulleAvailability.color}`}>
+              {tulleAvailability.icon}
+              <span>{tulleAvailability.text}</span>
+            </div>
+          )}
         </div>
+      </div>
+
+      <div className="flex justify-end gap-2 pt-2">
       </div>
     </div>
   );

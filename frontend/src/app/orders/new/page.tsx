@@ -18,8 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCreateOrder } from "@/hooks/useOrders";
-import { useCustomers } from "@/hooks/useCustomers";
-import { ArrowLeft, Loader2, User, MapPin, Calendar, FileText } from "lucide-react";
+import { useCustomers, useCreateCustomer } from "@/hooks/useCustomers";
+import { ArrowLeft, Loader2, User, MapPin, Calendar, FileText, Plus, X } from "lucide-react";
 
 const PRIORITY_OPTIONS = [
   { value: "low", label: "Низкий" },
@@ -41,7 +41,8 @@ function NewOrderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const createOrder = useCreateOrder();
-  const { data: customersData, isLoading: customersLoading } = useCustomers();
+  const createCustomer = useCreateCustomer();
+  const { data: customersData, isLoading: customersLoading, refetch: refetchCustomers } = useCustomers();
 
   // Prefill from query params (context from quote/measurement)
   const prefillCustomer = searchParams.get("customer");
@@ -65,7 +66,45 @@ function NewOrderContent() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Inline customer creation state
+  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
+  const [newCustomerData, setNewCustomerData] = useState({
+    full_name: "",
+    phone: "",
+    email: "",
+    address_city: "",
+  });
+
   const customers = customersData?.results || [];
+
+  // Handle inline customer creation
+  const handleCreateCustomer = async () => {
+    if (!newCustomerData.full_name.trim() || !newCustomerData.phone.trim()) {
+      return;
+    }
+
+    try {
+      const customer = await createCustomer.mutateAsync({
+        full_name: newCustomerData.full_name.trim(),
+        phone: newCustomerData.phone.trim(),
+        email: newCustomerData.email.trim() || undefined,
+        address_city: newCustomerData.address_city.trim() || undefined,
+      });
+
+      // Auto-select the newly created customer
+      setFormData((prev) => ({ ...prev, customer: customer.id }));
+
+      // Clear and hide the new customer form
+      setNewCustomerData({ full_name: "", phone: "", email: "", address_city: "" });
+      setShowNewCustomerForm(false);
+
+      // Refresh customer list to include new customer
+      await refetchCustomers();
+    } catch (err) {
+      console.error("Failed to create customer:", err);
+      alert(err instanceof Error ? err.message : "Не удалось создать клиента");
+    }
+  };
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -154,33 +193,119 @@ function NewOrderContent() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Customer Selection */}
+            {/* Customer Selection with Inline Creation */}
             <div className="space-y-2">
-              <Label htmlFor="customer">
-                Клиент <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={formData.customer}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, customer: value }))
-                }
-                disabled={customersLoading}
-              >
-                <SelectTrigger className={errors.customer ? "border-red-500" : ""}>
-                  <SelectValue
-                    placeholder={
-                      customersLoading ? "Загрузка клиентов..." : "Выберите клиента"
+              <div className="flex items-center justify-between">
+                <Label htmlFor="customer">
+                  Клиент <span className="text-red-500">*</span>
+                </Label>
+                {!showNewCustomerForm && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowNewCustomerForm(true)}
+                    disabled={customersLoading}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Новый клиент
+                  </Button>
+                )}
+              </div>
+
+              {!showNewCustomerForm ? (
+                <Select
+                  value={formData.customer}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, customer: value }))
+                  }
+                  disabled={customersLoading}
+                >
+                  <SelectTrigger className={errors.customer ? "border-red-500" : ""}>
+                    <SelectValue
+                      placeholder={
+                        customersLoading ? "Загрузка клиентов..." : "Выберите клиента"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((customer) => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.full_name} {customer.phone && `(${customer.phone})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="space-y-3 p-3 bg-slate-50 rounded-lg border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Новый клиент</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowNewCustomerForm(false)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      placeholder="Имя Фамилия *"
+                      value={newCustomerData.full_name}
+                      onChange={(e) =>
+                        setNewCustomerData((prev) => ({ ...prev, full_name: e.target.value }))
+                      }
+                    />
+                    <Input
+                      placeholder="Телефон *"
+                      value={newCustomerData.phone}
+                      onChange={(e) =>
+                        setNewCustomerData((prev) => ({ ...prev, phone: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      placeholder="Email"
+                      value={newCustomerData.email}
+                      onChange={(e) =>
+                        setNewCustomerData((prev) => ({ ...prev, email: e.target.value }))
+                      }
+                    />
+                    <Input
+                      placeholder="Город"
+                      value={newCustomerData.address_city}
+                      onChange={(e) =>
+                        setNewCustomerData((prev) => ({ ...prev, address_city: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleCreateCustomer}
+                    disabled={
+                      createCustomer.isPending ||
+                      !newCustomerData.full_name.trim() ||
+                      !newCustomerData.phone.trim()
                     }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.id} value={customer.id}>
-                      {customer.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    className="w-full"
+                  >
+                    {createCustomer.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Создание...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Добавить и выбрать
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
               {errors.customer && (
                 <p className="text-sm text-red-500">{errors.customer}</p>
               )}

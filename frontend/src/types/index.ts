@@ -3,6 +3,7 @@
 // ============================================================================
 
 import type { MeasurementDTO, SourceTaskDTO } from "./measurement";
+import type { SupplyMode } from "./quote";
 
 // Approved MVP Order Status Model:
 // Новый -> В работе -> В производстве -> Готов -> На установке/выдаче -> Ожидает финальной оплаты -> Завершён
@@ -16,6 +17,15 @@ export type OrderStatus =
   | "waiting_final_payment" // Ожидает финальной оплаты
   | "completed"     // Завершён
   | "cancelled";    // Отменён
+
+/**
+ * Material readiness - operational layer for order execution
+ * NOT a replacement for main order status
+ */
+export type MaterialReadiness =
+  | "not_ready"        // Не обеспечен
+  | "partially_ready"  // Частично обеспечен
+  | "ready";           // Обеспечен материалами
 
 // TODO Sprint 3+: Review and clean up unused status types
 export type TaskStatus =
@@ -82,9 +92,12 @@ export interface OrderItemDTO {
   id: string;
   item_type: string;
   description: string;
-  fabric: string | null;
-  fabric_meters: string | null;
-  cornice: string | null;
+  fabric?: string | null;
+  fabric_meters?: number;
+  fabric_cost?: number;
+  supply_mode?: SupplyMode; // How fabric is sourced
+  tulle?: string | null;
+  cornice?: string | null; // ForeignKey to Cornice model
   cornice_count: number | null;
   service: string | null;
   unit_price: string;
@@ -130,6 +143,7 @@ export interface OrderDetailDTO {
   id: string;
   order_number: string;
   status: OrderStatus;
+  material_readiness: MaterialReadiness; // Operational layer: material availability for production
   total_amount: string;
   paid_amount: string;
   balance_due: string;
@@ -204,6 +218,11 @@ export interface FabricDTO {
 // ============================================================================
 
 /**
+ * Material supply mode - how fabric will be sourced
+ */
+export type EstimateSupplyMode = 'in_stock' | 'purchase_local' | 'purchase_import' | 'client_supplied';
+
+/**
  * Estimate item - single window/position in a room
  * NOTE: MVP uses manual meters input, no complex formula yet
  */
@@ -214,8 +233,10 @@ export interface EstimateItem {
   height_cm: number;
   curtain_fabric_id: string | null;
   curtain_fabric_meters: number;
+  curtain_supply_mode: EstimateSupplyMode; // How curtain fabric is sourced
   tulle_fabric_id: string | null;
   tulle_fabric_meters: number;
+  tulle_supply_mode: EstimateSupplyMode; // How tulle fabric is sourced
 }
 
 /**

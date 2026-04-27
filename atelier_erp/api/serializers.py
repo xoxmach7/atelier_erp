@@ -145,7 +145,7 @@ class OrderSerializer(serializers.ModelSerializer):
         model = Order
         fields = [
             'id', 'order_number', 'customer', 'customer_details',
-            'status', 'items', 'measurements', 'payments', 'source_task', 'source_quote',
+            'status', 'material_readiness', 'items', 'measurements', 'payments', 'source_task', 'source_quote',
             'installation_address_city', 'installation_address_street',
             'installation_address_building', 'installation_address_apartment',
             'installation_address_notes',
@@ -265,7 +265,7 @@ class QuoteItemSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'quote', 'room_name',
             'window_width_cm', 'window_height_cm', 'folds_count',
-            'fabric', 'fabric_details', 'fabric_meters', 'fabric_cost',
+            'fabric', 'fabric_details', 'fabric_meters', 'fabric_cost', 'supply_mode',
             'sewing_type', 'complexity', 'sewing_cost',
             'accessories_cost',
             'cornice', 'cornice_details', 'cornice_cost',
@@ -288,7 +288,7 @@ class QuoteItemCreateSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'room_name',
             'window_width_cm', 'window_height_cm', 'folds_count',
-            'fabric', 'fabric_meters', 'fabric_cost',
+            'fabric', 'fabric_meters', 'fabric_cost', 'supply_mode',
             'sewing_type', 'complexity', 'sewing_cost',
             'accessories_cost',
             'cornice', 'cornice_cost',

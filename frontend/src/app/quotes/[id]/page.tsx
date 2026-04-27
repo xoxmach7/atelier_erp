@@ -38,6 +38,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Plus,
+  ShoppingCart,
+  Globe,
 } from "lucide-react";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -377,6 +379,21 @@ function QuoteDetailContent() {
                           <span>
                             Cornice: {item.cornice_details.name}
                           </span>
+                        )}
+                        {item.supply_mode && (
+                          <div className="col-span-2 flex items-center gap-1 mt-1">
+                            <span className="text-xs">Поставка:</span>
+                            <Badge variant="outline" className="text-xs">
+                              {item.supply_mode === 'in_stock' && <Package className="h-3 w-3 mr-1" />}
+                              {item.supply_mode === 'purchase_local' && <ShoppingCart className="h-3 w-3 mr-1" />}
+                              {item.supply_mode === 'purchase_import' && <Globe className="h-3 w-3 mr-1" />}
+                              {item.supply_mode === 'client_supplied' && <User className="h-3 w-3 mr-1" />}
+                              {item.supply_mode === 'in_stock' && 'На складе'}
+                              {item.supply_mode === 'purchase_local' && 'Закупить локально'}
+                              {item.supply_mode === 'purchase_import' && 'Закупить импорт'}
+                              {item.supply_mode === 'client_supplied' && 'Клиентский'}
+                            </Badge>
+                          </div>
                         )}
                       </div>
                     </div>

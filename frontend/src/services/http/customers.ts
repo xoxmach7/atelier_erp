@@ -3,7 +3,7 @@
  * Minimal service for customer selection in quote creation
  */
 
-import { get } from "./client";
+import { get, post } from "./client";
 
 const CUSTOMERS_ENDPOINT = "/customers";
 
@@ -13,6 +13,17 @@ export interface CustomerDTO {
   phone: string;
   email?: string;
   address_city?: string;
+}
+
+export interface CreateCustomerInput {
+  full_name: string;
+  phone: string;
+  email?: string;
+  address_city?: string;
+  address_street?: string;
+  address_building?: string;
+  address_apartment?: string;
+  notes?: string;
 }
 
 export interface CustomerListResponse {
@@ -38,4 +49,11 @@ export async function fetchCustomers(
  */
 export async function fetchCustomerById(customerId: string): Promise<CustomerDTO> {
   return get<CustomerDTO>(`${CUSTOMERS_ENDPOINT}/${customerId}/`);
+}
+
+/**
+ * Create a new customer
+ */
+export async function createCustomer(data: CreateCustomerInput): Promise<CustomerDTO> {
+  return post<CustomerDTO>(CUSTOMERS_ENDPOINT, data);
 }

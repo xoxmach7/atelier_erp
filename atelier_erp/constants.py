@@ -4,6 +4,7 @@ Centralized location for business rules and FSM configuration
 """
 
 from decimal import Decimal
+from django.db.models import TextChoices
 
 
 # ============================================
@@ -30,6 +31,26 @@ class FinancialConfig:
 
 
 # ============================================
+# MATERIAL SUPPLY MODES
+# ============================================
+
+class SupplyMode:
+    """Material sourcing options for quote/order items"""
+    
+    IN_STOCK = 'in_stock'           # Material available in warehouse
+    PURCHASE_LOCAL = 'purchase_local'   # Buy locally for this order
+    PURCHASE_IMPORT = 'purchase_import'  # Import/order for this order
+    CLIENT_SUPPLIED = 'client_supplied'  # Customer provides material
+    
+    CHOICES = [
+        (IN_STOCK, 'На складе'),
+        (PURCHASE_LOCAL, 'Закупить (локально)'),
+        (PURCHASE_IMPORT, 'Закупить (импорт)'),
+        (CLIENT_SUPPLIED, 'Клиентский материал'),
+    ]
+
+
+# ============================================
 # RESERVATION CONSTANTS
 # ============================================
 
@@ -38,9 +59,22 @@ class ReservationConfig:
     
     # Default reservation TTL in days
     DEFAULT_EXPIRY_DAYS = 3
+
+
+# ============================================
+# MATERIAL READINESS - ORDER OPERATIONAL LAYER
+# ============================================
+
+class MaterialReadiness(TextChoices):
+    """
+    Material readiness states for order execution.
+    This is an operational layer INSIDE the order process,
+    NOT a replacement for the main order status.
+    """
     
-    # Maximum extension days
-    MAX_EXTENSION_DAYS = 7
+    NOT_READY = 'not_ready', 'Не обеспечен'
+    PARTIALLY_READY = 'partially_ready', 'Частично обеспечен'
+    READY = 'ready', 'Обеспечен материалами'
     
     # Grace period after expiration before auto-cancellation
     GRACE_PERIOD_HOURS = 24
