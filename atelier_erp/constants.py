@@ -75,9 +75,44 @@ class MaterialReadiness(TextChoices):
     NOT_READY = 'not_ready', 'Не обеспечен'
     PARTIALLY_READY = 'partially_ready', 'Частично обеспечен'
     READY = 'ready', 'Обеспечен материалами'
+
+
+# Grace period after expiration before auto-cancellation
+MATERIAL_READINESS_GRACE_PERIOD_HOURS = 24
+
+
+# ============================================
+# PRODUCTION STAGE - ORDER EXECUTION LAYER
+# ============================================
+
+class ProductionStage(TextChoices):
+    """
+    Production stage for order execution.
+    Tracks progress within in_production status.
+    """
     
-    # Grace period after expiration before auto-cancellation
-    GRACE_PERIOD_HOURS = 24
+    NOT_STARTED = 'not_started', 'Не начато'
+    CUTTING = 'cutting', 'Раскрой'
+    SEWING = 'sewing', 'Пошив'
+    QUALITY_CHECK = 'quality_check', 'Контроль качества'
+    DONE = 'done', 'Производство завершено'
+
+
+# ============================================
+# HANDOVER STAGE - ORDER EXECUTION LAYER
+# ============================================
+
+class HandoverStage(TextChoices):
+    """
+    Handover/installation stage for order execution.
+    Tracks progress within on_installation status.
+    """
+    
+    NOT_REQUIRED = 'not_required', 'Не требуется'
+    PENDING = 'pending', 'Ожидает установки / выдачи'
+    SCHEDULED = 'scheduled', 'Запланировано'
+    IN_PROGRESS = 'in_progress', 'В процессе'
+    DONE = 'done', 'Передано / установлено'
 
 
 # ============================================
@@ -186,21 +221,32 @@ class OrderFSMRules:
     """
     Order Finite State Machine transition rules
     Format: {current_state: [allowed_next_states]}
+    
+    MVP Status Model:
+    new -> in_work -> in_production -> ready -> on_installation -> waiting_final_payment -> completed
     """
     
     TRANSITIONS = {
-        'draft': ['measurement', 'cancelled'],
-        'measurement': ['design', 'cancelled'],
-        'design': ['quoted', 'cancelled'],
-        'quoted': ['approved', 'cancelled'],
-        'approved': ['prepayment_received', 'cancelled'],
-        'prepayment_received': ['fabric_reserved', 'cancelled'],
-        'fabric_reserved': ['production', 'cancelled'],
-        'production': ['ready', 'cancelled'],
-        'ready': ['installation', 'cancelled'],
-        'installation': ['completed', 'cancelled'],
+        # MVP Status Model (Approved)
+        'new': ['in_work', 'cancelled'],
+        'in_work': ['in_production', 'cancelled', 'new'],
+        'in_production': ['ready', 'cancelled'],
+        'ready': ['on_installation', 'cancelled', 'in_production'],
+        'on_installation': ['waiting_final_payment', 'cancelled', 'ready'],
+        'waiting_final_payment': ['completed', 'cancelled', 'on_installation'],
         'completed': [],  # Terminal state
         'cancelled': [],  # Terminal state
+        
+        # Legacy statuses (for backward compatibility during transition)
+        'draft': ['new', 'cancelled'],
+        'measurement': ['new', 'cancelled'],
+        'design': ['new', 'cancelled'],
+        'quoted': ['new', 'cancelled'],
+        'approved': ['in_work', 'cancelled'],
+        'prepayment_received': ['in_work', 'cancelled'],
+        'fabric_reserved': ['in_production', 'cancelled'],
+        'production': ['in_production', 'cancelled'],
+        'installation': ['on_installation', 'cancelled'],
     }
     
     @classmethod
@@ -215,6 +261,74 @@ class OrderFSMRules:
     def get_allowed_transitions(cls, current_state: str) -> list:
         """Get list of allowed next states"""
         return cls.TRANSITIONS.get(current_state, [])
+
+
+class OrderExecutionGuide:
+    """
+    Execution guidance text for each order status.
+    Shown in order detail to guide administrators through the workflow.
+    """
+    
+    GUIDANCE = {
+        'new': {
+            'title': 'Новый заказ',
+            'description': 'Заказ создан. Перед началом работы убедитесь, что есть согласованный расчёт (КП).',
+            'next_steps': ['Связать с КП если ещё не связан', 'Проверить материалы', 'Перевести в работу'],
+            'material_readiness_hint': 'Пока заказ не в работе, материалы не проверяются',
+        },
+        'in_work': {
+            'title': 'В работе',
+            'description': 'Заказ взят в работу. Проверьте материалы и переведите в производство когда готово.',
+            'next_steps': ['Проверить обеспеченность материалами', 'Заказать материалы если нужно', 'Передать в производство'],
+            'material_readiness_hint': 'Материалы должны быть обеспечены перед производством',
+        },
+        'in_production': {
+            'title': 'В производстве',
+            'description': 'Заказ в швейном цехе. Отслеживайте готовность изделий.',
+            'next_steps': ['Отслеживать пошив', 'Проверить качество', 'Отметить готовность'],
+            'material_readiness_hint': 'Материалы должны быть обеспечены (статус не меняется в производстве)',
+        },
+        'ready': {
+            'title': 'Готов',
+            'description': 'Изделия готовы. Можно назначать установку или выдачу клиенту.',
+            'next_steps': ['Согласовать дату установки', 'Подготовить изделия', 'Начать установку'],
+            'material_readiness_hint': 'Все материалы использованы в производстве',
+        },
+        'on_installation': {
+            'title': 'На установке / выдаче',
+            'description': 'Установка или выдача выполняется. После завершения требуется фотоотчёт и финальный расчёт.',
+            'next_steps': ['Выполнить установку', 'Сделать фотоотчёт', 'Проверить полную оплату'],
+            'material_readiness_hint': 'Работы выполняются у клиента или в шоуруме',
+        },
+        'waiting_final_payment': {
+            'title': 'Ожидает финальной оплаты',
+            'description': 'Работы выполнены. Требуется полная оплата перед закрытием заказа.',
+            'next_steps': ['Принять финальный платёж', 'Проверить полную оплату', 'Закрыть заказ'],
+            'material_readiness_hint': 'Все материалы использованы, оплата завершается',
+        },
+        'completed': {
+            'title': 'Завершён',
+            'description': 'Заказ полностью выполнен и оплачен.',
+            'next_steps': ['Архивировать документы'],
+            'material_readiness_hint': 'Заказ закрыт',
+        },
+        'cancelled': {
+            'title': 'Отменён',
+            'description': 'Заказ отменён.',
+            'next_steps': ['Оформить возврат если были платежи'],
+            'material_readiness_hint': 'Заказ отменён',
+        },
+    }
+    
+    @classmethod
+    def get_guidance(cls, status: str) -> dict:
+        """Get guidance for a specific status"""
+        return cls.GUIDANCE.get(status, {
+            'title': status,
+            'description': '',
+            'next_steps': [],
+            'material_readiness_hint': '',
+        })
 
 
 class TaskFSMRules:

@@ -1,0 +1,950 @@
+"""
+Order Execution Service
+Workflow management and execution tracking for orders.
+This is a helper service that complements OrderService, not a replacement.
+"""
+
+from decimal import Decimal
+from typing import List, Dict, Any, Optional, Tuple
+from uuid import UUID
+
+from django.utils import timezone
+
+from ..models import Order
+from ..constants import (
+    OrderFSMRules, OrderExecutionGuide,
+    MaterialReadiness, ProductionStage, HandoverStage
+)
+from .exceptions import OrderValidationError, InvalidOrderStatusTransition
+
+
+class OrderExecutionService:
+    """
+    Service for order execution workflow management.
+    
+    Provides:
+    - Available actions for current order state
+    - Workflow summary with warnings
+    - Stage change operations (materials, production, handover)
+    """
+    
+    def __init__(self, order_service=None):
+        """
+        Args:
+            order_service: Optional OrderService instance for transitions
+        """
+        self.order_service = order_service
+    
+    # ============================================
+    # ROLE-BASED EXECUTION SUMMARY
+    # ============================================
+    
+    def get_order_execution_summary(
+        self,
+        order: Order,
+        user=None
+    ) -> Dict[str, Any]:
+        """
+        Get complete execution summary for order detail page.
+        Role-based view for all MVP roles.
+        
+        Returns:
+            Dict with order core data, payment state, blockers, warnings,
+            available actions, and role-specific sections.
+        """
+        # Core order info
+        summary = {
+            'order_id': str(order.id),
+            'order_number': order.order_number,
+            'customer': self._get_customer_summary(order),
+            'status': order.status,
+            'status_label': order.get_status_display(),
+            'material_readiness': order.material_readiness,
+            'material_readiness_label': self._get_material_readiness_label(order.material_readiness),
+            'production_stage': order.production_stage,
+            'production_stage_label': self._get_production_stage_label(order.production_stage),
+            'handover_stage': order.handover_stage,
+            'handover_stage_label': self._get_handover_stage_label(order.handover_stage),
+        }
+        
+        # Payment summary
+        payment_info = self._get_payment_info(order)
+        summary.update({
+            'paid_amount': payment_info['paid_amount'],
+            'total_amount': payment_info['total_amount'],
+            'balance_due': payment_info['balance_due'],
+            'payment_state': payment_info['payment_state'],
+            'payment_state_label': payment_info['payment_state_label'],
+        })
+        
+        # Computed fields
+        summary['is_overdue'] = self._is_overdue(order)
+        summary['next_step'] = self._get_next_step(order)
+        
+        # Workflow state
+        summary['blocking_reasons'] = self._get_blockers(order)
+        summary['warnings'] = self._get_warnings(order)
+        summary['available_actions'] = self.get_available_actions(order, user)
+        
+        # Role sections
+        summary['role_sections'] = self.get_role_sections(order, user)
+        
+        return summary
+    
+    def _get_customer_summary(self, order: Order) -> Dict[str, Any]:
+        """Get minimal customer summary"""
+        customer = order.customer
+        return {
+            'id': str(customer.id),
+            'full_name': customer.full_name,
+            'phone': customer.phone,
+            'address': {
+                'city': customer.address_city,
+                'street': customer.address_street,
+                'building': customer.address_building,
+                'apartment': customer.address_apartment,
+            } if any([customer.address_city, customer.address_street]) else None
+        }
+    
+    def _is_overdue(self, order: Order) -> bool:
+        """Check if order is overdue based on planned_completion"""
+        if not order.planned_completion:
+            return False
+        from datetime import date
+        return date.today() > order.planned_completion and order.status not in [
+            Order.Status.COMPLETED, Order.Status.CANCELLED
+        ]
+    
+    def _get_next_step(self, order: Order) -> Dict[str, str]:
+        """Get next recommended step based on status"""
+        guidance = OrderExecutionGuide.get_guidance(order.status)
+        steps = guidance.get('next_steps', [])
+        return {
+            'description': guidance.get('description', ''),
+            'recommended_actions': steps[:3] if steps else [],
+        }
+    
+    def get_role_sections(
+        self,
+        order: Order,
+        user=None
+    ) -> Dict[str, Any]:
+        """
+        Get role-specific sections for order detail.
+        Each role sees only relevant data.
+        """
+        return {
+            'admin': self._get_admin_section(order),
+            'designer': self._get_designer_section(order),
+            'warehouse': self._get_warehouse_section(order),
+            'production': self._get_production_section(order),
+            'installer': self._get_installer_section(order),
+        }
+    
+    def _get_admin_section(self, order: Order) -> Dict[str, Any]:
+        """Admin/Owner section - full overview"""
+        # Quote status
+        quote_status = None
+        if order.quote:
+            quote_status = {
+                'id': str(order.quote.id),
+                'quote_number': order.quote.quote_number,
+                'status': order.quote.status,
+                'total': order.quote.total,
+            }
+        
+        # Production assignment summary
+        prod_assignment = None
+        if hasattr(order, 'production_assignment') and order.production_assignment:
+            pa = order.production_assignment
+            prod_assignment = {
+                'assigned_to': pa.assigned_to.get_full_name() if pa.assigned_to else None,
+                'status': pa.status,
+                'deadline': pa.deadline,
+                'complexity': pa.complexity,
+            }
+        
+        return {
+            'customer': self._get_customer_summary(order),
+            'order_status': {
+                'status': order.status,
+                'label': order.get_status_display(),
+                'material_readiness': order.material_readiness,
+                'production_stage': order.production_stage,
+                'handover_stage': order.handover_stage,
+            },
+            'payment_summary': {
+                'total': order.total_amount,
+                'paid': order.paid_amount,
+                'balance_due': order.total_amount - order.paid_amount,
+                'is_fully_paid': order.paid_amount >= order.total_amount,
+            },
+            'quote_status': quote_status,
+            'measurement_count': order.measurements.count(),
+            'production_status': prod_assignment,
+            'next_step': self._get_next_step(order),
+        }
+    
+    def _get_designer_section(self, order: Order) -> Dict[str, Any]:
+        """Designer/Measurer section - measurements and materials"""
+        measurements = []
+        for m in order.measurements.all():
+            measurements.append({
+                'id': str(m.id),
+                'room_name': m.room_name,
+                'window_name': m.window_name,
+                'width_cm': m.width_cm,
+                'height_cm': m.height_cm,
+                'mounting_type': m.mounting_type,
+            })
+        
+        # Selected materials from quote items if available
+        selected_materials = []
+        if order.quote:
+            for qi in order.quote.items.all():
+                material = {
+                    'room': qi.room_name if hasattr(qi, 'room_name') else None,
+                    'fabric': qi.fabric.name if qi.fabric else None,
+                    'fabric_meters': qi.fabric_meters if hasattr(qi, 'fabric_meters') else None,
+                    'sewing_type': qi.sewing_type,
+                }
+                selected_materials.append(material)
+        
+        return {
+            'measurements': measurements,
+            'rooms_count': len(set(m.room_name for m in order.measurements.all())),
+            'windows_count': order.measurements.count(),
+            'selected_materials': selected_materials,
+            'quote_items_count': order.quote.items.count() if order.quote else 0,
+        }
+    
+    def _get_warehouse_section(self, order: Order) -> Dict[str, Any]:
+        """Warehouse section - material requirements"""
+        material_requirements = []
+        
+        # From quote items
+        if order.quote:
+            for qi in order.quote.items.all():
+                if qi.fabric:
+                    material_requirements.append({
+                        'type': 'fabric',
+                        'name': qi.fabric.name,
+                        'hanger_number': qi.fabric.hanger_number,
+                        'required_meters': qi.fabric_meters if hasattr(qi, 'fabric_meters') else None,
+                        'supply_mode': qi.supply_mode if hasattr(qi, 'supply_mode') else 'in_stock',
+                        'in_stock': qi.fabric.stock_meters >= (qi.fabric_meters or 0) if hasattr(qi, 'fabric_meters') else False,
+                    })
+        
+        # From order items (if no quote or additional items)
+        for oi in order.items.all():
+            if oi.fabric and not any(m.get('name') == oi.fabric.name for m in material_requirements):
+                material_requirements.append({
+                    'type': 'fabric',
+                    'name': oi.fabric.name,
+                    'hanger_number': oi.fabric.hanger_number,
+                    'required_meters': oi.quantity,
+                    'supply_mode': 'in_stock',
+                    'in_stock': oi.fabric.stock_meters >= oi.quantity,
+                })
+        
+        # Missing materials summary
+        missing = [m for m in material_requirements if not m.get('in_stock')]
+        
+        return {
+            'material_requirements': material_requirements,
+            'material_readiness': order.material_readiness,
+            'material_readiness_label': self._get_material_readiness_label(order.material_readiness),
+            'missing_materials_count': len(missing),
+            'missing_materials': missing,
+            'total_fabrics_required': len(material_requirements),
+        }
+    
+    def _get_production_section(self, order: Order) -> Dict[str, Any]:
+        """Production/Seamstress section - what to sew"""
+        # Production assignment
+        assignment = None
+        if hasattr(order, 'production_assignment') and order.production_assignment:
+            pa = order.production_assignment
+            assignment = {
+                'assigned_to': pa.assigned_to.get_full_name() if pa.assigned_to else None,
+                'status': pa.status,
+                'complexity': pa.complexity,
+                'deadline': pa.deadline,
+                'started_at': pa.started_at,
+                'total_payment': pa.total_payment,
+            }
+        
+        # Order items / products to sew
+        items = []
+        for oi in order.items.all():
+            if oi.fabric:
+                items.append({
+                    'id': str(oi.id),
+                    'room': oi.sewing_type,  # Using as room indicator
+                    'fabric': oi.fabric.name if oi.fabric else None,
+                    'quantity': oi.quantity,
+                    'sewing_type': oi.sewing_type,
+                    'window_width_cm': oi.window_width_cm,
+                    'window_height_cm': oi.window_height_cm,
+                    'folds_count': oi.folds_count,
+                })
+        
+        return {
+            'production_assignment': assignment,
+            'items_to_sew': items,
+            'items_count': len(items),
+            'production_stage': order.production_stage,
+            'production_stage_label': self._get_production_stage_label(order.production_stage),
+            'deadline': assignment.get('deadline') if assignment else None,
+        }
+    
+    def _get_installer_section(self, order: Order) -> Dict[str, Any]:
+        """Installer section - installation and handover"""
+        # Address info
+        address = None
+        if order.installation_address_city or order.installation_address_street:
+            address = {
+                'city': order.installation_address_city,
+                'street': order.installation_address_street,
+                'building': order.installation_address_building,
+                'apartment': order.installation_address_apartment,
+                'notes': order.installation_address_notes,
+            }
+        
+        # Products to install (from measurements or items)
+        products = []
+        for m in order.measurements.all():
+            products.append({
+                'room': m.room_name,
+                'window': m.window_name,
+                'dimensions': f"{m.width_cm}x{m.height_cm}cm" if m.width_cm and m.height_cm else None,
+            })
+        
+        return {
+            'address': address,
+            'customer_phone': order.customer.phone,
+            'products': products,
+            'installation_date': order.installation_date,
+            'handover_stage': order.handover_stage,
+            'handover_stage_label': self._get_handover_stage_label(order.handover_stage),
+            'balance_due': order.total_amount - order.paid_amount,
+            # Placeholders for future features
+            'photo_report_status': 'not_implemented',
+            'act_status': 'not_implemented',
+        }
+    
+    def get_available_actions(
+        self,
+        order: Order,
+        user=None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get available actions considering user role.
+        Wrapper around get_available_order_actions with role awareness.
+        """
+        actions = self.get_available_order_actions(order)
+        
+        # Filter by role if user provided
+        if user and hasattr(user, 'groups'):
+            user_groups = [g.name for g in user.groups.all()]
+            
+            # Role-based filtering
+            if 'Seamstress' in user_groups:
+                # Seamstress only sees production-related actions
+                actions = [a for a in actions if a.get('action') in [
+                    'change_production_stage', 'transition_to_ready'
+                ]] or []
+            
+            elif 'Installer' in user_groups:
+                # Installer only sees handover actions
+                actions = [a for a in actions if a.get('action') in [
+                    'change_handover_stage', 'transition_to_waiting_final_payment',
+                    'transition_to_completed'
+                ]] or []
+        
+        return actions
+    
+    # ============================================
+    # WORKFLOW SUMMARY (legacy compatibility)
+    # ============================================
+    
+    def get_order_workflow_summary(self, order: Order) -> Dict[str, Any]:
+        """
+        Get complete workflow summary for an order.
+        Legacy method - use get_order_execution_summary for new code.
+        
+        Returns dict with:
+        - status_info: current status labels and guidance
+        - payment_info: paid_amount, balance_due, payment_state
+        - material_info: material_readiness with warnings
+        - production_info: production_stage with warnings
+        - handover_info: handover_stage with warnings
+        - blockers: list of issues preventing progress
+        - warnings: non-critical issues
+        """
+        summary = {
+            'status_info': self._get_status_info(order),
+            'payment_info': self._get_payment_info(order),
+            'material_info': self._get_material_info(order),
+            'production_info': self._get_production_info(order),
+            'handover_info': self._get_handover_info(order),
+            'blockers': self._get_blockers(order),
+            'warnings': self._get_warnings(order),
+        }
+        return summary
+    
+    def _get_status_info(self, order: Order) -> Dict[str, Any]:
+        """Get current status information with guidance"""
+        guidance = OrderExecutionGuide.get_guidance(order.status)
+        
+        return {
+            'status': order.status,
+            'status_label': order.get_status_display(),
+            'title': guidance['title'],
+            'description': guidance['description'],
+            'next_steps': guidance['next_steps'],
+            'allowed_transitions': OrderFSMRules.get_allowed_transitions(order.status),
+        }
+    
+    def _get_payment_info(self, order: Order) -> Dict[str, Any]:
+        """Get payment information with calculated state"""
+        balance_due = order.total_amount - order.paid_amount
+        
+        # Determine payment state
+        if order.paid_amount == 0:
+            payment_state = 'unpaid'
+            payment_state_label = 'Не оплачен'
+        elif balance_due <= 0:
+            payment_state = 'paid'
+            payment_state_label = 'Оплачен полностью'
+        elif order.paid_amount >= order.total_amount * Decimal('0.5'):
+            payment_state = 'partial'
+            payment_state_label = 'Оплачен частично (≥50%)'
+        else:
+            payment_state = 'prepayment_due'
+            payment_state_label = 'Требуется предоплата'
+        
+        return {
+            'paid_amount': order.paid_amount,
+            'total_amount': order.total_amount,
+            'balance_due': balance_due,
+            'payment_state': payment_state,
+            'payment_state_label': payment_state_label,
+        }
+    
+    def _get_material_info(self, order: Order) -> Dict[str, Any]:
+        """Get material readiness information"""
+        return {
+            'material_readiness': order.material_readiness,
+            'material_readiness_label': self._get_material_readiness_label(order.material_readiness),
+            'hint': OrderExecutionGuide.get_guidance(order.status).get('material_readiness_hint', ''),
+        }
+    
+    def _get_production_info(self, order: Order) -> Dict[str, Any]:
+        """Get production stage information"""
+        return {
+            'production_stage': order.production_stage,
+            'production_stage_label': self._get_production_stage_label(order.production_stage),
+        }
+    
+    def _get_handover_info(self, order: Order) -> Dict[str, Any]:
+        """Get handover stage information"""
+        return {
+            'handover_stage': order.handover_stage,
+            'handover_stage_label': self._get_handover_stage_label(order.handover_stage),
+        }
+    
+    def _get_blockers(self, order: Order) -> List[Dict[str, str]]:
+        """Get list of issues blocking progress"""
+        blockers = []
+        
+        # Cannot modify cancelled order
+        if order.status == Order.Status.CANCELLED:
+            blockers.append({
+                'type': 'cancelled',
+                'message': 'Заказ отменён. Изменения невозможны.',
+                'severity': 'error'
+            })
+            return blockers
+        
+        # Cannot modify completed order
+        if order.status == Order.Status.COMPLETED:
+            blockers.append({
+                'type': 'completed',
+                'message': 'Заказ завершён. Изменения невозможны.',
+                'severity': 'error'
+            })
+            return blockers
+        
+        # Production cannot start without materials
+        if order.status == Order.Status.IN_WORK:
+            if order.material_readiness == MaterialReadiness.NOT_READY:
+                blockers.append({
+                    'type': 'materials_not_ready',
+                    'message': 'Материалы не обеспечены. Нельзя начать производство.',
+                    'severity': 'error'
+                })
+        
+        # Cannot complete production if stage not done
+        if order.status == Order.Status.IN_PRODUCTION:
+            if order.production_stage != ProductionStage.DONE:
+                blockers.append({
+                    'type': 'production_not_done',
+                    'message': 'Производство не завершено. Смените этап на "Производство завершено".',
+                    'severity': 'error'
+                })
+        
+        # Cannot complete order if not paid
+        if order.status == Order.Status.WAITING_FINAL_PAYMENT:
+            if order.paid_amount < order.total_amount:
+                blockers.append({
+                    'type': 'not_fully_paid',
+                    'message': f'Требуется оплата: {order.total_amount - order.paid_amount}',
+                    'severity': 'error'
+                })
+        
+        return blockers
+    
+    def _get_warnings(self, order: Order) -> List[Dict[str, str]]:
+        """Get list of non-critical warnings"""
+        warnings = []
+        
+        # Partial materials warning
+        if order.material_readiness == MaterialReadiness.PARTIALLY_READY:
+            if order.status in [Order.Status.IN_WORK, Order.Status.IN_PRODUCTION]:
+                warnings.append({
+                    'type': 'partial_materials',
+                    'message': 'Материалы обеспечены частично. Возможны задержки.',
+                    'severity': 'warning'
+                })
+        
+        # Payment warnings
+        balance_due = order.total_amount - order.paid_amount
+        if order.status == Order.Status.ON_INSTALLATION and balance_due > 0:
+            warnings.append({
+                'type': 'installation_not_paid',
+                'message': f'Установка выполняется, но есть неоплаченный остаток: {balance_due}',
+                'severity': 'warning'
+            })
+        
+        return warnings
+    
+    # ============================================
+    # AVAILABLE ACTIONS
+    # ============================================
+    
+    def get_available_order_actions(self, order: Order) -> List[Dict[str, Any]]:
+        """
+        Get list of available actions for current order state.
+        
+        Each action has:
+        - action: action code
+        - label: human-readable label
+        - description: what this action does
+        - required: whether it's required to proceed
+        - disabled_reason: why action is disabled (if applicable)
+        """
+        actions = []
+        
+        # Terminal states - no actions
+        if order.status in [Order.Status.COMPLETED, Order.Status.CANCELLED]:
+            return actions
+        
+        # Material readiness actions
+        if order.status in [Order.Status.NEW, Order.Status.IN_WORK]:
+            actions.append(self._build_material_actions(order))
+        
+        # Production stage actions (only in production)
+        if order.status == Order.Status.IN_PRODUCTION:
+            actions.append(self._build_production_actions(order))
+        
+        # Handover stage actions (only in installation)
+        if order.status == Order.Status.ON_INSTALLATION:
+            actions.append(self._build_handover_actions(order))
+        
+        # Status transitions
+        actions.extend(self._build_transition_actions(order))
+        
+        # Cancel action (always available except terminal states)
+        actions.append({
+            'action': 'cancel',
+            'label': 'Отменить заказ',
+            'description': 'Отменить заказ с указанием причины',
+            'required': False,
+            'dangerous': True,
+        })
+        
+        return actions
+    
+    def _build_material_actions(self, order: Order) -> Dict[str, Any]:
+        """Build action for changing material readiness"""
+        disabled_reason = None
+        if order.status == Order.Status.CANCELLED:
+            disabled_reason = 'Заказ отменён'
+        
+        return {
+            'action': 'change_material_readiness',
+            'label': 'Изменить готовность материалов',
+            'description': 'Обновить статус обеспеченности материалами',
+            'required': order.status == Order.Status.IN_WORK and order.material_readiness == MaterialReadiness.NOT_READY,
+            'current_value': order.material_readiness,
+            'current_label': self._get_material_readiness_label(order.material_readiness),
+            'allowed_values': MaterialReadiness.choices,
+            'disabled_reason': disabled_reason,
+        }
+    
+    def _build_production_actions(self, order: Order) -> Dict[str, Any]:
+        """Build action for changing production stage"""
+        return {
+            'action': 'change_production_stage',
+            'label': 'Изменить этап производства',
+            'description': 'Обновить текущий этап производства',
+            'required': order.production_stage != ProductionStage.DONE,
+            'current_value': order.production_stage,
+            'current_label': self._get_production_stage_label(order.production_stage),
+            'allowed_values': ProductionStage.choices,
+        }
+    
+    def _build_handover_actions(self, order: Order) -> Dict[str, Any]:
+        """Build action for changing handover stage"""
+        return {
+            'action': 'change_handover_stage',
+            'label': 'Изменить этап установки/выдачи',
+            'description': 'Обновить текущий этап установки или выдачи',
+            'required': order.handover_stage != HandoverStage.DONE,
+            'current_value': order.handover_stage,
+            'current_label': self._get_handover_stage_label(order.handover_stage),
+            'allowed_values': HandoverStage.choices,
+        }
+    
+    def _build_transition_actions(self, order: Order) -> List[Dict[str, Any]]:
+        """Build actions for allowed status transitions"""
+        actions = []
+        allowed = OrderFSMRules.get_allowed_transitions(order.status)
+        
+        transition_labels = {
+            'new': 'Вернуть в "Новый"',
+            'in_work': 'Взять в работу',
+            'in_production': 'Передать в производство',
+            'ready': 'Отметить готовность',
+            'on_installation': 'Начать установку/выдачу',
+            'waiting_final_payment': 'Ожидать финальную оплату',
+            'completed': 'Завершить заказ',
+            'cancelled': 'Отменить заказ',
+        }
+        
+        for status in allowed:
+            if status == 'cancelled':
+                continue  # Cancel is handled separately
+            
+            action = {
+                'action': f'transition_to_{status}',
+                'label': transition_labels.get(status, f'Перевести в "{status}"'),
+                'description': f'Изменить статус заказа на "{transition_labels.get(status, status)}"',
+                'required': False,
+                'target_status': status,
+            }
+            
+            # Check for blockers
+            blockers = self._get_transition_blockers(order, status)
+            if blockers:
+                action['disabled_reason'] = '; '.join(blockers)
+            
+            actions.append(action)
+        
+        return actions
+    
+    def _has_accepted_quote(self, order: Order) -> bool:
+        """Check if order has an accepted/approved quote"""
+        from ..models import Quote
+        # Check source quote (order created from quote)
+        if order.quote and order.quote.status == Quote.Status.APPROVED:
+            return True
+        # Check related quotes (quotes created for this order - direct order flow)
+        if order.related_quotes.filter(status=Quote.Status.APPROVED).exists():
+            return True
+        return False
+
+    def _get_first_accepted_quote(self, order: Order):
+        """Get first accepted quote for order (source or related)"""
+        from ..models import Quote
+        # Check source quote first
+        if order.quote and order.quote.status == Quote.Status.APPROVED:
+            return order.quote
+        # Check related quotes
+        return order.related_quotes.filter(status=Quote.Status.APPROVED).first()
+
+    def _get_transition_blockers(self, order: Order, target_status: str) -> List[str]:
+        """Get blockers for a specific transition"""
+        blockers = []
+        
+        # in_work requires accepted quote and order items
+        if target_status == Order.Status.IN_WORK:
+            if not self._has_accepted_quote(order):
+                blockers.append('Сначала примите КП и сформируйте позиции заказа')
+            elif order.items.count() == 0:
+                blockers.append('Сначала сформируйте позиции заказа из КП')
+        
+        # in_production requires materials ready and order items
+        if target_status == Order.Status.IN_PRODUCTION:
+            if order.material_readiness == MaterialReadiness.NOT_READY:
+                blockers.append('Материалы не обеспечены')
+            if order.items.count() == 0:
+                blockers.append('Сначала сформируйте позиции заказа из КП')
+        
+        # ready requires production done
+        if target_status == Order.Status.READY:
+            if order.production_stage != ProductionStage.DONE:
+                blockers.append('Производство не завершено')
+        
+        # completed requires full payment
+        if target_status == Order.Status.COMPLETED:
+            if order.paid_amount < order.total_amount:
+                blockers.append(f'Требуется полная оплата. Остаток: {order.total_amount - order.paid_amount}')
+        
+        return blockers
+    
+    # ============================================
+    # STAGE CHANGE OPERATIONS
+    # ============================================
+    
+    def change_material_readiness(
+        self,
+        order: Order,
+        material_readiness: str,
+        changed_by: Optional[UUID] = None,
+        notes: str = ""
+    ) -> Tuple[Order, List[str]]:
+        """
+        Change material readiness state.
+        
+        Returns:
+            Tuple of (updated_order, warnings)
+        
+        Raises:
+            OrderValidationError: If change not allowed
+        """
+        # Validate state is valid
+        valid_states = [s[0] for s in MaterialReadiness.choices]
+        if material_readiness not in valid_states:
+            raise OrderValidationError(f"Invalid material readiness: {material_readiness}")
+        
+        # Cannot modify cancelled/completed orders
+        if order.status in [Order.Status.CANCELLED, Order.Status.COMPLETED]:
+            raise OrderValidationError(f"Cannot modify {order.status} order")
+
+        warnings = []
+        
+        # Warning for partial readiness
+        if material_readiness == MaterialReadiness.PARTIALLY_READY:
+            warnings.append("Материалы обеспечены частично. Возможны задержки в производстве.")
+        
+        # Update order
+        old_value = order.material_readiness
+        order.material_readiness = material_readiness
+        order.save(update_fields=['material_readiness', 'updated_at'])
+        
+        # Create history entry via OrderService if available
+        if self.order_service:
+            from ..models import OrderStatusHistory
+            OrderStatusHistory.objects.create(
+                order=order,
+                old_status=order.status,
+                new_status=order.status,
+                changed_by_id=changed_by,
+                notes=f"Material readiness changed: {old_value} -> {material_readiness}. {notes}".strip()
+            )
+        
+        return order, warnings
+    
+    def change_production_stage(
+        self,
+        order: Order,
+        production_stage: str,
+        changed_by: Optional[UUID] = None,
+        notes: str = ""
+    ) -> Order:
+        """
+        Change production stage.
+        
+        Raises:
+            OrderValidationError: If change not allowed
+        """
+        # Validate state is valid
+        valid_stages = [s[0] for s in ProductionStage.choices]
+        if production_stage not in valid_stages:
+            raise OrderValidationError(f"Invalid production stage: {production_stage}")
+        
+        # Can only change in IN_PRODUCTION status
+        if order.status != Order.Status.IN_PRODUCTION:
+            raise OrderValidationError(
+                f"Cannot change production stage in status {order.status}. "
+                "Must be in 'in_production' status."
+            )
+        
+        # Update order
+        old_value = order.production_stage
+        order.production_stage = production_stage
+        order.save(update_fields=['production_stage', 'updated_at'])
+        
+        # Create history entry
+        if self.order_service:
+            from ..models import OrderStatusHistory
+            OrderStatusHistory.objects.create(
+                order=order,
+                old_status=order.status,
+                new_status=order.status,
+                changed_by_id=changed_by,
+                notes=f"Production stage changed: {old_value} -> {production_stage}. {notes}".strip()
+            )
+        
+        return order
+    
+    def change_handover_stage(
+        self,
+        order: Order,
+        handover_stage: str,
+        changed_by: Optional[UUID] = None,
+        notes: str = ""
+    ) -> Tuple[Order, bool]:
+        """
+        Change handover stage.
+        
+        Returns:
+            Tuple of (updated_order, can_auto_complete)
+            can_auto_complete is True if handover done AND fully paid
+        
+        Raises:
+            OrderValidationError: If change not allowed
+        """
+        # Validate state is valid
+        valid_stages = [s[0] for s in HandoverStage.choices]
+        if handover_stage not in valid_stages:
+            raise OrderValidationError(f"Invalid handover stage: {handover_stage}")
+        
+        # Can only change in ON_INSTALLATION status
+        if order.status != Order.Status.ON_INSTALLATION:
+            raise OrderValidationError(
+                f"Cannot change handover stage in status {order.status}. "
+                "Must be in 'on_installation' status."
+            )
+        
+        # Update order
+        old_value = order.handover_stage
+        order.handover_stage = handover_stage
+        order.save(update_fields=['handover_stage', 'updated_at'])
+        
+        # Create history entry
+        if self.order_service:
+            from ..models import OrderStatusHistory
+            OrderStatusHistory.objects.create(
+                order=order,
+                old_status=order.status,
+                new_status=order.status,
+                changed_by_id=changed_by,
+                notes=f"Handover stage changed: {old_value} -> {handover_stage}. {notes}".strip()
+            )
+        
+        # Check if can auto-complete
+        can_auto_complete = (
+            handover_stage == HandoverStage.DONE and 
+            order.paid_amount >= order.total_amount
+        )
+        
+        return order, can_auto_complete
+    
+    def cancel_order(
+        self,
+        order: Order,
+        reason: str,
+        user=None
+    ) -> Order:
+        """
+        Cancel order with business rule validation.
+        
+        Business rules:
+        - Cannot cancel completed orders
+        - Cannot cancel already cancelled orders
+        - Reason is required
+        - Sets cancel_reason, cancelled_at, cancelled_by, status=cancelled
+        
+        Args:
+            order: Order to cancel
+            reason: Cancellation reason (required)
+            user: User performing cancellation (optional)
+            
+        Returns:
+            Updated cancelled order
+            
+        Raises:
+            OrderValidationError: If cancellation not allowed
+        """
+        # Validate reason
+        if not reason or not reason.strip():
+            raise OrderValidationError("Причина отмены обязательна.")
+        
+        # Check if already cancelled
+        if order.status == Order.Status.CANCELLED:
+            raise OrderValidationError("Заказ уже отменён.")
+        
+        # Check if completed
+        if order.status == Order.Status.COMPLETED:
+            raise OrderValidationError("Нельзя отменить завершённый заказ.")
+        
+        # Perform cancellation
+        order.cancel_reason = reason.strip()
+        order.cancelled_at = timezone.now()
+        order.cancelled_by = user
+        order.status = Order.Status.CANCELLED
+        order.save(update_fields=[
+            'cancel_reason', 'cancelled_at', 'cancelled_by',
+            'status', 'updated_at'
+        ])
+        
+        # Create history entry if order_service available
+        if self.order_service:
+            from ..models import OrderStatusHistory
+            OrderStatusHistory.objects.create(
+                order=order,
+                old_status=order.status,
+                new_status=Order.Status.CANCELLED,
+                changed_by=user,
+                notes=f"Order cancelled. Reason: {reason}"
+            )
+        
+        return order
+    
+    # ============================================
+    # HELPER METHODS
+    # ============================================
+    
+    def _get_material_readiness_label(self, value: str) -> str:
+        """Get human-readable label for material readiness"""
+        labels = {
+            MaterialReadiness.NOT_READY: 'Не обеспечен',
+            MaterialReadiness.PARTIALLY_READY: 'Частично обеспечен',
+            MaterialReadiness.READY: 'Обеспечен материалами',
+        }
+        return labels.get(value, value)
+    
+    def _get_production_stage_label(self, value: str) -> str:
+        """Get human-readable label for production stage"""
+        labels = {
+            ProductionStage.NOT_STARTED: 'Не начато',
+            ProductionStage.CUTTING: 'Раскрой',
+            ProductionStage.SEWING: 'Пошив',
+            ProductionStage.QUALITY_CHECK: 'Контроль качества',
+            ProductionStage.DONE: 'Производство завершено',
+        }
+        return labels.get(value, value)
+    
+    def _get_handover_stage_label(self, value: str) -> str:
+        """Get human-readable label for handover stage"""
+        labels = {
+            HandoverStage.NOT_REQUIRED: 'Не требуется',
+            HandoverStage.PENDING: 'Ожидает установки / выдачи',
+            HandoverStage.SCHEDULED: 'Запланировано',
+            HandoverStage.IN_PROGRESS: 'В процессе',
+            HandoverStage.DONE: 'Передано / установлено',
+        }
+        return labels.get(value, value)

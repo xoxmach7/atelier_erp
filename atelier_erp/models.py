@@ -7,7 +7,7 @@ import uuid
 from decimal import Decimal
 
 from django.conf import settings
-from .constants import SupplyMode, MaterialReadiness
+from .constants import SupplyMode, MaterialReadiness, ProductionStage, HandoverStage
 from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
 from django.db import models
 from django.db.models import CheckConstraint, Q, UniqueConstraint, Index
@@ -368,6 +368,24 @@ class Order(UUIDModel, AuditedModel):
         help_text='Operational state: whether order materials are ready for production'
     )
     
+    # Production stage - tracks progress within in_production status
+    production_stage = models.CharField(
+        max_length=20,
+        choices=ProductionStage.choices,
+        default=ProductionStage.NOT_STARTED,
+        db_index=True,
+        help_text='Production progress stage'
+    )
+    
+    # Handover stage - tracks progress within on_installation status
+    handover_stage = models.CharField(
+        max_length=20,
+        choices=HandoverStage.choices,
+        default=HandoverStage.NOT_REQUIRED,
+        db_index=True,
+        help_text='Handover/installation progress stage'
+    )
+    
     # Address
     installation_address_city = models.CharField(max_length=100, blank=True, db_index=True)
     installation_address_street = models.CharField(max_length=255, blank=True)
@@ -407,6 +425,18 @@ class Order(UUIDModel, AuditedModel):
     # Notes
     notes = models.TextField(blank=True)
     
+    # Cancellation tracking
+    cancel_reason = models.TextField(blank=True, help_text='Reason for order cancellation')
+    cancelled_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    cancelled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cancelled_orders',
+        db_index=True
+    )
+    
     class Meta:
         db_table = 'orders'
         ordering = ['-created_at']
@@ -423,6 +453,11 @@ class Order(UUIDModel, AuditedModel):
             
             # Dashboard queries
             Index(fields=['status', 'updated_at'], name='idx_order_status_updated'),
+            
+            # Execution tracking queries
+            Index(fields=['production_stage', 'status'], name='idx_order_prod_stage'),
+            Index(fields=['handover_stage', 'status'], name='idx_order_handover_stage'),
+            Index(fields=['cancelled_at'], name='idx_order_cancelled_at'),
         ]
         constraints = [
             CheckConstraint(

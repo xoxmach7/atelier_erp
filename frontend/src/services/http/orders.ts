@@ -4,7 +4,18 @@
  */
 
 import { get, post } from "./client";
-import type { OrderListItemDTO, OrderDetailDTO } from "@/types";
+import type {
+  OrderListItemDTO,
+  OrderDetailDTO,
+  OrderExecutionDTO,
+  OrderCreateDTO,
+  ChangeStatusRequest,
+  ChangeMaterialReadinessRequest,
+  ChangeProductionStageRequest,
+  ChangeHandoverStageRequest,
+  CancelOrderRequest,
+  ActionResponse,
+} from "@/types";
 
 interface OrdersListResponse {
   count: number;
@@ -37,38 +48,89 @@ export async function fetchOrderById(id: string): Promise<OrderDetailDTO> {
 }
 
 /**
- * Order creation payload - matches backend OrderCreateSerializer
- * Backend fields: customer_id, items, installation_address_*, measurement_date, planned_completion, notes
- */
-export interface OrderCreateDTO {
-  customer_id: string;
-  items?: Array<{
-    item_type?: string;
-    description?: string;
-    fabric?: string;
-    fabric_meters?: number;
-    cornice?: string;
-    cornice_count?: number;
-    service?: string;
-    unit_price?: string;
-    quantity?: number;
-  }>;
-  // Installation address fields
-  installation_address_city?: string;
-  installation_address_street?: string;
-  installation_address_building?: string;
-  installation_address_apartment?: string;
-  installation_address_notes?: string;
-  // Dates
-  measurement_date?: string | null;
-  planned_completion?: string | null;
-  // Notes
-  notes?: string;
-}
-
-/**
  * Create new order
  */
 export async function createOrder(data: OrderCreateDTO): Promise<OrderDetailDTO> {
   return post<OrderDetailDTO>("/v1/orders/", data);
+}
+
+// ============================================================================
+// Order Execution API - Workflow management
+// ============================================================================
+
+/**
+ * Fetch order execution summary
+ * GET /api/v1/orders/{id}/execution/
+ */
+export async function fetchOrderExecution(orderId: string): Promise<OrderExecutionDTO> {
+  return get<OrderExecutionDTO>(`/v1/orders/${orderId}/execution/`);
+}
+
+/**
+ * Change order status
+ * POST /api/v1/orders/{id}/change-status/
+ */
+export async function changeOrderStatus(
+  orderId: string,
+  data: ChangeStatusRequest
+): Promise<ActionResponse> {
+  return post<ActionResponse>(`/v1/orders/${orderId}/change-status/`, data);
+}
+
+/**
+ * Change material readiness
+ * POST /api/v1/orders/{id}/change-material-readiness/
+ */
+export async function changeMaterialReadiness(
+  orderId: string,
+  data: ChangeMaterialReadinessRequest
+): Promise<ActionResponse> {
+  return post<ActionResponse>(`/v1/orders/${orderId}/change-material-readiness/`, data);
+}
+
+/**
+ * Change production stage
+ * POST /api/v1/orders/{id}/change-production-stage/
+ */
+export async function changeProductionStage(
+  orderId: string,
+  data: ChangeProductionStageRequest
+): Promise<ActionResponse> {
+  return post<ActionResponse>(`/v1/orders/${orderId}/change-production-stage/`, data);
+}
+
+/**
+ * Change handover stage
+ * POST /api/v1/orders/{id}/change-handover-stage/
+ */
+export async function changeHandoverStage(
+  orderId: string,
+  data: ChangeHandoverStageRequest
+): Promise<ActionResponse> {
+  return post<ActionResponse>(`/v1/orders/${orderId}/change-handover-stage/`, data);
+}
+
+/**
+ * Cancel order
+ * POST /api/v1/orders/{id}/cancel/
+ */
+export async function cancelOrder(
+  orderId: string,
+  data: CancelOrderRequest
+): Promise<ActionResponse> {
+  return post<ActionResponse>(`/v1/orders/${orderId}/cancel/`, data);
+}
+
+/**
+ * Generate OrderItems from linked Quote
+ * POST /api/v1/orders/{id}/generate-items-from-quote/
+ */
+export async function generateOrderItemsFromQuote(
+  orderId: string,
+  quoteId?: string
+): Promise<{ order: OrderDetailDTO; created_count: number; message: string }> {
+  return post<{ order: OrderDetailDTO; created_count: number; message: string }>(
+    `/v1/orders/${orderId}/generate-items-from-quote/`,
+    quoteId ? { quote_id: quoteId } : {}
+  );
 }

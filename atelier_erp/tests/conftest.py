@@ -153,6 +153,33 @@ def confirmed_order(db, customer):
 
 
 @pytest.fixture
+def completed_order(db, customer):
+    """Completed order fixture"""
+    return Order.objects.create(
+        order_number='О-2024-COMPLETED',
+        customer=customer,
+        status=Order.Status.COMPLETED,
+        total_amount=Decimal('50000.00'),
+        paid_amount=Decimal('50000.00')
+    )
+
+
+@pytest.fixture
+def cancelled_order(db, customer):
+    """Cancelled order fixture"""
+    from django.utils import timezone
+    return Order.objects.create(
+        order_number='О-2024-CANCELLED',
+        customer=customer,
+        status=Order.Status.CANCELLED,
+        total_amount=Decimal('50000.00'),
+        paid_amount=Decimal('0.00'),
+        cancel_reason='Тестовая отмена',
+        cancelled_at=timezone.now()
+    )
+
+
+@pytest.fixture
 def task(db):
     """Test task fixture"""
     return Task.objects.create(

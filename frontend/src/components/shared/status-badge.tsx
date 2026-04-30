@@ -11,12 +11,18 @@
 
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import type { OrderStatus, TaskStatus, ProductionStatus, PaymentStatus } from "@/types";
+import type { OrderStatus, TaskStatus, ProductionStatus, PaymentStatus, MaterialReadiness } from "@/types";
 
 type StatusType = OrderStatus | TaskStatus | ProductionStatus | PaymentStatus;
+type MaterialReadinessType = MaterialReadiness;
 
 interface StatusBadgeProps {
   status: StatusType;
+  className?: string;
+}
+
+interface MaterialReadinessBadgeProps {
+  readiness: MaterialReadinessType;
   className?: string;
 }
 
@@ -112,6 +118,30 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   return (
     <Badge variant="secondary" className={cn(style, className)}>
       {formatStatus(status)}
+    </Badge>
+  );
+}
+
+// Material readiness badge styles
+const materialReadinessStyles: Record<string, string> = {
+  not_ready: "bg-red-100 text-red-700",
+  partially_ready: "bg-amber-100 text-amber-700",
+  ready: "bg-green-100 text-green-700",
+};
+
+const materialReadinessLabels: Record<string, string> = {
+  not_ready: "Не обеспечен",
+  partially_ready: "Частично обеспечен",
+  ready: "Обеспечен материалами",
+};
+
+export function MaterialReadinessBadge({ readiness, className }: MaterialReadinessBadgeProps) {
+  const style = materialReadinessStyles[readiness] || "bg-slate-100 text-slate-700";
+  const label = materialReadinessLabels[readiness] || readiness;
+  
+  return (
+    <Badge variant="secondary" className={cn(style, className)}>
+      {label}
     </Badge>
   );
 }

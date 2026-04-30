@@ -87,22 +87,22 @@ export interface CustomerDetailsDTO {
 
 /**
  * Order item from OrderSerializer items
+ * Matches backend OrderItem model
  */
 export interface OrderItemDTO {
   id: string;
   item_type: string;
-  description: string;
+  notes: string;
   fabric?: string | null;
-  fabric_meters?: number;
-  fabric_cost?: number;
-  supply_mode?: SupplyMode; // How fabric is sourced
-  tulle?: string | null;
-  cornice?: string | null; // ForeignKey to Cornice model
-  cornice_count: number | null;
+  cornice?: string | null;
   service: string | null;
   unit_price: string;
   quantity: number;
   total_price: string;
+  sewing_type?: string;
+  window_width_cm?: number | null;
+  window_height_cm?: number | null;
+  folds_count?: number | null;
 }
 
 /**
@@ -180,6 +180,36 @@ export interface OrderDetailDTO {
 
   // Metadata (called 'updated_at' in backend, not 'modified_at')
   updated_at: string;
+}
+
+/**
+ * Order creation payload - matches backend OrderCreateSerializer
+ * Backend fields: customer_id, items, installation_address_*, measurement_date, planned_completion, notes
+ */
+export interface OrderCreateDTO {
+  customer_id: string;
+  items?: Array<{
+    item_type?: string;
+    description?: string;
+    fabric?: string;
+    fabric_meters?: number;
+    cornice?: string;
+    cornice_count?: number;
+    service?: string;
+    unit_price?: string;
+    quantity?: number;
+  }>;
+  // Installation address fields
+  installation_address_city?: string;
+  installation_address_street?: string;
+  installation_address_building?: string;
+  installation_address_apartment?: string;
+  installation_address_notes?: string;
+  // Dates
+  measurement_date?: string | null;
+  planned_completion?: string | null;
+  // Notes
+  notes?: string;
 }
 
 // ============================================================================
@@ -307,4 +337,258 @@ export interface Order {
   totalAmount: number;
   createdAt: string;
   updatedAt: string;
+}
+
+// ============================================================================
+// Order Execution DTOs - API Response Types
+// GET /api/v1/orders/{id}/execution/
+// ============================================================================
+
+/**
+ * Available action from backend
+ */
+export interface AvailableActionDTO {
+  action: string;
+  label: string;
+  target_status?: string;
+  disabled_reason?: string | null;
+  requires_confirmation?: boolean;
+}
+
+/**
+ * Warning or blocker item
+ */
+export interface WarningDTO {
+  type: string;
+  message: string;
+  severity?: 'warning' | 'error' | 'info';
+}
+
+/**
+ * Next step recommendation
+ */
+export interface NextStepDTO {
+  description: string;
+  recommended_actions: string[];
+}
+
+/**
+ * Customer summary from execution endpoint
+ */
+export interface ExecutionCustomerDTO {
+  id: string;
+  full_name: string;
+  phone: string;
+  address?: {
+    city?: string;
+    street?: string;
+    building?: string;
+    apartment?: string;
+  };
+}
+
+/**
+ * Designer/Measurer measurement from execution endpoint
+ */
+export interface DesignerMeasurementDTO {
+  id: string;
+  room_name: string;
+  window_name: string;
+  width_cm: number;
+  height_cm: number;
+  mounting_type?: string;
+  // Extended fields (may come from backend in future)
+  depth_cm?: number | null;
+  window_type?: string;
+  has_radiator?: boolean;
+  has_slope?: boolean;
+  obstacles?: string;
+  selected_fabric?: string | null;
+  selected_cornice_type?: string;
+  notes?: string;
+}
+
+/**
+ * Selected material from quote items
+ */
+export interface SelectedMaterialDTO {
+  room?: string | null;
+  fabric?: string | null;
+  fabric_meters?: number | string | null;
+  sewing_type?: string | null;
+}
+
+/**
+ * Material requirement from warehouse section
+ */
+export interface MaterialRequirementDTO {
+  type?: string | null;
+  name?: string | null;
+  hanger_number?: string | null;
+  required_meters?: number | string | null;
+  supply_mode?: string | null;
+  in_stock?: boolean | null;
+  room_name?: string | null;
+  window_name?: string | null;
+}
+
+/**
+ * Role-specific sections
+ */
+export interface RoleSectionsDTO {
+  admin: {
+    customer: ExecutionCustomerDTO;
+    order_status: string;
+    payment_summary: {
+      total_amount: string;
+      paid_amount: string;
+      balance_due: string;
+      payment_state: string;
+    };
+    quote_status: string | null;
+    measurement_count: number;
+    production_status: {
+      production_stage: string;
+      production_stage_label: string;
+    };
+    material_readiness: string;
+    handover_install_status: string;
+    next_step: NextStepDTO;
+  };
+  designer: {
+    measurements: DesignerMeasurementDTO[];
+    rooms_count: number;
+    windows_count: number;
+    selected_materials: SelectedMaterialDTO[];
+    quote_items_count: number;
+  };
+  warehouse: {
+    material_requirements: MaterialRequirementDTO[];
+    material_readiness: string;
+    material_readiness_label: string;
+    missing_materials: MaterialRequirementDTO[];
+    missing_materials_count: number;
+    total_fabrics_required: number;
+  };
+  production: {
+    production_assignment: ProductionAssignmentDTO | null;
+    items_to_sew: ProductionItemDTO[];
+    items_count: number;
+    production_stage: string;
+    deadline: string | null;
+  };
+  installer: {
+    address: {
+      city?: string;
+      street?: string;
+      building?: string;
+      apartment?: string;
+    } | null;
+    customer_phone: string;
+    products: unknown[];
+    installation_date: string | null;
+    handover_stage: string;
+    balance_due: string;
+    photo_report_status: string;
+    act_status: string;
+  };
+}
+
+/**
+ * Order execution summary DTO
+ * GET /api/v1/orders/{id}/execution/
+ */
+export interface OrderExecutionDTO {
+  order_id: string;
+  order_number: string;
+  customer: ExecutionCustomerDTO;
+  status: OrderStatus;
+  status_label: string;
+  material_readiness: MaterialReadiness;
+  material_readiness_label: string;
+  production_stage: string;
+  production_stage_label: string;
+  handover_stage: string;
+  handover_stage_label: string;
+  total_amount: string;
+  paid_amount: string;
+  balance_due: string;
+  payment_state: 'unpaid' | 'prepayment_due' | 'partial' | 'paid';
+  payment_state_label: string;
+  is_overdue: boolean;
+  next_step: NextStepDTO;
+  blocking_reasons: WarningDTO[];
+  warnings: WarningDTO[];
+  available_actions: AvailableActionDTO[];
+  role_sections: RoleSectionsDTO;
+}
+
+// ============================================================================
+// Order Action Request/Response Types
+// ============================================================================
+
+export interface ChangeStatusRequest {
+  status: OrderStatus;
+}
+
+export interface ChangeMaterialReadinessRequest {
+  material_readiness: MaterialReadiness;
+}
+
+/**
+ * Production item (what to sew)
+ */
+export interface ProductionItemDTO {
+  id: string;
+  room_name?: string | null;
+  window_name?: string | null;
+  description?: string | null;
+  fabric_name?: string | null;
+  tulle_name?: string | null;
+  fabric_meters?: number | string | null;
+  width_cm?: number | null;
+  height_cm?: number | null;
+  notes?: string | null;
+  quantity?: number | null;
+  sewing_type?: string | null;
+  status?: string | null;
+}
+
+/**
+ * Production assignment info
+ */
+export interface ProductionAssignmentDTO {
+  assigned_to?: string | null;
+  seamstress_name?: string | null;
+  status?: string | null;
+  deadline?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  total_payment?: number | string | null;
+}
+
+export interface ChangeProductionStageRequest {
+  production_stage: 'not_started' | 'cutting' | 'sewing' | 'quality_check' | 'done';
+}
+
+export interface ChangeHandoverStageRequest {
+  handover_stage: 'not_required' | 'pending' | 'scheduled' | 'in_progress' | 'done';
+}
+
+export interface CancelOrderRequest {
+  reason: string;
+}
+
+export interface ActionResponse {
+  order: OrderDetailDTO;
+  message?: string;
+  warnings?: WarningDTO[];
+  can_auto_complete?: boolean;
+}
+
+export interface ActionErrorResponse {
+  detail: string;
+  code: string;
+  balance_due?: string;
+  allowed_transitions?: string[];
 }

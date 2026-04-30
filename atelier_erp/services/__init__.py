@@ -4,6 +4,7 @@ Service Layer implementing domain operations
 """
 
 from .order_service import OrderService
+from .order_item_generation_service import OrderItemGenerationService
 from .inventory_service import InventoryService
 from .task_service import TaskService
 from .quote_service import QuoteService
@@ -28,6 +29,7 @@ from .scheduler import (
 from .unit_of_work import UnitOfWork
 
 __all__ = [
+    'OrderItemGenerationService',
     'OrderService',
     'InventoryService',
     'InventoryServiceV2',

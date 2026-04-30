@@ -3,8 +3,30 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchOrders, fetchOrderById, createOrder, type OrderCreateDTO } from "@/services/http/orders";
-import type { OrderListItemDTO, OrderDetailDTO } from "@/types";
+import {
+  fetchOrders,
+  fetchOrderById,
+  fetchOrderExecution,
+  createOrder,
+  changeOrderStatus,
+  changeMaterialReadiness,
+  changeProductionStage,
+  changeHandoverStage,
+  cancelOrder,
+  generateOrderItemsFromQuote,
+} from "@/services/http/orders";
+import type {
+  OrderListItemDTO,
+  OrderDetailDTO,
+  OrderExecutionDTO,
+  OrderCreateDTO,
+  ChangeStatusRequest,
+  ChangeMaterialReadinessRequest,
+  ChangeProductionStageRequest,
+  ChangeHandoverStageRequest,
+  CancelOrderRequest,
+  ActionResponse,
+} from "@/types";
 
 interface OrdersListResponse {
   count: number;
@@ -66,6 +88,123 @@ export function useCreateOrder() {
       queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY] });
       // Pre-populate cache with new order details
       queryClient.setQueryData([ORDERS_QUERY_KEY, "detail", data.id], data);
+    },
+  });
+}
+
+// ============================================================================
+// Order Execution Hooks
+// ============================================================================
+
+const EXECUTION_QUERY_KEY = "order-execution";
+
+/**
+ * Hook for fetching order execution summary
+ * GET /api/v1/orders/{id}/execution/
+ */
+export function useOrderExecution(orderId: string | null) {
+  return useQuery<OrderExecutionDTO, Error>({
+    queryKey: [EXECUTION_QUERY_KEY, orderId],
+    queryFn: () => fetchOrderExecution(orderId!),
+    enabled: !!orderId,
+    staleTime: 10 * 1000, // 10 seconds - execution data changes frequently
+  });
+}
+
+/**
+ * Hook for changing order status
+ */
+export function useChangeOrderStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ActionResponse, Error, { orderId: string; data: ChangeStatusRequest }>({
+    mutationFn: ({ orderId, data }) => changeOrderStatus(orderId, data),
+    onSuccess: (_, variables) => {
+      // Invalidate execution and detail data
+      queryClient.invalidateQueries({ queryKey: [EXECUTION_QUERY_KEY, variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY, "detail", variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY] });
+    },
+  });
+}
+
+/**
+ * Hook for changing material readiness
+ */
+export function useChangeMaterialReadiness() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ActionResponse, Error, { orderId: string; data: ChangeMaterialReadinessRequest }>({
+    mutationFn: ({ orderId, data }) => changeMaterialReadiness(orderId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [EXECUTION_QUERY_KEY, variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY, "detail", variables.orderId] });
+    },
+  });
+}
+
+/**
+ * Hook for changing production stage
+ */
+export function useChangeProductionStage() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ActionResponse, Error, { orderId: string; data: ChangeProductionStageRequest }>({
+    mutationFn: ({ orderId, data }) => changeProductionStage(orderId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [EXECUTION_QUERY_KEY, variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY, "detail", variables.orderId] });
+    },
+  });
+}
+
+/**
+ * Hook for changing handover stage
+ */
+export function useChangeHandoverStage() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ActionResponse, Error, { orderId: string; data: ChangeHandoverStageRequest }>({
+    mutationFn: ({ orderId, data }) => changeHandoverStage(orderId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [EXECUTION_QUERY_KEY, variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY, "detail", variables.orderId] });
+    },
+  });
+}
+
+/**
+ * Hook for cancelling order
+ */
+export function useCancelOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ActionResponse, Error, { orderId: string; data: CancelOrderRequest }>({
+    mutationFn: ({ orderId, data }) => cancelOrder(orderId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [EXECUTION_QUERY_KEY, variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY, "detail", variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY] });
+    },
+  });
+}
+
+/**
+ * Hook for generating order items from quote
+ */
+export function useGenerateOrderItems() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    { order: OrderDetailDTO; created_count: number; message: string },
+    Error,
+    { orderId: string; quoteId?: string }
+  >({
+    mutationFn: ({ orderId, quoteId }) => generateOrderItemsFromQuote(orderId, quoteId),
+    onSuccess: (_, variables) => {
+      // Invalidate order and execution data
+      queryClient.invalidateQueries({ queryKey: [EXECUTION_QUERY_KEY, variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY, "detail", variables.orderId] });
     },
   });
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   PageHeader,
   EmptyState,
@@ -11,8 +12,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { useOrder } from "@/hooks/useOrders";
-import type { OrderDetailDTO, OrderItemDTO, MeasurementDTO, PaymentDTO, TaskStatus } from "@/types";
+import { Textarea } from "@/components/ui/textarea";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  useOrder,
+  useOrderExecution,
+  useChangeOrderStatus,
+  useChangeMaterialReadiness,
+  useChangeProductionStage,
+  useChangeHandoverStage,
+  useCancelOrder,
+  useGenerateOrderItems,
+} from "@/hooks/useOrders";
+import { useCreateMeasurement, useUpdateMeasurement } from "@/hooks/useMeasurements";
+import type { OrderDetailDTO, OrderItemDTO, MeasurementDTO, PaymentDTO, TaskStatus, OrderExecutionDTO, AvailableActionDTO, WarningDTO, OrderStatus, DesignerMeasurementDTO, SelectedMaterialDTO, MaterialRequirementDTO, ProductionItemDTO, ProductionAssignmentDTO } from "@/types";
 import {
   ArrowLeft,
   Package,
@@ -28,8 +42,19 @@ import {
   ArrowUpRight,
   Plus,
   CheckCircle,
+  Edit,
   Clock,
   FileSpreadsheet,
+  Play,
+  CheckCheck,
+  Truck,
+  Loader2,
+  Camera,
+  Scissors,
+  AlertCircle,
+  ChevronRight,
+  Info,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -53,13 +78,13 @@ function OrderItemRow({ item }: { item: OrderItemDTO }) {
   return (
     <div className="flex items-start justify-between py-3 border-b last:border-0">
       <div className="flex-1">
-        <div className="font-medium">{item.description}</div>
+        <div className="font-medium">{item.notes || item.item_type}</div>
         <div className="text-sm text-slate-500 mt-1">
           {item.item_type}
           {item.fabric && ` • ${item.fabric}`}
-          {item.fabric_meters && ` • ${item.fabric_meters}м`}
           {item.cornice && ` • ${item.cornice}`}
           {item.service && ` • ${item.service}`}
+          {item.window_width_cm && item.window_height_cm && ` • ${item.window_width_cm}×${item.window_height_cm}cm`}
         </div>
       </div>
       <div className="text-right ml-4">
@@ -188,24 +213,86 @@ function OrderDates({ order }: { order: OrderDetailDTO }) {
   );
 }
 
-function OrderItems({ items }: { items: OrderItemDTO[] }) {
+interface OrderItemsProps {
+  items: OrderItemDTO[];
+  quoteItems?: SelectedMaterialDTO[];
+  orderId?: string;
+  canGenerate?: boolean;
+  onGenerate?: () => void;
+  error?: string | null;
+  quoteStatus?: 'draft' | 'sent' | 'approved' | 'rejected' | 'expired' | null;
+}
+
+function OrderItems({ items, quoteItems, orderId, canGenerate, onGenerate, error, quoteStatus }: OrderItemsProps) {
+  const hasItems = items.length > 0;
+  const hasQuoteItems = quoteItems && quoteItems.length > 0;
+  const isQuoteApproved = quoteStatus === 'approved';
+  const hasQuoteButNotApproved = quoteStatus && !isQuoteApproved;
+
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Package className="h-4 w-4" />
-          Позиции заказа ({items.length})
+          {hasItems ? `Позиции заказа (${items.length})` : hasQuoteItems ? `Позиции из КП (${quoteItems.length})` : 'Позиции заказа'}
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {items.length === 0 ? (
-          <div className="text-sm text-slate-500 italic">Нет позиций</div>
-        ) : (
+        {/* Error display */}
+        {error && (
+          <Alert variant="destructive" className="mb-3">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {hasItems ? (
           <div>
             {items.map((item) => (
               <OrderItemRow key={item.id} item={item} />
             ))}
           </div>
+        ) : hasQuoteItems ? (
+          <div className="space-y-3">
+            {canGenerate && onGenerate && (
+              <Alert className={isQuoteApproved ? "bg-blue-50 border-blue-200" : "bg-amber-50 border-amber-200"}>
+                <Sparkles className={isQuoteApproved ? "h-4 w-4 text-blue-600" : "h-4 w-4 text-amber-600"} />
+                <AlertTitle className={isQuoteApproved ? "text-blue-900" : "text-amber-900"}>
+                  {isQuoteApproved ? 'Сформировать позиции заказа' : 'КП ещё не принято'}
+                </AlertTitle>
+                <AlertDescription className={isQuoteApproved ? "text-blue-700" : "text-amber-700"}>
+                  {isQuoteApproved 
+                    ? 'Позиции можно сформировать из КП для запуска в работу.' 
+                    : 'Сначала примите КП, чтобы сформировать позиции заказа.'}
+                </AlertDescription>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={onGenerate}
+                  disabled={!isQuoteApproved}
+                  className="mt-2"
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Сформировать из КП
+                </Button>
+              </Alert>
+            )}
+            {quoteItems.map((item, index) => (
+              <div key={index} className="flex justify-between items-start py-2 border-b last:border-0">
+                <div>
+                  <div className="font-medium text-sm">{item.room || '—'}</div>
+                  <div className="text-sm text-slate-600">
+                    {item.fabric || 'Ткань не выбрана'}
+                    {item.fabric_meters && ` • ${item.fabric_meters} м`}
+                  </div>
+                  {item.sewing_type && (
+                    <div className="text-xs text-slate-500">{item.sewing_type}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-slate-500 italic">Нет позиций</div>
         )}
       </CardContent>
     </Card>
@@ -633,12 +720,1323 @@ function RelatedQuotesSection({ order }: { order: OrderDetailDTO }) {
   );
 }
 
+/**
+ * Order Execution Panel - Shows workflow guidance, status controls, and material readiness
+ * This is the core execution workflow UI for the order detail page
+ * Uses real data from backend execution endpoint
+ */
+function OrderExecutionPanel({
+  order,
+  execution,
+}: {
+  order: OrderDetailDTO;
+  execution?: OrderExecutionDTO;
+}) {
+  const materialReadinessLabels: Record<string, { text: string; color: string; bg: string }> = {
+    not_ready: { text: 'Не обеспечен', color: 'text-red-600', bg: 'bg-red-50' },
+    partially_ready: { text: 'Частично обеспечен', color: 'text-amber-600', bg: 'bg-amber-50' },
+    ready: { text: 'Обеспечен материалами', color: 'text-green-600', bg: 'bg-green-50' },
+  };
+
+  // Use backend data if available, otherwise fallback to order data
+  const statusLabel = execution?.status_label || order.status;
+  const materialReadiness = execution?.material_readiness || order.material_readiness;
+  const materialReadinessLabel = execution?.material_readiness_label || materialReadinessLabels[materialReadiness]?.text || 'Не обеспечен';
+  const productionStageLabel = execution?.production_stage_label || 'Не начато';
+  const handoverStageLabel = execution?.handover_stage_label || 'Не требуется';
+  const paymentStateLabel = execution?.payment_state_label || 'Не оплачен';
+
+  // Next step from backend or fallback
+  const nextStep = execution?.next_step;
+
+  const materialStatus = materialReadinessLabels[materialReadiness] || materialReadinessLabels.not_ready;
+
+  return (
+    <Card className="border-l-4 border-l-blue-500">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Info className="h-4 w-4" />
+            Выполнение заказа
+          </CardTitle>
+          <div className={`px-2 py-1 rounded text-xs font-medium ${materialStatus.bg} ${materialStatus.color}`}>
+            {materialReadinessLabel}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Status Overview */}
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-slate-500">Статус заказа:</span>
+            <span className="text-sm font-medium">{statusLabel}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-slate-500">Производство:</span>
+            <span className="text-sm font-medium">{productionStageLabel}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-slate-500">Установка / выдача:</span>
+            <span className="text-sm font-medium">{handoverStageLabel}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-slate-500">Оплата:</span>
+            <span className="text-sm font-medium">{paymentStateLabel}</span>
+          </div>
+        </div>
+
+        {/* Next Step - from backend */}
+        {nextStep && (
+          <div className="pt-2 border-t">
+            <h4 className="font-medium text-slate-900 mb-1">Следующий шаг</h4>
+            <p className="text-sm text-slate-600">{nextStep.description}</p>
+            {nextStep.recommended_actions.length > 0 && (
+              <div className="mt-2">
+                <p className="text-xs font-medium text-slate-500 mb-1">Рекомендуемые действия:</p>
+                <ul className="space-y-1">
+                  {nextStep.recommended_actions.map((action, i) => (
+                    <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                      <ChevronRight className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+                      {action}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Terminal State Indicator */}
+        {order.status === 'completed' && (
+          <div className="flex items-center gap-2 text-green-600 text-sm pt-2 border-t">
+            <CheckCheck className="h-4 w-4" />
+            <span>Заказ успешно завершён</span>
+          </div>
+        )}
+        {order.status === 'cancelled' && (
+          <div className="flex items-center gap-2 text-red-600 text-sm pt-2 border-t">
+            <AlertCircle className="h-4 w-4" />
+            <span>Заказ отменён</span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Warnings and Blockers Section
+ */
+function WarningsSection({ warnings, blockers }: { warnings: WarningDTO[]; blockers: WarningDTO[] }) {
+  if (warnings.length === 0 && blockers.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      {blockers.map((blocker, i) => (
+        <Alert key={`blocker-${i}`} variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Блокирует выполнение</AlertTitle>
+          <AlertDescription>{blocker.message}</AlertDescription>
+        </Alert>
+      ))}
+      {warnings.map((warning, i) => (
+        <Alert key={`warning-${i}`} variant="default" className="bg-amber-50 border-amber-200">
+          <Info className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-amber-800">Внимание</AlertTitle>
+          <AlertDescription className="text-amber-700">{warning.message}</AlertDescription>
+        </Alert>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Available Actions Panel - Shows action buttons from backend
+ */
+function AvailableActionsPanel({
+  actions,
+  onAction,
+  onCancel,
+}: {
+  actions: AvailableActionDTO[];
+  onAction: (action: AvailableActionDTO) => void;
+  onCancel: () => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+
+  // Primary actions (no disabled_reason)
+  const primaryActions = actions.filter((a) => !a.disabled_reason);
+  // Secondary actions (with disabled_reason)
+  const disabledActions = actions.filter((a) => a.disabled_reason);
+
+  // Show first 3 primary actions, or all if showAll is true
+  const displayedActions = showAll ? primaryActions : primaryActions.slice(0, 3);
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Play className="h-4 w-4" />
+          Доступные действия
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Primary actions */}
+        <div className="flex flex-wrap gap-2">
+          {displayedActions.map((action) => (
+            <Button
+              key={action.action}
+              variant={action.action === 'cancel' ? 'destructive' : 'default'}
+              size="sm"
+              onClick={() =>
+                action.action === 'cancel' ? onCancel() : onAction(action)
+              }
+            >
+              {action.label}
+            </Button>
+          ))}
+          {primaryActions.length > 3 && (
+            <Button variant="outline" size="sm" onClick={() => setShowAll(!showAll)}>
+              {showAll ? 'Скрыть' : `Ещё ${primaryActions.length - 3}`}
+            </Button>
+          )}
+        </div>
+
+        {/* Disabled actions */}
+        {disabledActions.length > 0 && (
+          <div className="pt-2 border-t">
+            <p className="text-xs text-slate-500 mb-2">Недоступно:</p>
+            <div className="space-y-2">
+              {disabledActions.map((action) => (
+                <div key={action.action} className="text-sm">
+                  <span className="text-slate-400 line-through">{action.label}</span>
+                  <span className="text-xs text-slate-400 ml-2">• {action.disabled_reason}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Designer/Measurer Section - Shows measurements and materials for designer role
+ */
+function DesignerMeasurerSection({
+  measurements,
+  roomsCount,
+  windowsCount,
+  selectedMaterials,
+  quoteItemsCount,
+  orderId,
+  onMeasurementCreated,
+}: {
+  measurements: DesignerMeasurementDTO[];
+  roomsCount: number;
+  windowsCount: number;
+  selectedMaterials: SelectedMaterialDTO[];
+  quoteItemsCount: number;
+  orderId: string;
+  onMeasurementCreated: () => void;
+}) {
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingMeasurement, setEditingMeasurement] = useState<DesignerMeasurementDTO | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const createMutation = useCreateMeasurement();
+  const updateMutation = useUpdateMeasurement();
+
+  // Group measurements by room
+  const measurementsByRoom = measurements.reduce((acc, m) => {
+    if (!acc[m.room_name]) {
+      acc[m.room_name] = [];
+    }
+    acc[m.room_name].push(m);
+    return acc;
+  }, {} as Record<string, DesignerMeasurementDTO[]>);
+
+  const handleCreate = async (data: MeasurementFormData) => {
+    try {
+      await createMutation.mutateAsync({
+        order: orderId,
+        room_name: data.room_name,
+        window_name: data.window_name || '',
+        width_cm: data.width_cm,
+        height_cm: data.height_cm,
+        depth_cm: data.depth_cm || null,
+        ceiling_height_cm: null,
+        mounting_type: data.mounting_type || '',
+        window_type: data.window_type || '',
+        has_radiator: false,
+        has_slope: false,
+        obstacles: '',
+        selected_fabric: data.selected_fabric || null,
+        selected_cornice_type: '',
+        notes: data.notes || '',
+        measured_by: null,
+      });
+      setIsCreateOpen(false);
+      setSuccessMessage('Замер добавлен');
+      onMeasurementCreated();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error('Failed to create measurement:', err);
+    }
+  };
+
+  const handleEdit = async (data: MeasurementFormData) => {
+    if (!editingMeasurement) return;
+    try {
+      await updateMutation.mutateAsync({
+        id: editingMeasurement.id,
+        data: {
+          room_name: data.room_name,
+          window_name: data.window_name || '',
+          width_cm: data.width_cm,
+          height_cm: data.height_cm,
+          depth_cm: data.depth_cm || null,
+          mounting_type: data.mounting_type || '',
+          window_type: data.window_type || '',
+          selected_fabric: data.selected_fabric || null,
+          notes: data.notes || '',
+        },
+      });
+      setEditingMeasurement(null);
+      setSuccessMessage('Замер обновлён');
+      onMeasurementCreated();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error('Failed to update measurement:', err);
+    }
+  };
+
+  return (
+    <Card className="border-l-4 border-l-purple-500">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Ruler className="h-4 w-4" />
+            Замеры и изделия
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">
+              {roomsCount} комнат, {windowsCount} окон
+            </span>
+            <Button variant="outline" size="sm" onClick={() => setIsCreateOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              Добавить
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {successMessage && (
+          <Alert className="bg-green-50 border-green-200">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-700">{successMessage}</AlertDescription>
+          </Alert>
+        )}
+
+        {measurements.length === 0 ? (
+          <EmptyState
+            title="Нет замеров"
+            description="Добавьте замеры для окон"
+            icon={<Ruler className="h-6 w-6 text-slate-400" />}
+            action={{
+              label: 'Добавить замер',
+              onClick: () => setIsCreateOpen(true),
+            }}
+          />
+        ) : (
+          <div className="space-y-4">
+            {Object.entries(measurementsByRoom).map(([roomName, roomMeasurements]) => (
+              <div key={roomName} className="border rounded-lg p-3">
+                <h4 className="font-medium text-slate-900 mb-2">{roomName}</h4>
+                <div className="space-y-2">
+                  {roomMeasurements.map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex items-center justify-between p-2 bg-slate-50 rounded hover:bg-slate-100 transition-colors"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">{m.window_name || 'Окно'}</span>
+                          <span className="text-xs text-slate-500">
+                            {m.width_cm}×{m.height_cm} см
+                            {m.depth_cm && ` × ${m.depth_cm} см`}
+                          </span>
+                        </div>
+                        {m.mounting_type && (
+                          <span className="text-xs text-slate-500">{m.mounting_type}</span>
+                        )}
+                        {m.selected_fabric && (
+                          <div className="text-xs text-purple-600 mt-1">
+                            Ткань: {m.selected_fabric}
+                          </div>
+                        )}
+                        {m.notes && (
+                          <div className="text-xs text-slate-400 mt-1 truncate max-w-xs">
+                            {m.notes}
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditingMeasurement(m)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {selectedMaterials.length > 0 && (
+          <div className="pt-3 border-t">
+            <h4 className="text-sm font-medium text-slate-900 mb-2">Выбранные материалы (из КП)</h4>
+            <div className="space-y-1">
+              {selectedMaterials.map((mat, i) => (
+                <div key={i} className="text-sm flex justify-between">
+                  <span>{mat.room || '—'}: {mat.fabric || '—'}</span>
+                  {mat.fabric_meters && (
+                    <span className="text-slate-500">{mat.fabric_meters} м</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+
+      {/* Create Modal */}
+      <MeasurementModal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        onSubmit={handleCreate}
+        title="Добавить замер"
+      />
+
+      {/* Edit Modal */}
+      {editingMeasurement && (
+        <MeasurementModal
+          isOpen={!!editingMeasurement}
+          onClose={() => setEditingMeasurement(null)}
+          onSubmit={handleEdit}
+          title="Редактировать замер"
+          initialData={{
+            room_name: editingMeasurement.room_name,
+            window_name: editingMeasurement.window_name,
+            width_cm: editingMeasurement.width_cm,
+            height_cm: editingMeasurement.height_cm,
+            depth_cm: editingMeasurement.depth_cm || undefined,
+            mounting_type: editingMeasurement.mounting_type,
+            window_type: editingMeasurement.window_type,
+            selected_fabric: editingMeasurement.selected_fabric || undefined,
+            notes: editingMeasurement.notes,
+          }}
+        />
+      )}
+    </Card>
+  );
+}
+
+type MeasurementFormData = {
+  room_name: string;
+  window_name?: string;
+  width_cm: number;
+  height_cm: number;
+  depth_cm?: number;
+  mounting_type?: string;
+  window_type?: string;
+  selected_fabric?: string;
+  notes?: string;
+};
+
+/**
+ * Warehouse Materials Section - Shows material requirements for warehouse role
+ */
+function WarehouseMaterialsSection({
+  materialRequirements,
+  materialReadiness,
+  materialReadinessLabel,
+  missingMaterials,
+  missingMaterialsCount,
+  totalFabricsRequired,
+  orderId,
+  onMaterialReadinessChanged,
+}: {
+  materialRequirements: MaterialRequirementDTO[];
+  materialReadiness: string;
+  materialReadinessLabel: string;
+  missingMaterials: MaterialRequirementDTO[];
+  missingMaterialsCount: number;
+  totalFabricsRequired: number;
+  orderId: string;
+  onMaterialReadinessChanged: () => void;
+}) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const changeMaterialMutation = useChangeMaterialReadiness();
+
+  const readinessOptions = [
+    { value: 'not_ready', label: 'Не обеспечен', color: 'text-red-600', bg: 'bg-red-50' },
+    { value: 'partially_ready', label: 'Частично обеспечен', color: 'text-yellow-600', bg: 'bg-yellow-50' },
+    { value: 'ready', label: 'Обеспечен материалами', color: 'text-green-600', bg: 'bg-green-50' },
+  ];
+
+  const currentReadiness = readinessOptions.find(r => r.value === materialReadiness) || readinessOptions[0];
+
+  const supplyModeLabels: Record<string, string> = {
+    client_supplied: "Закупает клиент",
+    purchase_local: "Закупка в РФ",
+    purchase_import: "Импорт",
+    in_stock: "В наличии",
+  };
+
+  // Helper to safely get supply mode label
+  function getSupplyModeLabel(supplyMode?: string | null): string {
+    if (!supplyMode) return "Не указано";
+    return supplyModeLabels[supplyMode] || supplyMode;
+  }
+
+  const handleReadinessChange = async (newReadiness: string) => {
+    try {
+      await changeMaterialMutation.mutateAsync({
+        orderId,
+        data: { material_readiness: newReadiness as 'not_ready' | 'partially_ready' | 'ready' },
+      });
+      setSuccessMessage('Готовность материалов обновлена');
+      setIsModalOpen(false);
+      setTimeout(() => {
+        setSuccessMessage(null);
+        onMaterialReadinessChanged();
+      }, 1500);
+    } catch (err) {
+      console.error('Failed to update material readiness:', err);
+    }
+  };
+
+  return (
+    <Card className="border-l-4 border-l-amber-500">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Package className="h-4 w-4" />
+            Материалы / Склад
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs px-2 py-1 rounded-full ${currentReadiness.bg} ${currentReadiness.color}`}>
+              {materialReadinessLabel}
+            </span>
+            <Button variant="outline" size="sm" onClick={() => setIsModalOpen(true)}>
+              Изменить
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {successMessage && (
+          <Alert className="bg-green-50 border-green-200">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-700">{successMessage}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Material Readiness Summary */}
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-slate-600">Всего тканей:</span>
+          <span className="font-medium">{totalFabricsRequired}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-slate-600">Не хватает на складе:</span>
+          <span className={`font-medium ${missingMaterialsCount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+            {missingMaterialsCount}
+          </span>
+        </div>
+
+        {/* Material Readiness Warnings */}
+        {materialReadiness === 'not_ready' && (
+          <Alert variant="destructive" className="bg-red-50 border-red-200">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Внимание</AlertTitle>
+            <AlertDescription>
+              Материалы не обеспечены. Производство запускать нельзя.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {materialReadiness === 'partially_ready' && (
+          <Alert className="bg-yellow-50 border-yellow-200">
+            <AlertCircle className="h-4 w-4 text-yellow-600" />
+            <AlertTitle>Внимание</AlertTitle>
+            <AlertDescription className="text-yellow-700">
+              Материалы обеспечены частично. Производство можно начать с риском остановки.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Import Warning */}
+        {materialRequirements.some(m => m.supply_mode === 'purchase_import') && (
+          <Alert className="bg-amber-50 border-amber-200">
+            <Info className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-700">
+              Есть импортные материалы — возможна задержка.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Material Requirements List */}
+        {materialRequirements.length > 0 ? (
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium text-slate-700">Список материалов:</h4>
+            {materialRequirements.map((material, index) => (
+              <div
+                key={index}
+                className={`flex items-center justify-between p-2 rounded text-sm ${
+                  material.in_stock ? 'bg-green-50' : 'bg-red-50'
+                }`}
+              >
+                <div className="flex-1">
+                  <div className="font-medium">{material.name}</div>
+                  {material.hanger_number && (
+                    <div className="text-xs text-slate-500">Вешалка: {material.hanger_number}</div>
+                  )}
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-slate-600">
+                    {material.required_meters ? `${material.required_meters} м` : '—'}
+                  </div>
+                  <div className={`text-xs ${
+                    material.supply_mode === 'in_stock' ? 'text-green-600' :
+                    material.supply_mode === 'purchase_import' ? 'text-amber-600' :
+                    'text-blue-600'
+                  }`}>
+                    {getSupplyModeLabel(material.supply_mode)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="Нет требований к материалам"
+            description="Добавьте позиции в КП для отображения"
+            icon={<Package className="h-6 w-6 text-slate-400" />}
+          />
+        )}
+      </CardContent>
+
+      {/* Material Readiness Modal */}
+      <MaterialReadinessModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        currentReadiness={materialReadiness}
+        onSelect={handleReadinessChange}
+      />
+    </Card>
+  );
+}
+
+/**
+ * Material Readiness Selection Modal
+ */
+function MaterialReadinessModal({
+  isOpen,
+  onClose,
+  currentReadiness,
+  onSelect,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  currentReadiness: string;
+  onSelect: (readiness: string) => void;
+}) {
+  const readinessOptions = [
+    { value: 'not_ready', label: 'Не обеспечен', description: 'Материалы не готовы к производству' },
+    { value: 'partially_ready', label: 'Частично обеспечен', description: 'Часть материалов есть, часть нужно закупить' },
+    { value: 'ready', label: 'Обеспечен материалами', description: 'Все материалы готовы к производству' },
+  ];
+
+  return (
+    <Sheet open={isOpen} onOpenChange={onClose}>
+      <SheetContent className="sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Изменить готовность материалов</SheetTitle>
+          <SheetDescription>
+            Укажите текущий статус обеспеченности материалами для производства
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="space-y-3 py-4">
+          {readinessOptions.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => onSelect(option.value)}
+              className={`w-full text-left p-4 border rounded-lg transition-colors ${
+                currentReadiness === option.value
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <div className="font-medium">{option.label}</div>
+              <div className="text-sm text-slate-500">{option.description}</div>
+            </button>
+          ))}
+        </div>
+
+        <SheetFooter>
+          <Button variant="outline" onClick={onClose}>
+            Отмена
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+/**
+ * Production/Sewing Section - Shows what to sew for production role
+ */
+function ProductionSewingSection({
+  itemsToSew,
+  productionStage,
+  deadline,
+  assignment,
+  materialReadiness,
+  orderId,
+  onProductionStageChanged,
+  fallbackMaterials,
+  fallbackMeasurements,
+}: {
+  itemsToSew: ProductionItemDTO[];
+  productionStage: string;
+  deadline: string | null;
+  assignment: ProductionAssignmentDTO | null;
+  materialReadiness: string;
+  orderId: string;
+  onProductionStageChanged: () => void;
+  fallbackMaterials?: SelectedMaterialDTO[];
+  fallbackMeasurements?: DesignerMeasurementDTO[];
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const changeStageMutation = useChangeProductionStage();
+
+  // Map production_stage to simple seamstress state
+  const getSeamstressState = (stage: string): { label: string; color: string; bg: string } => {
+    switch (stage) {
+      case 'not_started':
+        return { label: 'Ожидает', color: 'text-slate-600', bg: 'bg-slate-100' };
+      case 'cutting':
+      case 'sewing':
+        return { label: 'В работе', color: 'text-blue-600', bg: 'bg-blue-50' };
+      case 'quality_check':
+        return { label: 'Проверка', color: 'text-amber-600', bg: 'bg-amber-50' };
+      case 'done':
+        return { label: 'Готово', color: 'text-green-600', bg: 'bg-green-50' };
+      default:
+        return { label: 'Ожидает', color: 'text-slate-600', bg: 'bg-slate-100' };
+    }
+  };
+
+  // Calculate overdue
+  const getOverdueInfo = (): { isOverdue: boolean; days: number; text: string } | null => {
+    if (!deadline || productionStage === 'done') return null;
+    const deadlineDate = new Date(deadline);
+    const today = new Date();
+    const diffTime = today.getTime() - deadlineDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays > 0) {
+      return {
+        isOverdue: true,
+        days: diffDays,
+        text: diffDays === 1 ? 'Просрочен 1 день' : `Просрочен ${diffDays} дней`,
+      };
+    }
+    return null;
+  };
+
+  const seamstressState = getSeamstressState(productionStage);
+  const overdueInfo = getOverdueInfo();
+
+  const handleStartWork = async () => {
+    try {
+      setError(null);
+      await changeStageMutation.mutateAsync({
+        orderId,
+        data: { production_stage: 'sewing' },
+      });
+      onProductionStageChanged();
+    } catch (err: unknown) {
+      const errorData = err as { detail?: string };
+      setError(errorData.detail || 'Ошибка при начале работы');
+    }
+  };
+
+  const handleMarkDone = async () => {
+    try {
+      setError(null);
+      await changeStageMutation.mutateAsync({
+        orderId,
+        data: { production_stage: 'done' },
+      });
+      onProductionStageChanged();
+    } catch (err: unknown) {
+      const errorData = err as { detail?: string };
+      setError(errorData.detail || 'Ошибка при завершении работы');
+    }
+  };
+
+  // Determine button states
+  // Cannot start if no items to sew - need to generate order items from quote first
+  const hasItems = itemsToSew.length > 0;
+  const canStart = productionStage === 'not_started' && materialReadiness !== 'not_ready' && hasItems;
+  const canMarkDone = productionStage !== 'done' && productionStage !== 'not_started';
+  const isMaterialNotReady = materialReadiness === 'not_ready';
+  const isDone = productionStage === 'done';
+
+  return (
+    <Card className="border-l-4 border-l-purple-500">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Scissors className="h-4 w-4" />
+            Пошив / Производство
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs px-2 py-1 rounded-full ${seamstressState.bg} ${seamstressState.color}`}>
+              {seamstressState.label}
+            </span>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Material Readiness Warning */}
+        {isMaterialNotReady && (
+          <Alert variant="destructive" className="bg-red-50 border-red-200">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Материалы не обеспечены. Производство запускать нельзя.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {materialReadiness === 'partially_ready' && productionStage === 'not_started' && (
+          <Alert className="bg-yellow-50 border-yellow-200">
+            <AlertCircle className="h-4 w-4 text-yellow-600" />
+            <AlertDescription className="text-yellow-700">
+              Материалы обеспечены частично. Можно начать с риском остановки.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Deadline and Overdue */}
+        {deadline && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-600">Срок сдачи:</span>
+            <div className="flex items-center gap-2">
+              <span className={overdueInfo?.isOverdue ? 'text-red-600 font-medium' : 'text-slate-700'}>
+                {formatDate(deadline)}
+              </span>
+              {overdueInfo && (
+                <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700">
+                  {overdueInfo.text}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Assignment Info */}
+        {assignment && (
+          <div className="text-sm text-slate-600">
+            <div className="flex justify-between">
+              <span>Назначено:</span>
+              <span className="font-medium">{assignment.assigned_to || '—'}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Items to Sew - Main or Fallback */}
+        {(() => {
+          // Build fallback items from designer data if items_to_sew is empty
+          const fallbackItems: ProductionItemDTO[] = [];
+          
+          if (itemsToSew.length === 0 && fallbackMaterials && fallbackMaterials.length > 0) {
+            fallbackMaterials.forEach((mat, index) => {
+              fallbackItems.push({
+                id: `fallback-mat-${index}`,
+                room_name: mat.room || '—',
+                window_name: null,
+                description: mat.sewing_type || 'Пошив изделия',
+                fabric_name: mat.fabric || null,
+                tulle_name: null,
+                fabric_meters: mat.fabric_meters || null,
+                width_cm: null,
+                height_cm: null,
+                notes: null,
+              });
+            });
+          }
+          
+          if (itemsToSew.length === 0 && fallbackMeasurements && fallbackMeasurements.length > 0) {
+            fallbackMeasurements.forEach((m, index) => {
+              // Check if this measurement is already covered by a material
+              const existingIndex = fallbackItems.findIndex(item => 
+                item.room_name === m.room_name
+              );
+              
+              if (existingIndex >= 0) {
+                // Add dimensions to existing item
+                fallbackItems[existingIndex].width_cm = m.width_cm;
+                fallbackItems[existingIndex].height_cm = m.height_cm;
+                fallbackItems[existingIndex].window_name = m.window_name;
+              } else {
+                fallbackItems.push({
+                  id: `fallback-meas-${index}`,
+                  room_name: m.room_name || '—',
+                  window_name: m.window_name || null,
+                  description: m.mounting_type || 'Шторы',
+                  fabric_name: null,
+                  tulle_name: null,
+                  fabric_meters: null,
+                  width_cm: m.width_cm,
+                  height_cm: m.height_cm,
+                  notes: null,
+                });
+              }
+            });
+          }
+          
+          const displayItems = itemsToSew.length > 0 ? itemsToSew : fallbackItems;
+          const isFallback = itemsToSew.length === 0 && fallbackItems.length > 0;
+          
+          if (displayItems.length > 0) {
+            return (
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-slate-700">
+                  {isFallback ? 'Позиции из КП / замеров:' : 'Изделия к пошиву:'}
+                </h4>
+                {isFallback && (
+                  <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                    Данные из замеров и выбранных материалов. Требуется формирование позиций заказа.
+                  </div>
+                )}
+                {displayItems.map((item, index) => (
+                  <div key={item.id || index} className="border rounded-lg p-3 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-medium text-sm">{item.room_name || '—'}</div>
+                        {item.window_name && (
+                          <div className="text-xs text-slate-500">{item.window_name}</div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-sm text-slate-700">{item.description}</div>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                      {(item.width_cm || item.height_cm) && (
+                        <div>Размеры: {item.width_cm || '—'}×{item.height_cm || '—'} см</div>
+                      )}
+                      {item.fabric_name && (
+                        <div>Ткань: {item.fabric_name}</div>
+                      )}
+                      {item.tulle_name && (
+                        <div>Тюль: {item.tulle_name}</div>
+                      )}
+                      {item.fabric_meters && (
+                        <div>Метраж: {item.fabric_meters} м</div>
+                      )}
+                    </div>
+                    {item.notes && (
+                      <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded">
+                        <span className="font-medium">Примечание:</span> {item.notes}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          }
+          
+          // Only show empty state if no items and no fallback data
+          return (
+            <EmptyState
+              title="Нет изделий к пошиву"
+              description="Добавьте замеры или позиции КП"
+              icon={<Scissors className="h-6 w-6 text-slate-400" />}
+            />
+          );
+        })()}
+
+        {/* Action Buttons */}
+        <div className="space-y-2 pt-2">
+          {isDone ? (
+            <Alert className="bg-green-50 border-green-200">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-700">
+                Производство завершено. Ожидает сдачи заказа.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              {/* Show message if no items to sew */}
+              {!hasItems && productionStage === 'not_started' && (
+                <Alert className="bg-slate-50 border-slate-200">
+                  <Info className="h-4 w-4 text-slate-600" />
+                  <AlertDescription className="text-slate-700">
+                    Сначала сформируйте позиции заказа из КП
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {canStart && (
+                <Button
+                  onClick={handleStartWork}
+                  disabled={changeStageMutation.isPending}
+                  className="w-full"
+                >
+                  {changeStageMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Начинаем...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4 mr-2" />
+                      Начать работу
+                    </>
+                  )}
+                </Button>
+              )}
+
+              {canMarkDone && (
+                <Button
+                  onClick={handleMarkDone}
+                  disabled={changeStageMutation.isPending}
+                  variant="default"
+                  className="w-full bg-green-600 hover:bg-green-700"
+                >
+                  {changeStageMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Завершаем...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Отметить готово
+                    </>
+                  )}
+                </Button>
+              )}
+
+              {/* Placeholder for problem reporting */}
+              <Button
+                variant="outline"
+                className="w-full"
+                disabled
+                title="Будет добавлено позже"
+              >
+                <AlertCircle className="h-4 w-4 mr-2" />
+                Сообщить проблему — будет добавлено позже
+              </Button>
+            </>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Measurement Form Modal
+ */
+function MeasurementModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  title,
+  initialData,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: MeasurementFormData) => void;
+  title: string;
+  initialData?: Partial<MeasurementFormData>;
+}) {
+  const [formData, setFormData] = useState<MeasurementFormData>({
+    room_name: initialData?.room_name || '',
+    window_name: initialData?.window_name || '',
+    width_cm: initialData?.width_cm || 0,
+    height_cm: initialData?.height_cm || 0,
+    depth_cm: initialData?.depth_cm,
+    mounting_type: initialData?.mounting_type || '',
+    window_type: initialData?.window_type || '',
+    selected_fabric: initialData?.selected_fabric || '',
+    notes: initialData?.notes || '',
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.room_name || formData.width_cm <= 0 || formData.height_cm <= 0) {
+      return;
+    }
+    onSubmit(formData);
+  };
+
+  return (
+    <Sheet open={isOpen} onOpenChange={onClose}>
+      <SheetContent className="sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>{title}</SheetTitle>
+        </SheetHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Комната *</label>
+            <input
+              type="text"
+              value={formData.room_name}
+              onChange={(e) => setFormData({ ...formData, room_name: e.target.value })}
+              className="w-full px-3 py-2 border rounded-md text-sm"
+              placeholder="Например: Гостиная"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Окно / изделие</label>
+            <input
+              type="text"
+              value={formData.window_name}
+              onChange={(e) => setFormData({ ...formData, window_name: e.target.value })}
+              className="w-full px-3 py-2 border rounded-md text-sm"
+              placeholder="Например: Окно 1"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Ширина (см) *</label>
+              <input
+                type="number"
+                value={formData.width_cm || ''}
+                onChange={(e) => setFormData({ ...formData, width_cm: parseInt(e.target.value) || 0 })}
+                className="w-full px-3 py-2 border rounded-md text-sm"
+                min={1}
+                max={1000}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Высота (см) *</label>
+              <input
+                type="number"
+                value={formData.height_cm || ''}
+                onChange={(e) => setFormData({ ...formData, height_cm: parseInt(e.target.value) || 0 })}
+                className="w-full px-3 py-2 border rounded-md text-sm"
+                min={1}
+                max={500}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Глубина (см)</label>
+              <input
+                type="number"
+                value={formData.depth_cm || ''}
+                onChange={(e) => setFormData({ ...formData, depth_cm: parseInt(e.target.value) || undefined })}
+                className="w-full px-3 py-2 border rounded-md text-sm"
+                min={0}
+                max={100}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Тип крепления</label>
+            <select
+              value={formData.mounting_type}
+              onChange={(e) => setFormData({ ...formData, mounting_type: e.target.value })}
+              className="w-full px-3 py-2 border rounded-md text-sm"
+            >
+              <option value="">—</option>
+              <option value="ceiling">Потолок</option>
+              <option value="wall">Стена</option>
+              <option value="niche">Ниша</option>
+              <option value="window_recess">Оконный проём</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Тип окна</label>
+            <input
+              type="text"
+              value={formData.window_type}
+              onChange={(e) => setFormData({ ...formData, window_type: e.target.value })}
+              className="w-full px-3 py-2 border rounded-md text-sm"
+              placeholder="Например: Панорамное"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Выбранная ткань</label>
+            <input
+              type="text"
+              value={formData.selected_fabric}
+              onChange={(e) => setFormData({ ...formData, selected_fabric: e.target.value })}
+              className="w-full px-3 py-2 border rounded-md text-sm"
+              placeholder="ID или название ткани"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Примечания</label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              className="w-full px-3 py-2 border rounded-md text-sm min-h-20"
+              placeholder="Особенности, препятствия..."
+            />
+          </div>
+
+          <SheetFooter className="flex-col sm:flex-row gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Отмена
+            </Button>
+            <Button type="submit">Сохранить</Button>
+          </SheetFooter>
+        </form>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+/**
+ * Production Stage Selection Modal
+ */
+function ProductionStageModal({
+  isOpen,
+  onClose,
+  orderId,
+  onSuccess,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  orderId: string;
+  onSuccess: () => void;
+}) {
+  const [selectedStage, setSelectedStage] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const changeProductionMutation = useChangeProductionStage();
+
+  const stages = [
+    { value: 'not_started', label: 'Не начато' },
+    { value: 'cutting', label: 'Раскрой' },
+    { value: 'sewing', label: 'Пошив' },
+    { value: 'quality_check', label: 'Контроль качества' },
+    { value: 'done', label: 'Производство завершено' },
+  ];
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStage) return;
+
+    try {
+      await changeProductionMutation.mutateAsync({
+        orderId,
+        data: { production_stage: selectedStage as 'not_started' | 'cutting' | 'sewing' | 'quality_check' | 'done' },
+      });
+      setSuccessMessage('Этап производства обновлён');
+      setTimeout(() => {
+        setSuccessMessage(null);
+        onSuccess();
+      }, 1000);
+    } catch (err) {
+      console.error('Failed to update production stage:', err);
+    }
+  };
+
+  return (
+    <Sheet open={isOpen} onOpenChange={onClose}>
+      <SheetContent className="sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Изменить этап производства</SheetTitle>
+          <SheetDescription>
+            Выберите текущий этап производства заказа
+          </SheetDescription>
+        </SheetHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          {successMessage && (
+            <Alert className="bg-green-50 border-green-200">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-700">{successMessage}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-2">
+            {stages.map((stage) => (
+              <label
+                key={stage.value}
+                className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
+                  selectedStage === stage.value
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="production_stage"
+                  value={stage.value}
+                  checked={selectedStage === stage.value}
+                  onChange={(e) => setSelectedStage(e.target.value)}
+                  className="mr-3"
+                />
+                <span className="text-sm font-medium">{stage.label}</span>
+              </label>
+            ))}
+          </div>
+
+          <SheetFooter className="flex-col sm:flex-row gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Отмена
+            </Button>
+            <Button type="submit" disabled={!selectedStage || changeProductionMutation.isPending}>
+              {changeProductionMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+            </Button>
+          </SheetFooter>
+        </form>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 export default function OrderDetailPage() {
   const params = useParams();
   const orderId = params.id as string;
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [productionStageModalOpen, setProductionStageModalOpen] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   // Guard: detect when literal [id] or placeholder is in URL
-  const isPlaceholderId = !orderId || orderId === "[id]" || orderId === "%5Bid%5D" || (orderId.startsWith("[") && orderId.endsWith("]"));
+  const isPlaceholderId =
+    !orderId ||
+    orderId === '[id]' ||
+    orderId === '%5Bid%5D' ||
+    (orderId.startsWith('[') && orderId.endsWith(']'));
   if (isPlaceholderId) {
     return (
       <>
@@ -658,16 +2056,153 @@ export default function OrderDetailPage() {
     );
   }
 
-  const { data: order, isLoading, isError, error } = useOrder(orderId || null);
+  // Fetch order detail and execution data
+  const {
+    data: order,
+    isLoading: isOrderLoading,
+    isError: isOrderError,
+    error: orderError,
+  } = useOrder(orderId || null);
+  const {
+    data: execution,
+    isLoading: isExecutionLoading,
+    refetch: refetchExecution,
+  } = useOrderExecution(orderId || null);
+
+  // Action mutations
+  const changeStatusMutation = useChangeOrderStatus();
+  const changeMaterialMutation = useChangeMaterialReadiness();
+  const changeProductionMutation = useChangeProductionStage();
+  const changeHandoverMutation = useChangeHandoverStage();
+  const cancelMutation = useCancelOrder();
+  const generateItemsMutation = useGenerateOrderItems();
+
+  const isLoading = isOrderLoading || isExecutionLoading;
+
+  // Handle action button click
+  const handleAction = async (action: AvailableActionDTO) => {
+    setActionError(null);
+    try {
+      switch (action.action) {
+        case 'change_status':
+          if (action.target_status) {
+            await changeStatusMutation.mutateAsync({
+              orderId,
+              data: { status: action.target_status as OrderStatus },
+            });
+          }
+          break;
+        case 'change_material_readiness':
+          // Show modal or direct action depending on UX choice
+          await changeMaterialMutation.mutateAsync({
+            orderId,
+            data: { material_readiness: 'ready' },
+          });
+          break;
+        case 'change_production_stage':
+          // Open modal to select production stage
+          setProductionStageModalOpen(true);
+          return; // Don't refetch yet, wait for modal
+        case 'change_handover_stage':
+          await changeHandoverMutation.mutateAsync({
+            orderId,
+            data: { handover_stage: 'done' },
+          });
+          break;
+        // Handle transition actions from backend
+        case 'transition_to_ready':
+          await changeStatusMutation.mutateAsync({
+            orderId,
+            data: { status: 'ready' },
+          });
+          break;
+        case 'transition_to_in_work':
+          await changeStatusMutation.mutateAsync({
+            orderId,
+            data: { status: 'in_work' },
+          });
+          break;
+        case 'transition_to_in_production':
+          await changeStatusMutation.mutateAsync({
+            orderId,
+            data: { status: 'in_production' },
+          });
+          break;
+        case 'transition_to_on_installation':
+          await changeStatusMutation.mutateAsync({
+            orderId,
+            data: { status: 'on_installation' },
+          });
+          break;
+        case 'transition_to_waiting_final_payment':
+          await changeStatusMutation.mutateAsync({
+            orderId,
+            data: { status: 'waiting_final_payment' },
+          });
+          break;
+        case 'transition_to_completed':
+          await changeStatusMutation.mutateAsync({
+            orderId,
+            data: { status: 'completed' },
+          });
+          break;
+        case 'transition_to_new':
+          await changeStatusMutation.mutateAsync({
+            orderId,
+            data: { status: 'new' },
+          });
+          break;
+        default:
+          console.log('Unknown action:', action);
+      }
+      await refetchExecution();
+    } catch (err) {
+      const error = err as { response?: { data?: { detail?: string; code?: string } } };
+      const detail = error.response?.data?.detail || 'Произошла ошибка';
+      const code = error.response?.data?.code || 'unknown_error';
+
+      // Map error codes to user-friendly messages
+      const errorMessages: Record<string, string> = {
+        material_not_ready: 'Нельзя начать производство: материалы не обеспечены.',
+        completed_order: 'Нельзя изменить завершённый заказ.',
+        already_cancelled: 'Заказ уже отменён.',
+        reason_required: 'Необходимо указать причину.',
+        production_not_done: 'Производство ещё не завершено.',
+        payment_required: 'Требуется оплата перед завершением.',
+        cancelled_order: 'Нельзя изменить отменённый заказ.',
+      };
+
+      setActionError(errorMessages[code] || detail);
+    }
+  };
+
+  // Handle cancel
+  const handleCancel = async () => {
+    if (!cancelReason.trim()) {
+      setActionError('Укажите причину отмены');
+      return;
+    }
+    setActionError(null);
+    try {
+      await cancelMutation.mutateAsync({
+        orderId,
+        data: { reason: cancelReason },
+      });
+      setCancelModalOpen(false);
+      setCancelReason('');
+      await refetchExecution();
+    } catch (err) {
+      const error = err as { response?: { data?: { detail?: string; code?: string } } };
+      const detail = error.response?.data?.detail || 'Не удалось отменить заказ';
+      setActionError(detail);
+    }
+  };
 
   // Loading state
   if (isLoading) {
     return (
       <>
-        <PageHeader
-          title={`Заказ ${orderId}`}
-          description="Загрузка деталей заказа..."
-        >
+        <PageHeader title={`Заказ ${orderId}`} description="Загрузка деталей заказа...">
           <Button variant="outline" disabled>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Назад
@@ -679,13 +2214,10 @@ export default function OrderDetailPage() {
   }
 
   // Error state
-  if (isError) {
+  if (isOrderError) {
     return (
       <>
-        <PageHeader
-          title={`Заказ ${orderId}`}
-          description="Ошибка загрузки заказа"
-        >
+        <PageHeader title={`Заказ ${orderId}`} description="Ошибка загрузки заказа">
           <Button variant="outline" asChild>
             <Link href="/orders">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -696,7 +2228,7 @@ export default function OrderDetailPage() {
 
         <ErrorState
           title="Не удалось загрузить заказ"
-          description={error?.message || "Что-то пошло не так. Попробуйте позже."}
+          description={orderError?.message || 'Что-то пошло не так. Попробуйте позже.'}
         />
       </>
     );
@@ -706,10 +2238,7 @@ export default function OrderDetailPage() {
   if (!order) {
     return (
       <>
-        <PageHeader
-          title="Заказ не найден"
-          description="Запрашиваемый заказ не найден"
-        >
+        <PageHeader title="Заказ не найден" description="Запрашиваемый заказ не найден">
           <Button variant="outline" asChild>
             <Link href="/orders">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -723,8 +2252,8 @@ export default function OrderDetailPage() {
           description={`Заказ с ID "${orderId}" не существует или был удален.`}
           icon={<Package className="h-6 w-6 text-slate-600" />}
           action={{
-            label: "К заказам",
-            onClick: () => window.location.href = "/orders",
+            label: 'К заказам',
+            onClick: () => (window.location.href = '/orders'),
           }}
         />
       </>
@@ -740,6 +2269,9 @@ export default function OrderDetailPage() {
           <div className="flex items-center gap-2">
             <StatusBadge status={order.status} />
             <span className="text-slate-500">• Создан {formatDate(order.created_at)}</span>
+            {execution?.is_overdue && (
+              <span className="text-red-600 text-sm font-medium">• Просрочен</span>
+            )}
           </div>
         }
       >
@@ -753,24 +2285,142 @@ export default function OrderDetailPage() {
         </div>
       </PageHeader>
 
+      {/* Action error */}
+      {actionError && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Ошибка</AlertTitle>
+          <AlertDescription>{actionError}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - Main info */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Warnings and Blockers */}
+          {execution && (
+            <WarningsSection
+              warnings={execution.warnings}
+              blockers={execution.blocking_reasons}
+            />
+          )}
+
+          {/* Order Execution Panel - Workflow guidance and status controls */}
+          <OrderExecutionPanel order={order} execution={execution} />
+
+          {/* Designer/Measurer Section - Shows measurements and materials */}
+          {execution?.role_sections?.designer && (
+            <DesignerMeasurerSection
+              measurements={execution.role_sections.designer.measurements}
+              roomsCount={execution.role_sections.designer.rooms_count}
+              windowsCount={execution.role_sections.designer.windows_count}
+              selectedMaterials={execution.role_sections.designer.selected_materials}
+              quoteItemsCount={execution.role_sections.designer.quote_items_count}
+              orderId={order.id}
+              onMeasurementCreated={refetchExecution}
+            />
+          )}
+
+          {/* Warehouse Materials Section - Material requirements for warehouse role */}
+          {execution?.role_sections?.warehouse && (
+            <WarehouseMaterialsSection
+              materialRequirements={execution.role_sections.warehouse.material_requirements}
+              materialReadiness={execution.role_sections.warehouse.material_readiness}
+              materialReadinessLabel={execution.role_sections.warehouse.material_readiness_label}
+              missingMaterials={execution.role_sections.warehouse.missing_materials}
+              missingMaterialsCount={execution.role_sections.warehouse.missing_materials_count}
+              totalFabricsRequired={execution.role_sections.warehouse.total_fabrics_required}
+              orderId={order.id}
+              onMaterialReadinessChanged={refetchExecution}
+            />
+          )}
+
+          {/* Production/Sewing Section - What to sew for production role */}
+          {execution?.role_sections?.production && (
+            <ProductionSewingSection
+              itemsToSew={execution.role_sections.production.items_to_sew}
+              productionStage={execution.role_sections.production.production_stage}
+              deadline={execution.role_sections.production.deadline}
+              assignment={execution.role_sections.production.production_assignment}
+              materialReadiness={execution.role_sections.warehouse?.material_readiness || 'not_ready'}
+              orderId={order.id}
+              onProductionStageChanged={refetchExecution}
+              fallbackMaterials={execution?.role_sections?.designer?.selected_materials}
+              fallbackMeasurements={execution?.role_sections?.designer?.measurements}
+            />
+          )}
+
+          {/* Available Actions - Filter out illogical actions for current status */}
+          {execution && execution.available_actions.length > 0 && (
+            <AvailableActionsPanel
+              actions={execution.available_actions.filter((action) => {
+                // Don't show "take to work" if already in production
+                if (action.action === 'transition_to_in_work' && order.status === 'in_production') {
+                  return false;
+                }
+                // Don't show "move to production" if already in production
+                if (action.action === 'transition_to_in_production' && order.status === 'in_production') {
+                  return false;
+                }
+                return true;
+              })}
+              onAction={handleAction}
+              onCancel={() => setCancelModalOpen(true)}
+            />
+          )}
+
           {/* Центр действий — контекстная навигация */}
-          <OrderQuickActions 
-            orderId={order.id} 
+          <OrderQuickActions
+            orderId={order.id}
             customerId={typeof order.customer === 'object' ? order.customer.id : order.customer}
             orderStatus={order.status}
           />
-          
+
           {/* Связанные замеры */}
-          <MeasurementsSection 
-            orderId={order.id} 
-            measurements={order.measurements || []} 
-          />
-          
-          {/* Позиции заказа */}
-          <OrderItems items={order.items} />
+          <MeasurementsSection orderId={order.id} measurements={order.measurements || []} />
+
+          {/* Determine quote status for generate button state */}
+          {(() => {
+            // Find approved quote first (for generate button activation)
+            const approvedQuote =
+              order.source_quote?.status === 'approved'
+                ? order.source_quote
+                : order.related_quotes?.find((quote) => quote.status === 'approved') ?? null;
+            
+            // Fallback: get any quote status for display
+            const anyQuoteStatus = order.source_quote?.status
+              ?? order.related_quotes?.[0]?.status
+              ?? null;
+            
+            // Use approved quote status if exists, otherwise fallback to any quote status
+            const quoteStatus = approvedQuote?.status ?? anyQuoteStatus;
+            
+            return (
+              <OrderItems
+                items={order.items}
+                quoteItems={execution?.role_sections?.designer?.selected_materials}
+                orderId={order.id}
+                canGenerate={order.items.length === 0 && (
+                  (order.source_quote != null) || 
+                  (order.related_quotes && order.related_quotes.length > 0) ||
+                  (execution?.role_sections?.designer?.quote_items_count ?? 0) > 0
+                )}
+                onGenerate={async () => {
+                  setGenerateError(null);
+                  try {
+                    await generateItemsMutation.mutateAsync({ orderId: order.id });
+                    setGenerateError(null);
+                    // Success toast or notification could go here
+                  } catch (err: unknown) {
+                    const errorData = err as { detail?: string; message?: string };
+                    setGenerateError(errorData.detail || errorData.message || 'Ошибка при генерации позиций');
+                  }
+                }}
+                error={generateError}
+                quoteStatus={quoteStatus as OrderItemsProps['quoteStatus']}
+              />
+            );
+          })()}
           <OrderNotes notes={order.notes} />
           <OrderMetadata order={order} />
         </div>
@@ -801,6 +2451,45 @@ export default function OrderDetailPage() {
           <RelatedQuotesSection order={order} />
         </div>
       </div>
+
+      {/* Production Stage Modal */}
+      <ProductionStageModal
+        isOpen={productionStageModalOpen}
+        onClose={() => setProductionStageModalOpen(false)}
+        orderId={orderId}
+        onSuccess={async () => {
+          setProductionStageModalOpen(false);
+          await refetchExecution();
+        }}
+      />
+
+      {/* Cancel Modal - Using Sheet as Dialog replacement */}
+      <Sheet open={cancelModalOpen} onOpenChange={setCancelModalOpen}>
+        <SheetContent className="sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Отмена заказа</SheetTitle>
+            <SheetDescription>
+              Укажите причину отмены. Это действие нельзя отменить.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="py-4">
+            <Textarea
+              placeholder="Причина отмены..."
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              className="min-h-25"
+            />
+          </div>
+          <SheetFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setCancelModalOpen(false)}>
+              Закрыть
+            </Button>
+            <Button variant="destructive" onClick={handleCancel} disabled={cancelMutation.isPending}>
+              {cancelMutation.isPending ? 'Отмена...' : 'Подтвердить отмену'}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }
