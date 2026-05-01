@@ -16,6 +16,9 @@ import {
   generateOrderItemsFromQuote,
   getOrderPhotoReports,
   uploadOrderPhotoReport,
+  getOrderCompletionAct,
+  createOrderCompletionAct,
+  uploadSignedCompletionAct,
 } from "@/services/http/orders";
 import type {
   OrderListItemDTO,
@@ -30,6 +33,8 @@ import type {
   ActionResponse,
   PhotoReportListDTO,
   PhotoReportDTO,
+  CompletionActResponse,
+  OrderCompletionActDTO,
 } from "@/types";
 
 interface OrdersListResponse {
@@ -238,6 +243,60 @@ export function useUploadOrderPhotoReport(orderId: string) {
       // Invalidate photo reports and execution data
       queryClient.invalidateQueries({ queryKey: [PHOTO_REPORTS_QUERY_KEY, orderId] });
       queryClient.invalidateQueries({ queryKey: [EXECUTION_QUERY_KEY, orderId] });
+    },
+  });
+}
+
+const COMPLETION_ACT_QUERY_KEY = "completion-act";
+
+/**
+ * Hook for fetching order completion act (АВР)
+ */
+export function useOrderCompletionAct(orderId: string | null) {
+  return useQuery<CompletionActResponse, Error>({
+    queryKey: [COMPLETION_ACT_QUERY_KEY, orderId],
+    queryFn: () => getOrderCompletionAct(orderId!),
+    enabled: !!orderId,
+    staleTime: 10 * 1000, // 10 seconds
+  });
+}
+
+/**
+ * Hook for creating order completion act (АВР)
+ */
+export function useCreateOrderCompletionAct() {
+  const queryClient = useQueryClient();
+
+  return useMutation<CompletionActResponse, Error, string>({
+    mutationFn: (orderId) => createOrderCompletionAct(orderId),
+    onSuccess: (_, orderId) => {
+      // Invalidate completion act and execution data
+      queryClient.invalidateQueries({ queryKey: [COMPLETION_ACT_QUERY_KEY, orderId] });
+      queryClient.invalidateQueries({ queryKey: [EXECUTION_QUERY_KEY, orderId] });
+    },
+  });
+}
+
+/**
+ * Hook for uploading signed completion act file
+ */
+export function useUploadSignedCompletionAct() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    { act: OrderCompletionActDTO; created: boolean; message: string },
+    Error,
+    { orderId: string; formData: FormData }
+  >({
+    mutationFn: ({ orderId, formData }) => uploadSignedCompletionAct(orderId, formData),
+    onSuccess: (_, variables) => {
+      // Invalidate completion act and execution data
+      queryClient.invalidateQueries({
+        queryKey: [COMPLETION_ACT_QUERY_KEY, variables.orderId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [EXECUTION_QUERY_KEY, variables.orderId],
+      });
     },
   });
 }

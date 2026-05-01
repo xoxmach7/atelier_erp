@@ -17,6 +17,8 @@ import type {
   ActionResponse,
   PhotoReportListDTO,
   PhotoReportDTO,
+  CompletionActResponse,
+  OrderCompletionActDTO,
 } from "@/types";
 
 interface OrdersListResponse {
@@ -155,4 +157,43 @@ export async function uploadOrderPhotoReport(
   formData: FormData
 ): Promise<PhotoReportDTO> {
   return post<PhotoReportDTO>(`/v1/orders/${orderId}/photo-reports/`, formData);
+}
+
+// ============================================================================
+// Order Completion Act (АВР) API
+// ============================================================================
+
+/**
+ * Get order completion act (АВР)
+ * GET /api/v1/orders/{id}/completion-act/
+ */
+export async function getOrderCompletionAct(
+  orderId: string
+): Promise<CompletionActResponse> {
+  return get<CompletionActResponse>(`/v1/orders/${orderId}/completion-act/`);
+}
+
+/**
+ * Create order completion act (АВР)
+ * POST /api/v1/orders/{id}/completion-act/
+ */
+export async function createOrderCompletionAct(
+  orderId: string
+): Promise<CompletionActResponse> {
+  return post<CompletionActResponse>(`/v1/orders/${orderId}/completion-act/`, {});
+}
+
+/**
+ * Upload signed completion act file
+ * POST /api/v1/orders/{id}/completion-act/upload-signed/
+ * Uses FormData for multipart/form-data upload
+ */
+export async function uploadSignedCompletionAct(
+  orderId: string,
+  formData: FormData
+): Promise<{ act: OrderCompletionActDTO; created: boolean; message: string }> {
+  return post<{ act: OrderCompletionActDTO; created: boolean; message: string }>(
+    `/v1/orders/${orderId}/completion-act/upload-signed/`,
+    formData
+  );
 }

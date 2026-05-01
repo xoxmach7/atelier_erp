@@ -14,7 +14,7 @@ from atelier_erp.api.permissions import IsManagerOrAdmin
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 
-from atelier_erp.models import Order, Task, Fabric, PhotoReport, OrderItem
+from atelier_erp.models import Order, Task, Fabric, PhotoReport, OrderItem, OrderCompletionAct
 from atelier_erp.services import OrderService, TaskService, UnitOfWork
 from atelier_erp.services.exceptions import (
     OrderNotFoundError, InvalidOrderStatusTransition,
@@ -27,9 +27,10 @@ from .serializers import (
     ChangeHandoverStageSerializer, CancelOrderSerializer,
     TaskListSerializer, TaskDetailSerializer, TaskCreateSerializer, TaskStatusUpdateSerializer,
     FabricAvailabilitySerializer, InventoryCheckRequestSerializer, InventoryCheckResponseSerializer,
-    PhotoReportSerializer, PhotoReportUploadSerializer
+    PhotoReportSerializer, PhotoReportUploadSerializer,
+    OrderCompletionActSerializer, OrderCompletionActUploadSerializer
 )
-from atelier_erp.constants import OrderFSMRules, OrderExecutionGuide, MaterialReadiness
+from atelier_erp.constants import OrderFSMRules, OrderExecutionGuide, MaterialReadiness, ProductionStage, HandoverStage
 
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -304,7 +305,191 @@ class OrderViewSet(viewsets.ModelViewSet):
             PhotoReportSerializer(photo_report, context={'request': request}).data,
             status=status.HTTP_201_CREATED
         )
-    
+
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='completion-act',
+        url_name='completion-act',
+        parser_classes=[MultiPartParser, FormParser]
+    )
+    def completion_act(self, request, pk=None):
+        """
+        Order completion act (АВР) management.
+
+        GET /api/v1/orders/{id}/completion-act/ - Get existing act or status
+        POST /api/v1/orders/{id}/completion-act/ - Create act if not exists
+
+        AVR availability rules:
+        A) handover_stage == done
+        B) handover_stage == not_required AND production_stage == done
+        """
+        order = self.get_object()
+
+        # Check AVR availability
+        can_create_act = (
+            order.handover_stage == HandoverStage.DONE
+            or (
+                order.handover_stage == HandoverStage.NOT_REQUIRED
+                and order.production_stage == ProductionStage.DONE
+            )
+        )
+
+        if request.method == 'GET':
+            # Try to get existing act
+            try:
+                act = order.completion_act
+                if act.is_active:
+                    serializer = OrderCompletionActSerializer(act, context={'request': request})
+                    return Response({
+                        'exists': True,
+                        'status': act.status,
+                        'act': serializer.data
+                    })
+            except OrderCompletionAct.DoesNotExist:
+                pass
+
+            # No active act exists
+            if not can_create_act:
+                return Response({
+                    'exists': False,
+                    'status': 'not_available',
+                    'message': 'АВР доступен после установки / выдачи'
+                })
+            return Response({
+                'exists': False,
+                'status': 'not_created',
+                'message': 'АВР ещё не создан'
+            })
+
+        # POST - Create act
+        if not can_create_act:
+            return Response(
+                {
+                    'code': 'act_not_available',
+                    'detail': 'АВР доступен после установки / выдачи'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if act already exists
+        try:
+            existing_act = order.completion_act
+            if existing_act.is_active:
+                serializer = OrderCompletionActSerializer(existing_act, context={'request': request})
+                return Response({
+                    'exists': True,
+                    'act': serializer.data,
+                    'message': 'АВР уже существует'
+                })
+        except OrderCompletionAct.DoesNotExist:
+            pass
+
+        # Generate act number: АВР-{order_number}
+        act_number = f"АВР-{order.order_number}"
+
+        # Create the act
+        act = OrderCompletionAct.objects.create(
+            order=order,
+            act_number=act_number,
+            status=OrderCompletionAct.Status.DRAFT,
+            created_by=request.user if request.user.is_authenticated else None
+        )
+
+        serializer = OrderCompletionActSerializer(act, context={'request': request})
+        return Response({
+            'exists': True,
+            'act': serializer.data,
+            'message': 'АВР успешно создан'
+        }, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='completion-act/upload-signed',
+        url_name='completion-act-upload-signed',
+        parser_classes=[MultiPartParser, FormParser]
+    )
+    def upload_signed_completion_act(self, request, pk=None):
+        """
+        Upload signed completion act file.
+        POST /api/v1/orders/{id}/completion-act/upload-signed/
+
+        Body (multipart/form-data):
+        - signed_file: File (PDF, JPG, PNG, WebP, max 20MB)
+        - notes: Optional notes
+
+        If act doesn't exist, creates it automatically.
+        Sets status to 'signed' after upload.
+        Does NOT change Order.status.
+        """
+        order = self.get_object()
+
+        # Check AVR availability
+        can_upload = (
+            order.handover_stage == HandoverStage.DONE
+            or (
+                order.handover_stage == HandoverStage.NOT_REQUIRED
+                and order.production_stage == ProductionStage.DONE
+            )
+        )
+
+        if not can_upload:
+            return Response(
+                {
+                    'code': 'act_not_available',
+                    'detail': 'АВР доступен после установки / выдачи'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate upload data
+        serializer = OrderCompletionActUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Get or create act
+        act, created = OrderCompletionAct.objects.get_or_create(
+            order=order,
+            defaults={
+                'act_number': f"АВР-{order.order_number}",
+                'status': OrderCompletionAct.Status.DRAFT,
+                'created_by': request.user if request.user.is_authenticated else None,
+                'is_active': True
+            }
+        )
+
+        # If act was soft-deleted, reactivate it
+        if not act.is_active:
+            act.is_active = True
+            act.status = OrderCompletionAct.Status.DRAFT
+
+        # Update act with signed file
+        uploaded_file = request.FILES.get('signed_file')
+        if not uploaded_file:
+            return Response(
+                {'error': 'No file provided in request'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        act.signed_file = uploaded_file
+        act.status = OrderCompletionAct.Status.SIGNED
+        act.signed_at = timezone.now()
+        act.signed_file_uploaded_by = request.user if request.user.is_authenticated else None
+
+        # Update notes if provided
+        notes = request.data.get('notes', '')
+        if notes:
+            act.notes = notes
+
+        act.save()
+
+        response_serializer = OrderCompletionActSerializer(act, context={'request': request})
+        return Response({
+            'act': response_serializer.data,
+            'created': created,
+            'message': 'Подписанный АВР успешно загружен'
+        })
+
     @action(detail=True, methods=['post'])
     def change_status(self, request, pk=None):
         """

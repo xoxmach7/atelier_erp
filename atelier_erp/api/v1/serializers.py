@@ -395,10 +395,10 @@ class PhotoReportUploadSerializer(serializers.Serializer):
     file = serializers.FileField(required=True)
     caption = serializers.CharField(required=False, allow_blank=True)
     order_item = serializers.UUIDField(required=False, allow_null=True)
-    
+
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
     ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-    
+
     def validate_file(self, value):
         """Validate file type and size"""
         # Check file size
@@ -406,12 +406,83 @@ class PhotoReportUploadSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 f'File size must be less than 10 MB. Current size: {value.size / (1024*1024):.1f} MB'
             )
-        
+
         # Check content type
         content_type = value.content_type
         if content_type not in self.ALLOWED_TYPES:
             raise serializers.ValidationError(
                 f'Only image files are allowed (JPEG, PNG, WebP). Got: {content_type}'
             )
-        
+
+        return value
+
+
+# ============================================
+# ORDER COMPLETION ACT (AVR) SERIALIZERS
+# ============================================
+
+class OrderCompletionActSerializer(serializers.ModelSerializer):
+    """
+    Order completion act (АВР) serializer.
+    Includes signed file URL and uploader info.
+    """
+    status_label = serializers.CharField(source='get_status_display', read_only=True)
+    signed_file_url = serializers.SerializerMethodField()
+    signed_file_uploaded_by_name = serializers.CharField(
+        source='signed_file_uploaded_by.get_full_name',
+        read_only=True
+    )
+
+    class Meta:
+        from atelier_erp.models import OrderCompletionAct
+        model = OrderCompletionAct
+        fields = [
+            'id', 'order', 'act_number', 'status', 'status_label',
+            'signed_file', 'signed_file_url',
+            'signed_file_uploaded_by', 'signed_file_uploaded_by_name',
+            'signed_at', 'notes', 'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'act_number', 'signed_file_uploaded_by', 'signed_at', 'created_at', 'updated_at'
+        ]
+
+    def get_signed_file_url(self, obj):
+        """Return absolute URL for the signed file"""
+        if obj.signed_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.signed_file.url)
+            return obj.signed_file.url
+        return None
+
+
+class OrderCompletionActUploadSerializer(serializers.Serializer):
+    """
+    Upload serializer for signed completion act.
+    Validates file type (PDF, images) and size (max 20MB).
+    """
+    signed_file = serializers.FileField(required=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+    MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
+    ALLOWED_TYPES = [
+        'application/pdf',
+        'image/jpeg', 'image/jpg', 'image/png', 'image/webp'
+    ]
+
+    def validate_signed_file(self, value):
+        """Validate file type and size"""
+        # Check file size
+        if value.size > self.MAX_FILE_SIZE:
+            raise serializers.ValidationError(
+                f'Размер файла должен быть меньше 20 МБ. Текущий размер: {value.size / (1024*1024):.1f} МБ'
+            )
+
+        # Check content type
+        content_type = value.content_type
+        if content_type not in self.ALLOWED_TYPES:
+            raise serializers.ValidationError(
+                f'Разрешены только PDF и изображения (JPEG, PNG, WebP). Получено: {content_type}'
+            )
+
         return value
