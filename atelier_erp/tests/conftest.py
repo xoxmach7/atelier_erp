@@ -233,3 +233,33 @@ def order_with_fabric_item(db, confirmed_order, fabric):
         quantity=Decimal('5.00')
     )
     return confirmed_order
+
+
+@pytest.fixture
+def order_factory(db, customer):
+    """Factory fixture for creating orders with custom parameters"""
+    from atelier_erp.models import Order
+    from atelier_erp.constants import HandoverStage, ProductionStage
+    
+    def _create_order(
+        status=Order.Status.NEW,
+        handover_stage=HandoverStage.PENDING,
+        production_stage=ProductionStage.NOT_STARTED,
+        total_amount=Decimal('0'),
+        paid_amount=Decimal('0'),
+        **kwargs
+    ):
+        order_number = kwargs.get('order_number', f'О-TEST-{Order.objects.count() + 1:04d}')
+        order = Order.objects.create(
+            order_number=order_number,
+            customer=customer,
+            status=status,
+            handover_stage=handover_stage,
+            production_stage=production_stage,
+            total_amount=total_amount,
+            paid_amount=paid_amount,
+            **{k: v for k, v in kwargs.items() if k not in ['order_number']}
+        )
+        return order
+    
+    return _create_order

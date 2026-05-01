@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import {
   useOrder,
   useOrderExecution,
@@ -55,6 +56,7 @@ import {
   ChevronRight,
   Info,
   Sparkles,
+  Settings,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -74,14 +76,31 @@ function formatDateTime(value: string | null): string {
   return new Date(value).toLocaleString("ru-RU");
 }
 
+// Helper to detect UUID-like strings
+function isUuidLike(value: unknown): boolean {
+  return typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+// Helper to get safe fabric label - never returns UUID
+function getFabricLabel(item: { fabric_name?: string | null; fabric?: string | null }): string | null {
+  if (item.fabric_name) return item.fabric_name;
+  if (typeof item.fabric === "string" && !isUuidLike(item.fabric)) {
+    return item.fabric;
+  }
+  return null;
+}
+
 function OrderItemRow({ item }: { item: OrderItemDTO }) {
+  // Get safe fabric label - never shows UUID
+  const fabricLabel = getFabricLabel(item);
   return (
     <div className="flex items-start justify-between py-3 border-b last:border-0">
       <div className="flex-1">
         <div className="font-medium">{item.notes || item.item_type}</div>
         <div className="text-sm text-slate-500 mt-1">
           {item.item_type}
-          {item.fabric && ` • ${item.fabric}`}
+          {fabricLabel && ` • ${fabricLabel}`}
           {item.cornice && ` • ${item.cornice}`}
           {item.service && ` • ${item.service}`}
           {item.window_width_cm && item.window_height_cm && ` • ${item.window_width_cm}×${item.window_height_cm}cm`}
@@ -1070,11 +1089,6 @@ function DesignerMeasurerSection({
                         {m.mounting_type && (
                           <span className="text-xs text-slate-500">{m.mounting_type}</span>
                         )}
-                        {m.selected_fabric && (
-                          <div className="text-xs text-purple-600 mt-1">
-                            Ткань: {m.selected_fabric}
-                          </div>
-                        )}
                         {m.notes && (
                           <div className="text-xs text-slate-400 mt-1 truncate max-w-xs">
                             {m.notes}
@@ -1153,7 +1167,8 @@ type MeasurementFormData = {
   depth_cm?: number;
   mounting_type?: string;
   window_type?: string;
-  selected_fabric?: string;
+  selected_fabric?: string | null;
+  fabric_comment?: string; // MVP: temporary field for fabric text, merged into notes
   notes?: string;
 };
 
@@ -1169,6 +1184,9 @@ function WarehouseMaterialsSection({
   totalFabricsRequired,
   orderId,
   onMaterialReadinessChanged,
+  quoteMaterials,
+  hasOrderItems,
+  onGenerate,
 }: {
   materialRequirements: MaterialRequirementDTO[];
   materialReadiness: string;
@@ -1178,6 +1196,9 @@ function WarehouseMaterialsSection({
   totalFabricsRequired: number;
   orderId: string;
   onMaterialReadinessChanged: () => void;
+  quoteMaterials?: SelectedMaterialDTO[];
+  hasOrderItems?: boolean;
+  onGenerate?: () => void;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -1323,11 +1344,51 @@ function WarehouseMaterialsSection({
             ))}
           </div>
         ) : (
-          <EmptyState
-            title="Нет требований к материалам"
-            description="Добавьте позиции в КП для отображения"
-            icon={<Package className="h-6 w-6 text-slate-400" />}
-          />
+          <>
+            {quoteMaterials && quoteMaterials.length > 0 && !hasOrderItems ? (
+              <div className="space-y-3">
+                <Alert className="bg-amber-50 border-amber-200">
+                  <Info className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-700">
+                    Позиции заказа ещё не сформированы. Склад видит предварительные материалы из принятого КП.
+                  </AlertDescription>
+                </Alert>
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-slate-700">Предварительные материалы из КП:</h4>
+                  {quoteMaterials.map((material, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 rounded text-sm bg-slate-50">
+                      <div className="flex-1">
+                        <div className="font-medium">{material.fabric || '—'}</div>
+                        {material.room && (
+                          <div className="text-xs text-slate-500">Комната: {material.room}</div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        {material.fabric_meters && (
+                          <div className="text-xs text-slate-600">{material.fabric_meters} м</div>
+                        )}
+                        <div className="text-xs text-slate-500">
+                          {getSupplyModeLabel(material.supply_mode)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {onGenerate && (
+                  <Button onClick={onGenerate} variant="outline" className="w-full">
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Сформировать позиции заказа
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <EmptyState
+                title="Нет требований к материалам"
+                description="Добавьте позиции в КП для отображения"
+                icon={<Package className="h-6 w-6 text-slate-400" />}
+              />
+            )}
+          </>
         )}
       </CardContent>
 
@@ -1400,6 +1461,321 @@ function MaterialReadinessModal({
 }
 
 /**
+ * Installer/Handover Section - Shows installation and handover info
+ */
+function InstallerHandoverSection({
+  address,
+  customer,
+  orderItems,
+  itemsCount,
+  handoverStage,
+  handoverStageLabel,
+  balanceDue,
+  paymentState,
+  warnings,
+  orderId,
+  onHandoverStageChanged,
+}: {
+  address: {
+    city?: string;
+    street?: string;
+    building?: string;
+    apartment?: string;
+    notes?: string;
+  } | null;
+  customer: { id: string; name: string; phone: string };
+  orderItems: Array<{
+    id: string;
+    room_name: string | null;
+    window_name: string | null;
+    description: string | null;
+    fabric: string | null;
+    fabric_name?: string | null;
+    quantity: number;
+    width_cm: number | null;
+    height_cm: number | null;
+  }>;
+  itemsCount: number;
+  handoverStage: string;
+  handoverStageLabel: string;
+  balanceDue: number;
+  paymentState: 'paid' | 'partial' | 'unpaid';
+  warnings: WarningDTO[];
+  orderId: string;
+  onHandoverStageChanged: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const changeStageMutation = useChangeHandoverStage();
+
+  const isDone = handoverStage === 'done';
+  const isPending = handoverStage === 'pending';
+  const isScheduled = handoverStage === 'scheduled';
+  const isInProgress = handoverStage === 'in_progress';
+  const canComplete = isDone && balanceDue <= 0;
+
+  const handleSchedule = async () => {
+    try {
+      setError(null);
+      await changeStageMutation.mutateAsync({
+        orderId,
+        data: { handover_stage: 'scheduled' },
+      });
+      onHandoverStageChanged();
+    } catch (err: unknown) {
+      const errorData = err as { detail?: string };
+      setError(errorData.detail || 'Ошибка при планировании');
+    }
+  };
+
+  const handleStart = async () => {
+    try {
+      setError(null);
+      await changeStageMutation.mutateAsync({
+        orderId,
+        data: { handover_stage: 'in_progress' },
+      });
+      onHandoverStageChanged();
+    } catch (err: unknown) {
+      const errorData = err as { detail?: string };
+      setError(errorData.detail || 'Ошибка при начале установки');
+    }
+  };
+
+  const handleDone = async () => {
+    try {
+      setError(null);
+      await changeStageMutation.mutateAsync({
+        orderId,
+        data: { handover_stage: 'done' },
+      });
+      onHandoverStageChanged();
+    } catch (err: unknown) {
+      const errorData = err as { detail?: string };
+      setError(errorData.detail || 'Ошибка при завершении установки');
+    }
+  };
+
+  const getStageBadgeClass = (stage: string) => {
+    switch (stage) {
+      case 'done':
+        return 'bg-green-100 text-green-700';
+      case 'in_progress':
+        return 'bg-blue-100 text-blue-700';
+      case 'scheduled':
+        return 'bg-yellow-100 text-yellow-700';
+      default:
+        return 'bg-slate-100 text-slate-700';
+    }
+  };
+
+  return (
+    <Card className="border-l-4 border-l-indigo-500">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Truck className="h-4 w-4" />
+            Установка / Выдача
+          </CardTitle>
+          <span className={`text-xs px-2 py-1 rounded-full ${getStageBadgeClass(handoverStage)}`}>
+            {handoverStageLabel}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Warnings */}
+        {warnings.map((warning, idx) => (
+          <Alert
+            key={idx}
+            variant={warning.severity === 'error' ? 'destructive' : 'default'}
+            className={
+              warning.severity === 'warning'
+                ? 'bg-yellow-50 border-yellow-200'
+                : warning.severity === 'error'
+                ? 'bg-red-50 border-red-200'
+                : undefined
+            }
+          >
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{warning.message}</AlertDescription>
+          </Alert>
+        ))}
+
+        {/* Customer & Address */}
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-slate-600">Клиент:</span>
+            <span className="font-medium">{customer.name}</span>
+          </div>
+          {customer.phone && (
+            <div className="flex justify-between">
+              <span className="text-slate-600">Телефон:</span>
+              <span>{customer.phone}</span>
+            </div>
+          )}
+          {address && (
+            <div className="flex justify-between">
+              <span className="text-slate-600">Адрес:</span>
+              <span className="text-right">
+                {[address.city, address.street, address.building, address.apartment]
+                  .filter(Boolean)
+                  .join(', ')}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Payment Status */}
+        <div className="flex items-center justify-between text-sm py-2 border-t border-slate-100">
+          <span className="text-slate-600">Оплата:</span>
+          <div className="flex items-center gap-2">
+            {paymentState === 'paid' ? (
+              <span className="text-green-600 font-medium">Оплачено полностью</span>
+            ) : paymentState === 'partial' ? (
+              <>
+                <span className="text-yellow-600">Частичная оплата</span>
+                {balanceDue > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-yellow-100 text-yellow-700">
+                    Остаток: {balanceDue}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-red-600">Не оплачено</span>
+            )}
+          </div>
+        </div>
+
+        {/* Items to Install */}
+        {itemsCount > 0 ? (
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium text-slate-700">Изделия для установки ({itemsCount}):</h4>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {orderItems.map((item) => {
+                // Get safe fabric label - never shows UUID
+                const fabricLabel = getFabricLabel(item);
+                
+                return (
+                <div key={item.id} className="text-sm p-2 bg-slate-50 rounded">
+                  <div className="flex justify-between">
+                    <span className="font-medium">
+                      {item.room_name || '—'} — {item.window_name || '—'}
+                    </span>
+                    <span className="text-slate-500">×{item.quantity}</span>
+                  </div>
+                  {item.description && (
+                    <div className="text-slate-600 text-xs mt-1">{item.description}</div>
+                  )}
+                  <div className="text-slate-500 text-xs">Ткань: {fabricLabel || 'не указана'}</div>
+                  {(item.width_cm || item.height_cm) && (
+                    <div className="text-slate-500 text-xs">
+                      Размеры: {item.width_cm || '—'}×{item.height_cm || '—'} см
+                    </div>
+                  )}
+                </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <Alert className="bg-slate-50 border-slate-200">
+            <Info className="h-4 w-4 text-slate-600" />
+            <AlertDescription className="text-slate-700">
+              Нет изделий для установки. Сначала сформируйте позиции заказа из КП.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Placeholders for future features */}
+        <div className="space-y-2 pt-2 border-t border-slate-100">
+          <div className="flex items-center justify-between text-sm text-slate-500">
+            <span>Фотоотчёт:</span>
+            <span className="text-xs px-2 py-0.5 rounded bg-slate-100">Будет следующим этапом</span>
+          </div>
+          <div className="flex items-center justify-between text-sm text-slate-500">
+            <span>АВР (акт выполненных работ):</span>
+            <span className="text-xs px-2 py-0.5 rounded bg-slate-100">Будет следующим этапом</span>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="space-y-2 pt-2">
+          {!isDone && itemsCount > 0 && (
+            <>
+              {isPending && (
+                <Button onClick={handleSchedule} disabled={changeStageMutation.isPending} className="w-full">
+                  {changeStageMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Calendar className="h-4 w-4 mr-2" />
+                  )}
+                  Запланировать
+                </Button>
+              )}
+              {(isScheduled || isPending) && (
+                <Button
+                  onClick={handleStart}
+                  disabled={changeStageMutation.isPending}
+                  variant="default"
+                  className="w-full"
+                >
+                  {changeStageMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Play className="h-4 w-4 mr-2" />
+                  )}
+                  Начать установку / выдачу
+                </Button>
+              )}
+              {isInProgress && (
+                <Button
+                  onClick={handleDone}
+                  disabled={changeStageMutation.isPending}
+                  variant="default"
+                  className="w-full bg-green-600 hover:bg-green-700"
+                >
+                  {changeStageMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                  )}
+                  Отметить установлено / передано
+                </Button>
+              )}
+            </>
+          )}
+
+          {isDone && (
+            <Alert className="bg-green-50 border-green-200">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-700">
+                Установка / выдача завершена
+                {balanceDue > 0 && '. Ожидается финальная оплата.'}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {canComplete && (
+            <Alert className="bg-blue-50 border-blue-200">
+              <CheckCircle className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-700">
+                Заказ можно завершить — все работы выполнены и оплата получена.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
  * Production/Sewing Section - Shows what to sew for production role
  */
 function ProductionSewingSection({
@@ -1412,6 +1788,10 @@ function ProductionSewingSection({
   onProductionStageChanged,
   fallbackMaterials,
   fallbackMeasurements,
+  orderItems,
+  orderStatus,
+  hasApprovedQuote,
+  onGenerate,
 }: {
   itemsToSew: ProductionItemDTO[];
   productionStage: string;
@@ -1422,9 +1802,43 @@ function ProductionSewingSection({
   onProductionStageChanged: () => void;
   fallbackMaterials?: SelectedMaterialDTO[];
   fallbackMeasurements?: DesignerMeasurementDTO[];
+  orderItems?: OrderItemDTO[];
+  orderStatus?: string;
+  hasApprovedQuote?: boolean;
+  onGenerate?: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
   const changeStageMutation = useChangeProductionStage();
+  const changeStatusMutation = useChangeOrderStatus();
+  const generateItemsMutation = useGenerateOrderItems();
+
+  // MVP: Only show not_started, sewing, done in correction modal
+  // Hide cutting, quality_check, rework
+  const CORRECTION_STAGES = [
+    { value: 'not_started', label: 'Не начато' },
+    { value: 'sewing', label: 'Пошив' },
+    { value: 'done', label: 'Готово' },
+  ];
+
+  // Check if user can correct production stage
+  const canCorrectStage = orderStatus && ['in_production', 'ready'].includes(orderStatus);
+
+  // Handle stage correction
+  const handleStageCorrection = async (newStage: string) => {
+    try {
+      setError(null);
+      await changeStageMutation.mutateAsync({
+        orderId,
+        data: { production_stage: newStage },
+      });
+      setIsCorrectionModalOpen(false);
+      onProductionStageChanged();
+    } catch (err: unknown) {
+      const errorData = err as { detail?: string };
+      setError(errorData.detail || 'Ошибка при изменении этапа');
+    }
+  };
 
   // Map production_stage to simple seamstress state
   const getSeamstressState = (stage: string): { label: string; color: string; bg: string } => {
@@ -1463,7 +1877,38 @@ function ProductionSewingSection({
   const seamstressState = getSeamstressState(productionStage);
   const overdueInfo = getOverdueInfo();
 
-  const handleStartWork = async () => {
+  // Take order to work (new → in_work)
+  const handleTakeToWork = async () => {
+    try {
+      setError(null);
+      await changeStatusMutation.mutateAsync({
+        orderId,
+        data: { status: 'in_work' },
+      });
+      onProductionStageChanged();
+    } catch (err: unknown) {
+      const errorData = err as { detail?: string };
+      setError(errorData.detail || 'Ошибка при взятии заказа в работу');
+    }
+  };
+
+  // Transfer to production (in_work → in_production)
+  const handleTransferToProduction = async () => {
+    try {
+      setError(null);
+      await changeStatusMutation.mutateAsync({
+        orderId,
+        data: { status: 'in_production' },
+      });
+      onProductionStageChanged();
+    } catch (err: unknown) {
+      const errorData = err as { detail?: string };
+      setError(errorData.detail || 'Ошибка при передаче в производство');
+    }
+  };
+
+  // Start production (in_production → sewing)
+  const handleStartProduction = async () => {
     try {
       setError(null);
       await changeStageMutation.mutateAsync({
@@ -1473,7 +1918,7 @@ function ProductionSewingSection({
       onProductionStageChanged();
     } catch (err: unknown) {
       const errorData = err as { detail?: string };
-      setError(errorData.detail || 'Ошибка при начале работы');
+      setError(errorData.detail || 'Ошибка при начале пошива');
     }
   };
 
@@ -1492,12 +1937,56 @@ function ProductionSewingSection({
   };
 
   // Determine button states
-  // Cannot start if no items to sew - need to generate order items from quote first
-  const hasItems = itemsToSew.length > 0;
-  const canStart = productionStage === 'not_started' && materialReadiness !== 'not_ready' && hasItems;
-  const canMarkDone = productionStage !== 'done' && productionStage !== 'not_started';
+  // Use orderItems if available, otherwise fall back to itemsToSew from execution summary
+  const realOrderItems = orderItems || [];
+  const hasRealItems = realOrderItems.length > 0;
+  const hasItems = hasRealItems || itemsToSew.length > 0;
+  
+  // Can generate if: no items, has approved quote, status allows
+  const canGenerate = !hasRealItems && hasApprovedQuote && 
+    orderStatus && ['new', 'in_work'].includes(orderStatus);
+  
+  // Order status flow
+  const isOrderNew = orderStatus === 'new';
+  const isOrderInWork = orderStatus === 'in_work';
+  const isOrderInProduction = orderStatus === 'in_production';
+  
+  // Button visibility logic - correct workflow:
+  // new → in_work ("Взять заказ в работу")
+  // in_work → in_production ("Передать в производство")
+  // in_production + not_started → sewing ("Начать пошив")
+  
+  // Step 1: Order new + has items → show "Взять заказ в работу"
+  const showTakeToWork = isOrderNew && hasItems;
+  
+  // Step 2: Order in_work + material ready + has items → show "Передать в производство"
+  const canTransferToProduction = isOrderInWork && 
+    materialReadiness !== 'not_ready' && 
+    hasItems;
+  
+  // Step 3: Order in_production + production not started + material ready → show "Начать пошив"
+  const canStartProduction = isOrderInProduction && 
+    productionStage === 'not_started' && 
+    materialReadiness !== 'not_ready' && 
+    hasItems;
+  
+  // Step 4: Production started → show "Отметить готово"
+  const showMarkDone = productionStage !== 'done' && productionStage !== 'not_started';
+  
   const isMaterialNotReady = materialReadiness === 'not_ready';
   const isDone = productionStage === 'done';
+
+  const handleGenerate = async () => {
+    try {
+      setError(null);
+      await generateItemsMutation.mutateAsync({ orderId });
+      onGenerate?.();
+      onProductionStageChanged();
+    } catch (err: unknown) {
+      const errorData = err as { detail?: string };
+      setError(errorData.detail || 'Ошибка при генерации позиций');
+    }
+  };
 
   return (
     <Card className="border-l-4 border-l-purple-500">
@@ -1568,7 +2057,7 @@ function ProductionSewingSection({
           </div>
         )}
 
-        {/* Items to Sew - Main or Fallback */}
+        {/* Items to Sew - Real OrderItems, Execution Items, or Fallback */}
         {(() => {
           // Build fallback items from designer data if items_to_sew is empty
           const fallbackItems: ProductionItemDTO[] = [];
@@ -1619,8 +2108,98 @@ function ProductionSewingSection({
             });
           }
           
-          const displayItems = itemsToSew.length > 0 ? itemsToSew : fallbackItems;
-          const isFallback = itemsToSew.length === 0 && fallbackItems.length > 0;
+          // Determine what to show: real OrderItems > execution items > fallback
+          const isRealItems = hasRealItems;
+          const displayItems = isRealItems 
+            ? [] // Will render realOrderItems separately
+            : itemsToSew.length > 0 
+              ? itemsToSew 
+              : fallbackItems;
+          const isFallback = !isRealItems && itemsToSew.length === 0 && fallbackItems.length > 0;
+          
+          // Show Generate from Quote button when no real items but can generate
+          if (!isRealItems && canGenerate) {
+            return (
+              <div className="space-y-3">
+                <Alert className="bg-blue-50 border-blue-200">
+                  <Sparkles className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-700">
+                    Есть принятое КП. Сформируйте позиции заказа для начала производства.
+                  </AlertDescription>
+                </Alert>
+                <Button 
+                  onClick={handleGenerate} 
+                  disabled={generateItemsMutation.isPending}
+                  className="w-full"
+                >
+                  {generateItemsMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Формируем...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Сформировать из КП
+                    </>
+                  )}
+                </Button>
+              </div>
+            );
+          }
+          
+          if (isRealItems) {
+            // Render real OrderItems from order.items
+            return (
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-slate-700">
+                  Изделия к пошиву ({realOrderItems.length}):
+                </h4>
+                {realOrderItems.map((item, index) => {
+                  // Parse room/window from notes (format: "Room / Window / sewing_type / ...")
+                  const noteParts = item.notes?.split(' / ') || [];
+                  const roomName = noteParts[0] || '—';
+                  const windowName = noteParts[1] || null;
+                  const sewingType = item.sewing_type || noteParts[2] || 'Пошив';
+                  
+                  // Get safe fabric label - never shows UUID
+                  const fabricLabel = getFabricLabel(item);
+                  
+                  return (
+                    <div key={item.id || index} className="border rounded-lg p-3 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-medium text-sm">{roomName}</div>
+                          {windowName && windowName !== '—' && (
+                            <div className="text-xs text-slate-500">{windowName}</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-sm text-slate-700">{sewingType}</div>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                        {(item.window_width_cm || item.window_height_cm) && (
+                          <div>Размеры: {item.window_width_cm || '—'}×{item.window_height_cm || '—'} см</div>
+                        )}
+                        {fabricLabel ? (
+                          <div>Ткань: {fabricLabel}</div>
+                        ) : (
+                          <div>Ткань: не указана</div>
+                        )}
+                        {item.folds_count && (
+                          <div>Складки: {item.folds_count}</div>
+                        )}
+                      </div>
+                      {item.notes && (
+                        <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded">
+                          <span className="font-medium">Примечание:</span> {item.notes}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          }
           
           if (displayItems.length > 0) {
             return (
@@ -1633,7 +2212,11 @@ function ProductionSewingSection({
                     Данные из замеров и выбранных материалов. Требуется формирование позиций заказа.
                   </div>
                 )}
-                {displayItems.map((item, index) => (
+                {displayItems.map((item, index) => {
+                  // Get safe fabric label - never shows UUID
+                  const fabricLabel = getFabricLabel(item);
+                  
+                  return (
                   <div key={item.id || index} className="border rounded-lg p-3 space-y-2">
                     <div className="flex justify-between items-start">
                       <div>
@@ -1648,9 +2231,7 @@ function ProductionSewingSection({
                       {(item.width_cm || item.height_cm) && (
                         <div>Размеры: {item.width_cm || '—'}×{item.height_cm || '—'} см</div>
                       )}
-                      {item.fabric_name && (
-                        <div>Ткань: {item.fabric_name}</div>
-                      )}
+                      <div>Ткань: {fabricLabel || 'не указана'}</div>
                       {item.tulle_name && (
                         <div>Тюль: {item.tulle_name}</div>
                       )}
@@ -1664,7 +2245,8 @@ function ProductionSewingSection({
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             );
           }
@@ -1700,27 +2282,71 @@ function ProductionSewingSection({
                 </Alert>
               )}
 
-              {canStart && (
+              {/* Step 1: Take order to work (new → in_work) */}
+              {showTakeToWork && (
                 <Button
-                  onClick={handleStartWork}
+                  onClick={handleTakeToWork}
+                  disabled={changeStatusMutation.isPending}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                >
+                  {changeStatusMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Взятие в работу...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4 mr-2" />
+                      Взять заказ в работу
+                    </>
+                  )}
+                </Button>
+              )}
+
+              {/* Step 2: Transfer to production (in_work → in_production) */}
+              {canTransferToProduction && (
+                <Button
+                  onClick={handleTransferToProduction}
+                  disabled={changeStatusMutation.isPending}
+                  className="w-full bg-purple-600 hover:bg-purple-700"
+                >
+                  {changeStatusMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Передача в производство...
+                    </>
+                  ) : (
+                    <>
+                      <Scissors className="h-4 w-4 mr-2" />
+                      Передать в производство
+                    </>
+                  )}
+                </Button>
+              )}
+
+              {/* Step 3: Start sewing (in_production → sewing) */}
+              {canStartProduction && (
+                <Button
+                  onClick={handleStartProduction}
                   disabled={changeStageMutation.isPending}
                   className="w-full"
                 >
                   {changeStageMutation.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Начинаем...
+                      Начинаем пошив...
                     </>
                   ) : (
                     <>
-                      <Play className="h-4 w-4 mr-2" />
-                      Начать работу
+                      <Scissors className="h-4 w-4 mr-2" />
+                      Начать пошив
                     </>
                   )}
                 </Button>
               )}
 
-              {canMarkDone && (
+              {/* Step 4: Mark production done */}
+              {showMarkDone && (
                 <Button
                   onClick={handleMarkDone}
                   disabled={changeStageMutation.isPending}
@@ -1754,6 +2380,55 @@ function ProductionSewingSection({
             </>
           )}
         </div>
+
+        {/* Production stage correction - MVP: only not_started/sewing/done */}
+        {/* Moved outside isDone conditional to allow correction even when done */}
+        {canCorrectStage && (
+          <div className="pt-2">
+            <Button
+              onClick={() => setIsCorrectionModalOpen(true)}
+              disabled={changeStageMutation.isPending}
+              variant="outline"
+              className="w-full"
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Изменить этап производства
+            </Button>
+          </div>
+        )}
+
+        {/* Production Stage Correction Modal - MVP */}
+        <Dialog open={isCorrectionModalOpen} onOpenChange={setIsCorrectionModalOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Изменить этап производства</DialogTitle>
+              <DialogDescription>
+                Выберите новый этап. Доступны только основные этапы для MVP.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              {CORRECTION_STAGES.map((stage) => (
+                <Button
+                  key={stage.value}
+                  onClick={() => handleStageCorrection(stage.value)}
+                  disabled={productionStage === stage.value || changeStageMutation.isPending}
+                  variant={productionStage === stage.value ? "default" : "outline"}
+                  className={productionStage === stage.value ? "bg-blue-600" : ""}
+                >
+                  {stage.label}
+                  {productionStage === stage.value && (
+                    <span className="ml-2 text-xs">(текущий)</span>
+                  )}
+                </Button>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCorrectionModalOpen(false)}>
+                Отмена
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
@@ -1783,7 +2458,7 @@ function MeasurementModal({
     depth_cm: initialData?.depth_cm,
     mounting_type: initialData?.mounting_type || '',
     window_type: initialData?.window_type || '',
-    selected_fabric: initialData?.selected_fabric || '',
+    fabric_comment: '', // MVP: fabric selection from catalog not implemented
     notes: initialData?.notes || '',
   });
 
@@ -1792,7 +2467,16 @@ function MeasurementModal({
     if (!formData.room_name || formData.width_cm <= 0 || formData.height_cm <= 0) {
       return;
     }
-    onSubmit(formData);
+    // MVP: selected_fabric must be UUID or null, never free text
+    // Fabric comment is merged into notes
+    const mergedNotes = formData.fabric_comment
+      ? `Ткань: ${formData.fabric_comment}${formData.notes ? '\n' + formData.notes : ''}`
+      : formData.notes;
+    onSubmit({
+      ...formData,
+      selected_fabric: null, // Always null for MVP
+      notes: mergedNotes,
+    });
   };
 
   return (
@@ -1890,14 +2574,17 @@ function MeasurementModal({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Выбранная ткань</label>
+            <label className="text-sm font-medium">Комментарий по ткани</label>
             <input
               type="text"
-              value={formData.selected_fabric}
-              onChange={(e) => setFormData({ ...formData, selected_fabric: e.target.value })}
+              value={formData.fabric_comment || ''}
+              onChange={(e) => setFormData({ ...formData, fabric_comment: e.target.value })}
               className="w-full px-3 py-2 border rounded-md text-sm"
-              placeholder="ID или название ткани"
+              placeholder="Например: тестовая ткань"
             />
+            <p className="text-xs text-slate-500">
+              Выбор ткани из справочника будет доступен позже
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -2332,6 +3019,9 @@ export default function OrderDetailPage() {
               totalFabricsRequired={execution.role_sections.warehouse.total_fabrics_required}
               orderId={order.id}
               onMaterialReadinessChanged={refetchExecution}
+              quoteMaterials={execution?.role_sections?.designer?.selected_materials}
+              hasOrderItems={order.items.length > 0}
+              onGenerate={refetchExecution}
             />
           )}
 
@@ -2347,25 +3037,31 @@ export default function OrderDetailPage() {
               onProductionStageChanged={refetchExecution}
               fallbackMaterials={execution?.role_sections?.designer?.selected_materials}
               fallbackMeasurements={execution?.role_sections?.designer?.measurements}
+              orderItems={order.items}
+              orderStatus={order.status}
+              hasApprovedQuote={
+                order.source_quote?.status === 'approved' || 
+                order.related_quotes?.some(q => q.status === 'approved') || 
+                false
+              }
+              onGenerate={refetchExecution}
             />
           )}
 
-          {/* Available Actions - Filter out illogical actions for current status */}
-          {execution && execution.available_actions.length > 0 && (
-            <AvailableActionsPanel
-              actions={execution.available_actions.filter((action) => {
-                // Don't show "take to work" if already in production
-                if (action.action === 'transition_to_in_work' && order.status === 'in_production') {
-                  return false;
-                }
-                // Don't show "move to production" if already in production
-                if (action.action === 'transition_to_in_production' && order.status === 'in_production') {
-                  return false;
-                }
-                return true;
-              })}
-              onAction={handleAction}
-              onCancel={() => setCancelModalOpen(true)}
+          {/* Installer/Handover Section - Installation and handover */}
+          {execution?.role_sections?.installer && (
+            <InstallerHandoverSection
+              address={execution.role_sections.installer.address}
+              customer={execution.role_sections.installer.customer}
+              orderItems={execution.role_sections.installer.order_items}
+              itemsCount={execution.role_sections.installer.items_count}
+              handoverStage={execution.role_sections.installer.handover_stage}
+              handoverStageLabel={execution.role_sections.installer.handover_stage_label}
+              balanceDue={execution.role_sections.installer.balance_due}
+              paymentState={execution.role_sections.installer.payment_state}
+              warnings={execution.role_sections.installer.warnings}
+              orderId={order.id}
+              onHandoverStageChanged={refetchExecution}
             />
           )}
 
@@ -2379,48 +3075,6 @@ export default function OrderDetailPage() {
           {/* Связанные замеры */}
           <MeasurementsSection orderId={order.id} measurements={order.measurements || []} />
 
-          {/* Determine quote status for generate button state */}
-          {(() => {
-            // Find approved quote first (for generate button activation)
-            const approvedQuote =
-              order.source_quote?.status === 'approved'
-                ? order.source_quote
-                : order.related_quotes?.find((quote) => quote.status === 'approved') ?? null;
-            
-            // Fallback: get any quote status for display
-            const anyQuoteStatus = order.source_quote?.status
-              ?? order.related_quotes?.[0]?.status
-              ?? null;
-            
-            // Use approved quote status if exists, otherwise fallback to any quote status
-            const quoteStatus = approvedQuote?.status ?? anyQuoteStatus;
-            
-            return (
-              <OrderItems
-                items={order.items}
-                quoteItems={execution?.role_sections?.designer?.selected_materials}
-                orderId={order.id}
-                canGenerate={order.items.length === 0 && (
-                  (order.source_quote != null) || 
-                  (order.related_quotes && order.related_quotes.length > 0) ||
-                  (execution?.role_sections?.designer?.quote_items_count ?? 0) > 0
-                )}
-                onGenerate={async () => {
-                  setGenerateError(null);
-                  try {
-                    await generateItemsMutation.mutateAsync({ orderId: order.id });
-                    setGenerateError(null);
-                    // Success toast or notification could go here
-                  } catch (err: unknown) {
-                    const errorData = err as { detail?: string; message?: string };
-                    setGenerateError(errorData.detail || errorData.message || 'Ошибка при генерации позиций');
-                  }
-                }}
-                error={generateError}
-                quoteStatus={quoteStatus as OrderItemsProps['quoteStatus']}
-              />
-            );
-          })()}
           <OrderNotes notes={order.notes} />
           <OrderMetadata order={order} />
         </div>

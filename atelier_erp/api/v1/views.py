@@ -218,8 +218,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                     order = service.transition_status(
                         order_id=order.id,
                         new_status=new_status,
-                        performed_by=request.user,
-                        reason=reason
+                        changed_by=request.user.id if request.user else None,
+                        notes=reason
                     )
                 uow.commit()
                 
@@ -342,8 +342,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                 order = service.transition_status(
                     order_id=order.id,
                     new_status=new_status,
-                    performed_by=request.user,
-                    reason=""
+                    changed_by=request.user.id if request.user else None,
+                    notes=""
                 )
                 uow.commit()
                 

@@ -93,7 +93,8 @@ export interface OrderItemDTO {
   id: string;
   item_type: string;
   notes: string;
-  fabric?: string | null;
+  fabric?: string | null;  // May be UUID or object reference
+  fabric_name?: string | null;  // Human-readable fabric name
   cornice?: string | null;
   service: string | null;
   unit_price: string;
@@ -416,6 +417,7 @@ export interface SelectedMaterialDTO {
   fabric?: string | null;
   fabric_meters?: number | string | null;
   sewing_type?: string | null;
+  supply_mode?: string | null;
 }
 
 /**
@@ -483,12 +485,30 @@ export interface RoleSectionsDTO {
       street?: string;
       building?: string;
       apartment?: string;
+      notes?: string;
     } | null;
-    customer_phone: string;
-    products: unknown[];
+    customer: {
+      id: string;
+      name: string;
+      phone: string;
+    };
+    order_items: Array<{
+      id: string;
+      room_name: string | null;
+      window_name: string | null;
+      description: string | null;
+      fabric: string | null;
+      quantity: number;
+      width_cm: number | null;
+      height_cm: number | null;
+    }>;
+    items_count: number;
     installation_date: string | null;
     handover_stage: string;
-    balance_due: string;
+    handover_stage_label: string;
+    balance_due: number;
+    payment_state: 'paid' | 'partial' | 'unpaid';
+    warnings: WarningDTO[];
     photo_report_status: string;
     act_status: string;
   };
@@ -568,7 +588,7 @@ export interface ProductionAssignmentDTO {
 }
 
 export interface ChangeProductionStageRequest {
-  production_stage: 'not_started' | 'cutting' | 'sewing' | 'quality_check' | 'done';
+  production_stage: 'not_started' | 'cutting' | 'sewing' | 'quality_check' | 'done' | string;
 }
 
 export interface ChangeHandoverStageRequest {

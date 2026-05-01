@@ -275,19 +275,28 @@ class OrderExecutionService:
             }
         
         # Order items / products to sew
+        # Prefetch fabrics to avoid N+1 queries
         items = []
-        for oi in order.items.all():
+        for oi in order.items.select_related('fabric').all():
+            # Get fabric name from related Fabric object
+            fabric_name = None
             if oi.fabric:
-                items.append({
-                    'id': str(oi.id),
-                    'room': oi.sewing_type,  # Using as room indicator
-                    'fabric': oi.fabric.name if oi.fabric else None,
-                    'quantity': oi.quantity,
-                    'sewing_type': oi.sewing_type,
-                    'window_width_cm': oi.window_width_cm,
-                    'window_height_cm': oi.window_height_cm,
-                    'folds_count': oi.folds_count,
-                })
+                fabric_name = getattr(oi.fabric, 'name', None)
+                # Fallback to hanger_number if name is missing
+                if not fabric_name:
+                    fabric_name = getattr(oi.fabric, 'hanger_number', None)
+            
+            items.append({
+                'id': str(oi.id),
+                'room': oi.sewing_type,  # Using as room indicator
+                'fabric': fabric_name,
+                'fabric_name': fabric_name,  # For DTO compatibility
+                'quantity': oi.quantity,
+                'sewing_type': oi.sewing_type,
+                'window_width_cm': oi.window_width_cm,
+                'window_height_cm': oi.window_height_cm,
+                'folds_count': oi.folds_count,
+            })
         
         return {
             'production_assignment': assignment,
@@ -311,23 +320,91 @@ class OrderExecutionService:
                 'notes': order.installation_address_notes,
             }
         
-        # Products to install (from measurements or items)
-        products = []
-        for m in order.measurements.all():
-            products.append({
-                'room': m.room_name,
-                'window': m.window_name,
-                'dimensions': f"{m.width_cm}x{m.height_cm}cm" if m.width_cm and m.height_cm else None,
+        # Order items for installation (full details)
+        # Prefetch fabrics to avoid N+1 queries
+        order_items = []
+        for item in order.items.select_related('fabric').all():
+            # Safe field extraction with fallbacks
+            # room_name/window_name stored in notes as "Room / Window / ..."
+            notes_parts = (item.notes or '').split(' / ') if item.notes else []
+            room_name = notes_parts[0] if len(notes_parts) > 0 else '—'
+            window_name = notes_parts[1] if len(notes_parts) > 1 else None
+            
+            # Fabric name from related Fabric object
+            fabric_name = None
+            if item.fabric:
+                fabric_name = getattr(item.fabric, 'name', None)
+                # Fallback to hanger_number if name is missing
+                if not fabric_name:
+                    fabric_name = getattr(item.fabric, 'hanger_number', None)
+            
+            order_items.append({
+                'id': str(item.id),
+                'room_name': room_name,
+                'window_name': window_name,
+                'description': item.sewing_type or item.notes or 'Изделие',
+                'fabric': fabric_name,
+                'fabric_name': fabric_name,  # For DTO compatibility
+                'quantity': float(item.quantity) if item.quantity else 1,
+                'width_cm': item.window_width_cm,
+                'height_cm': item.window_height_cm,
+            })
+        
+        # Fallback: measurements if no order items
+        fallback_items = []
+        if not order_items:
+            for m in order.measurements.all():
+                fallback_items.append({
+                    'id': f'fallback-measure-{m.id}',
+                    'room_name': m.room_name,
+                    'window_name': m.window_name,
+                    'description': f"Замер: {m.room_name} - {m.window_name}",
+                    'fabric': m.selected_fabric,
+                    'quantity': 1,
+                    'width_cm': m.width_cm,
+                    'height_cm': m.height_cm,
+                })
+        
+        # Calculate payment state
+        balance_due = order.total_amount - order.paid_amount
+        payment_state = 'paid' if balance_due <= 0 else 'partial' if order.paid_amount > 0 else 'unpaid'
+        
+        # Build warnings
+        warnings = []
+        if not order_items and not fallback_items:
+            warnings.append({
+                'type': 'no_items',
+                'message': 'Сначала сформируйте позиции заказа из КП',
+                'severity': 'error',
+            })
+        if balance_due > 0:
+            warnings.append({
+                'type': 'balance_due',
+                'message': f'Остаток к оплате: {balance_due}',
+                'severity': 'warning',
+            })
+        if order.production_stage != ProductionStage.DONE:
+            warnings.append({
+                'type': 'production_not_done',
+                'message': 'Производство не завершено',
+                'severity': 'warning',
             })
         
         return {
             'address': address,
-            'customer_phone': order.customer.phone,
-            'products': products,
+            'customer': {
+                'id': str(order.customer.id),
+                'name': order.customer.full_name,
+                'phone': order.customer.phone,
+            },
+            'order_items': order_items if order_items else fallback_items,
+            'items_count': len(order_items) if order_items else len(fallback_items),
             'installation_date': order.installation_date,
             'handover_stage': order.handover_stage,
             'handover_stage_label': self._get_handover_stage_label(order.handover_stage),
-            'balance_due': order.total_amount - order.paid_amount,
+            'balance_due': balance_due,
+            'payment_state': payment_state,
+            'warnings': warnings,
             # Placeholders for future features
             'photo_report_status': 'not_implemented',
             'act_status': 'not_implemented',
@@ -607,7 +684,7 @@ class OrderExecutionService:
     
     def _build_handover_actions(self, order: Order) -> Dict[str, Any]:
         """Build action for changing handover stage"""
-        return {
+        action = {
             'action': 'change_handover_stage',
             'label': 'Изменить этап установки/выдачи',
             'description': 'Обновить текущий этап установки или выдачи',
@@ -616,6 +693,22 @@ class OrderExecutionService:
             'current_label': self._get_handover_stage_label(order.handover_stage),
             'allowed_values': HandoverStage.choices,
         }
+        
+        # Check for blockers
+        blockers = []
+        if order.production_stage != ProductionStage.DONE:
+            blockers.append('Производство не завершено')
+        if order.items.count() == 0:
+            blockers.append('Сначала сформируйте позиции заказа из КП')
+        if order.status == Order.Status.CANCELLED:
+            blockers.append('Заказ отменён')
+        if order.status == Order.Status.COMPLETED:
+            blockers.append('Заказ завершён')
+        
+        if blockers:
+            action['disabled_reason'] = '; '.join(blockers)
+        
+        return action
     
     def _build_transition_actions(self, order: Order) -> List[Dict[str, Any]]:
         """Build actions for allowed status transitions"""
@@ -696,6 +789,13 @@ class OrderExecutionService:
         if target_status == Order.Status.READY:
             if order.production_stage != ProductionStage.DONE:
                 blockers.append('Производство не завершено')
+        
+        # on_installation requires production done and order items
+        if target_status == Order.Status.ON_INSTALLATION:
+            if order.production_stage != ProductionStage.DONE:
+                blockers.append('Производство не завершено')
+            if order.items.count() == 0:
+                blockers.append('Сначала сформируйте позиции заказа из КП')
         
         # completed requires full payment
         if target_status == Order.Status.COMPLETED:
@@ -822,30 +922,66 @@ class OrderExecutionService:
         if handover_stage not in valid_stages:
             raise OrderValidationError(f"Invalid handover stage: {handover_stage}")
         
-        # Can only change in ON_INSTALLATION status
-        if order.status != Order.Status.ON_INSTALLATION:
+        # Cannot modify cancelled or completed orders
+        if order.status == Order.Status.CANCELLED:
+            raise OrderValidationError("Нельзя изменить этап установки для отменённого заказа.")
+        if order.status == Order.Status.COMPLETED:
+            raise OrderValidationError("Нельзя изменить этап установки для завершённого заказа.")
+        
+        # Cannot set handover done before production is done
+        if handover_stage == HandoverStage.DONE:
+            if order.production_stage != ProductionStage.DONE:
+                raise OrderValidationError(
+                    "Нельзя завершить установку: производство не завершено. "
+                    "Сначала отметьте производство как готовое."
+                )
+        
+        # Can only change handover in specific statuses
+        allowed_statuses_for_handover = [
+            Order.Status.READY,
+            Order.Status.ON_INSTALLATION,
+            Order.Status.WAITING_FINAL_PAYMENT,
+        ]
+        if order.status not in allowed_statuses_for_handover:
             raise OrderValidationError(
-                f"Cannot change handover stage in status {order.status}. "
-                "Must be in 'on_installation' status."
+                f"Нельзя изменить этап установки в статусе '{order.get_status_display()}'. "
+                "Заказ должен быть готов к установке."
             )
         
         # Update order
         old_value = order.handover_stage
+        old_status = order.status
         order.handover_stage = handover_stage
-        order.save(update_fields=['handover_stage', 'updated_at'])
+        
+        # Auto-transition status after handover done
+        status_changed = False
+        if handover_stage == HandoverStage.DONE:
+            balance_due = order.total_amount - order.paid_amount
+            if balance_due > 0:
+                # Still has balance due - move to waiting_final_payment
+                if order.status != Order.Status.WAITING_FINAL_PAYMENT:
+                    order.status = Order.Status.WAITING_FINAL_PAYMENT
+                    status_changed = True
+            # If balance_due <= 0, stay in current status (ready/on_installation)
+            # User can manually complete the order
+        
+        order.save(update_fields=['handover_stage', 'status', 'updated_at'])
         
         # Create history entry
         if self.order_service:
             from ..models import OrderStatusHistory
+            status_note = ""
+            if status_changed:
+                status_note = f" Status changed: {old_status} -> {order.status}."
             OrderStatusHistory.objects.create(
                 order=order,
-                old_status=order.status,
+                old_status=old_status,
                 new_status=order.status,
                 changed_by_id=changed_by,
-                notes=f"Handover stage changed: {old_value} -> {handover_stage}. {notes}".strip()
+                notes=f"Handover stage changed: {old_value} -> {handover_stage}.{status_note} {notes}".strip()
             )
         
-        # Check if can auto-complete
+        # Check if can auto-complete (handover done AND fully paid)
         can_auto_complete = (
             handover_stage == HandoverStage.DONE and 
             order.paid_amount >= order.total_amount

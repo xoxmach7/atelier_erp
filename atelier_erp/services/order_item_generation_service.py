@@ -40,21 +40,32 @@ class OrderItemGenerationService:
     
     def _get_source_quote(self, order: Order, quote: Optional[Quote] = None) -> Optional[Quote]:
         """
-        Get source quote for order item generation.
+        Get APPROVED source quote for order item generation.
         
         Priority:
-        1. Explicitly provided quote
-        2. order.quote (source quote - when order created from quote)
-        3. First related_quote (when quote created from order - direct order flow)
+        1. Explicitly provided quote (must be approved)
+        2. order.quote if APPROVED (source quote - when order created from quote)
+        3. First APPROVED related_quote (when quote created from order - direct order flow)
+        
+        Returns None if no approved quote found.
         """
+        from ..models import Quote
+        
         if quote:
-            return quote
-        if order.quote:
+            # Check if explicitly provided quote is approved
+            if quote.status == Quote.Status.APPROVED:
+                return quote
+            return None
+        
+        # Check order.quote (source quote) - must be APPROVED
+        if order.quote and order.quote.status == Quote.Status.APPROVED:
             return order.quote
-        # Direct order flow: find first related quote
-        related = order.related_quotes.first()
-        if related:
-            return related
+        
+        # Direct order flow: find first APPROVED related quote
+        approved_related = order.related_quotes.filter(status=Quote.Status.APPROVED).first()
+        if approved_related:
+            return approved_related
+        
         return None
 
     def generate_order_items_from_quote(
@@ -83,9 +94,17 @@ class OrderItemGenerationService:
                 f"Cannot generate order items for {order.status} order"
             )
         
+        # Check for any linked quote first (for better error messages)
+        from ..models import Quote
+        has_any_quote = order.quote or order.related_quotes.exists()
+        
         # Get source quote (supports both source_quote and related_quotes)
         source_quote = self._get_source_quote(order, quote)
         if not source_quote:
+            if has_any_quote:
+                raise OrderValidationError(
+                    "КП не принят. Сначала примите КП, чтобы сформировать позиции заказа."
+                )
             raise OrderValidationError(
                 "Order must have a linked quote to generate items"
             )
@@ -131,6 +150,10 @@ class OrderItemGenerationService:
         """
         # Build description from available data
         description_parts = []
+        if getattr(quote_item, 'room_name', None):
+            description_parts.append(quote_item.room_name)
+        if getattr(quote_item, 'window_name', None):
+            description_parts.append(quote_item.window_name)
         if quote_item.sewing_type:
             description_parts.append(quote_item.sewing_type)
         if quote_item.complexity:
@@ -185,12 +208,23 @@ class OrderItemGenerationService:
                 'reason': f"Cannot generate items for {order.status} order"
             }
         
-        # Check quote (supports both source_quote and related_quotes)
+        # Check quote approval (supports both source_quote and related_quotes)
+        from ..models import Quote
+        
+        # Check if any linked quote exists
+        has_linked_quote = order.quote or order.related_quotes.exists()
+        if not has_linked_quote:
+            return {
+                'valid': False,
+                'reason': "Order has no linked quote"
+            }
+        
+        # Check for APPROVED quote
         source_quote = self._get_source_quote(order, quote)
         if not source_quote:
             return {
                 'valid': False,
-                'reason': "Order has no linked quote"
+                'reason': "КП не принят. Сначала примите КП, чтобы сформировать позиции заказа."
             }
         
         # Check quote items

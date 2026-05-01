@@ -19,13 +19,16 @@ class CustomerMinimalSerializer(serializers.ModelSerializer):
 
 class OrderItemSerializer(serializers.ModelSerializer):
     """Order item serializer"""
+    fabric_name = serializers.CharField(source='fabric.name', read_only=True)
+
     class Meta:
         model = OrderItem
         fields = [
             'id', 'item_type', 'notes',
-            'fabric', 'quantity',
+            'fabric', 'fabric_name', 'quantity',
             'cornice', 'service',
-            'unit_price', 'total_price'
+            'unit_price', 'total_price',
+            'sewing_type', 'window_width_cm', 'window_height_cm', 'folds_count',
         ]
 
 
