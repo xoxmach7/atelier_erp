@@ -279,3 +279,672 @@ class TestUnitOfWork:
         fabric.refresh_from_db()
         # Reservation should not exist
         assert fabric.reserved_meters == Decimal('0.00')
+
+
+@pytest.mark.django_db
+class TestOrderExecutionService:
+    """Order execution workflow tests"""
+    
+    def test_cancel_active_order(self, draft_order):
+        """Test cancelling an active order"""
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        from atelier_erp.services.exceptions import OrderValidationError
+        
+        service = OrderExecutionService()
+        
+        cancelled_order = service.cancel_order(
+            order=draft_order,
+            reason="Клиент отказался",
+            user=None
+        )
+        
+        assert cancelled_order.status == Order.Status.CANCELLED
+        assert cancelled_order.cancel_reason == "Клиент отказался"
+        assert cancelled_order.cancelled_at is not None
+    
+    def test_cannot_cancel_completed_order(self, completed_order):
+        """Test cannot cancel completed order"""
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        from atelier_erp.services.exceptions import OrderValidationError
+        
+        service = OrderExecutionService()
+        
+        with pytest.raises(OrderValidationError) as exc_info:
+            service.cancel_order(
+                order=completed_order,
+                reason="Пытаемся отменить завершённый",
+                user=None
+            )
+        
+        assert "завершённый" in str(exc_info.value) or "completed" in str(exc_info.value).lower()
+    
+    def test_cannot_cancel_already_cancelled(self, cancelled_order):
+        """Test cannot cancel already cancelled order"""
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        from atelier_erp.services.exceptions import OrderValidationError
+        
+        service = OrderExecutionService()
+        
+        with pytest.raises(OrderValidationError) as exc_info:
+            service.cancel_order(
+                order=cancelled_order,
+                reason="Повторная отмена",
+                user=None
+            )
+        
+        assert "уже отменён" in str(exc_info.value) or "already" in str(exc_info.value).lower()
+    
+    def test_cancel_requires_reason(self, draft_order):
+        """Test cancel requires non-empty reason"""
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        from atelier_erp.services.exceptions import OrderValidationError
+        
+        service = OrderExecutionService()
+        
+        with pytest.raises(OrderValidationError) as exc_info:
+            service.cancel_order(
+                order=draft_order,
+                reason="",
+                user=None
+            )
+        
+        assert "Причина" in str(exc_info.value) or "reason" in str(exc_info.value).lower()
+    
+    def test_cancel_sets_cancelled_by(self, draft_order, admin_user):
+        """Test cancel sets cancelled_by if user provided"""
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        
+        service = OrderExecutionService()
+        
+        cancelled_order = service.cancel_order(
+            order=draft_order,
+            reason="Тест отмены",
+            user=admin_user
+        )
+        
+        assert cancelled_order.cancelled_by == admin_user
+    
+    def test_change_handover_stage_pending_to_scheduled(self, order_factory):
+        """Test changing handover stage from pending to scheduled"""
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        from atelier_erp.constants import HandoverStage
+        
+        order = order_factory(status=Order.Status.ON_INSTALLATION, handover_stage=HandoverStage.PENDING)
+        service = OrderExecutionService()
+        
+        updated_order, can_complete = service.change_handover_stage(
+            order=order,
+            handover_stage=HandoverStage.SCHEDULED
+        )
+        
+        assert updated_order.handover_stage == HandoverStage.SCHEDULED
+        assert not can_complete
+    
+    def test_change_handover_stage_to_done_with_balance_due_moves_to_waiting_payment(self, order_factory):
+        """Test handover done with balance due moves status to waiting_final_payment"""
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        from atelier_erp.constants import HandoverStage, ProductionStage
+        
+        order = order_factory(
+            status=Order.Status.ON_INSTALLATION,
+            handover_stage=HandoverStage.IN_PROGRESS,
+            production_stage=ProductionStage.DONE,
+            total_amount=1000,
+            paid_amount=500  # Balance due = 500
+        )
+        service = OrderExecutionService()
+        
+        updated_order, can_complete = service.change_handover_stage(
+            order=order,
+            handover_stage=HandoverStage.DONE
+        )
+        
+        assert updated_order.handover_stage == HandoverStage.DONE
+        assert updated_order.status == Order.Status.WAITING_FINAL_PAYMENT
+        assert not can_complete  # Because balance_due > 0
+    
+    def test_change_handover_stage_to_done_fully_paid_can_complete(self, order_factory):
+        """Test handover done with full payment allows complete"""
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        from atelier_erp.constants import HandoverStage, ProductionStage
+        
+        order = order_factory(
+            status=Order.Status.ON_INSTALLATION,
+            handover_stage=HandoverStage.IN_PROGRESS,
+            production_stage=ProductionStage.DONE,
+            total_amount=1000,
+            paid_amount=1000  # Fully paid
+        )
+        service = OrderExecutionService()
+        
+        updated_order, can_complete = service.change_handover_stage(
+            order=order,
+            handover_stage=HandoverStage.DONE
+        )
+        
+        assert updated_order.handover_stage == HandoverStage.DONE
+        assert can_complete  # Because fully paid
+    
+    def test_cannot_change_handover_for_cancelled_order(self, cancelled_order):
+        """Test cannot change handover stage for cancelled order"""
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        from atelier_erp.services.exceptions import OrderValidationError
+        from atelier_erp.constants import HandoverStage
+        
+        service = OrderExecutionService()
+        
+        with pytest.raises(OrderValidationError) as exc_info:
+            service.change_handover_stage(
+                order=cancelled_order,
+                handover_stage=HandoverStage.SCHEDULED
+            )
+        
+        assert "отменён" in str(exc_info.value) or "cancelled" in str(exc_info.value).lower()
+    
+    def test_cannot_change_handover_for_completed_order(self, order_factory):
+        """Test cannot change handover stage for completed order"""
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        from atelier_erp.services.exceptions import OrderValidationError
+        from atelier_erp.constants import HandoverStage
+        
+        order = order_factory(status=Order.Status.COMPLETED)
+        service = OrderExecutionService()
+        
+        with pytest.raises(OrderValidationError) as exc_info:
+            service.change_handover_stage(
+                order=order,
+                handover_stage=HandoverStage.SCHEDULED
+            )
+        
+        assert "завершён" in str(exc_info.value) or "completed" in str(exc_info.value).lower()
+    
+    def test_cannot_set_handover_done_before_production_done(self, order_factory):
+        """Test cannot set handover done before production is done"""
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        from atelier_erp.services.exceptions import OrderValidationError
+        from atelier_erp.constants import HandoverStage, ProductionStage
+        
+        order = order_factory(
+            status=Order.Status.ON_INSTALLATION,
+            handover_stage=HandoverStage.IN_PROGRESS,
+            production_stage=ProductionStage.SEWING  # Not done
+        )
+        service = OrderExecutionService()
+        
+        with pytest.raises(OrderValidationError) as exc_info:
+            service.change_handover_stage(
+                order=order,
+                handover_stage=HandoverStage.DONE
+            )
+        
+        assert "производство" in str(exc_info.value).lower() or "production" in str(exc_info.value).lower()
+    
+    def test_execution_summary_with_order_items_no_attribute_error(self, customer, fabric, order_factory):
+        """REGRESSION TEST: execution summary must not fail on OrderItem field access.
+        
+        OrderItem does NOT have: room_name, window_name, width_cm, height_cm, fabric_meters.
+        It HAS: window_width_cm, window_height_cm, sewing_type, notes, fabric (FK).
+        This test ensures _get_installer_section and _get_production_section use safe field access.
+        """
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        from atelier_erp.models import Order, OrderItem
+        from decimal import Decimal
+        
+        service = OrderExecutionService()
+        
+        # Create order with OrderItem using REAL model fields
+        order = order_factory(
+            status=Order.Status.NEW,
+            total_amount=Decimal("25000.00"),
+            paid_amount=Decimal("0.00")
+        )
+        
+        # Create OrderItem with real fields only
+        order_item = OrderItem.objects.create(
+            order=order,
+            item_type=OrderItem.ItemType.FABRIC,
+            fabric=fabric,
+            quantity=Decimal("2.5"),
+            unit_price=Decimal("10000.00"),
+            total_price=Decimal("25000.00"),
+            sewing_type="Сложный пошив",
+            window_width_cm=150,
+            window_height_cm=200,
+            folds_count=5,
+            notes="Гостиная / Большое окно / Сложный пошив / Сложность: высокая"
+        )
+        
+        # This should NOT raise AttributeError for room_name, window_name, etc.
+        summary = service.get_order_execution_summary(order)
+        
+        # Verify summary structure
+        assert 'role_sections' in summary
+        assert 'installer' in summary['role_sections']
+        assert 'production' in summary['role_sections']
+        
+        # Verify installer section has items
+        installer_section = summary['role_sections']['installer']
+        assert 'order_items' in installer_section
+        assert len(installer_section['order_items']) == 1
+        
+        # Verify item data is correctly extracted from notes
+        item_data = installer_section['order_items'][0]
+        assert item_data['room_name'] == "Гостиная"  # Extracted from notes
+        assert item_data['window_name'] == "Большое окно"  # Extracted from notes
+        assert item_data['width_cm'] == 150  # Real field window_width_cm
+        assert item_data['height_cm'] == 200  # Real field window_height_cm
+        assert item_data['quantity'] == 2.5
+        
+        # CRITICAL: fabric_name must be human-readable name, not UUID
+        assert 'fabric_name' in item_data
+        assert item_data['fabric_name'] is not None
+        assert item_data['fabric_name'] == fabric.name  # Should be "Test Fabric", not UUID
+        
+        # Verify production section has items
+        production_section = summary['role_sections']['production']
+        assert 'items_to_sew' in production_section
+        assert len(production_section['items_to_sew']) == 1
+        
+        # Verify production item data
+        production_item = production_section['items_to_sew'][0]
+        assert production_item['sewing_type'] == "Сложный пошив"
+        assert production_item['window_width_cm'] == 150
+        assert production_item['window_height_cm'] == 200
+        # CRITICAL: fabric_name in production section too
+        assert 'fabric_name' in production_item
+        assert production_item['fabric_name'] == fabric.name
+
+
+@pytest.mark.django_db
+class TestOrderExecutionServiceMaterialReadiness:
+    """Tests for OrderExecutionService.change_material_readiness method"""
+    
+    @pytest.fixture
+    def service(self):
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        return OrderExecutionService()
+    
+    @pytest.fixture
+    def customer(self):
+        from atelier_erp.models import Customer
+        return Customer.objects.create(
+            full_name="Тест Клиент",
+            phone="+77001234567"
+        )
+    
+    @pytest.fixture
+    def draft_order(self, customer):
+        from atelier_erp.models import Order
+        return Order.objects.create(
+            customer=customer,
+            status=Order.Status.NEW,
+            total_amount=Decimal("100000.00"),
+            material_readiness="not_ready"
+        )
+    
+    @pytest.fixture
+    def in_production_order(self, customer):
+        from atelier_erp.models import Order
+        return Order.objects.create(
+            customer=customer,
+            status=Order.Status.IN_PRODUCTION,
+            total_amount=Decimal("100000.00"),
+            material_readiness="partially_ready"
+        )
+    
+    @pytest.fixture
+    def completed_order(self, customer):
+        from atelier_erp.models import Order
+        return Order.objects.create(
+            customer=customer,
+            status=Order.Status.COMPLETED,
+            total_amount=Decimal("100000.00"),
+            material_readiness="ready"
+        )
+    
+    @pytest.fixture
+    def cancelled_order(self, customer):
+        from atelier_erp.models import Order
+        return Order.objects.create(
+            customer=customer,
+            status=Order.Status.CANCELLED,
+            total_amount=Decimal("100000.00"),
+            material_readiness="not_ready"
+        )
+    
+    def test_can_change_material_readiness_in_in_production(self, service, in_production_order):
+        """Test that material_readiness can be changed in in_production status"""
+        order, warnings = service.change_material_readiness(
+            order=in_production_order,
+            material_readiness="ready"
+        )
+        
+        assert order.material_readiness == 'ready'
+        in_production_order.refresh_from_db()
+        assert in_production_order.material_readiness == 'ready'
+    
+    def test_can_change_material_readiness_to_not_ready_in_production(self, service, in_production_order):
+        """Test that material_readiness can be changed to not_ready even in production"""
+        in_production_order.material_readiness = 'ready'
+        in_production_order.save()
+        
+        order, warnings = service.change_material_readiness(
+            order=in_production_order,
+            material_readiness="not_ready"
+        )
+        
+        assert order.material_readiness == 'not_ready'
+        assert len(warnings) == 0  # not_ready doesn't generate warnings, only partially_ready does
+    
+    def test_can_change_material_readiness_in_new_status(self, service, draft_order):
+        """Test that material_readiness can be changed in NEW status"""
+        order, warnings = service.change_material_readiness(
+            order=draft_order,
+            material_readiness="partially_ready"
+        )
+        
+        assert order.material_readiness == 'partially_ready'
+        draft_order.refresh_from_db()
+        assert draft_order.material_readiness == 'partially_ready'
+    
+    def test_cannot_change_material_readiness_for_completed_order(self, service, completed_order):
+        """Test that material_readiness cannot be changed for completed order"""
+        from atelier_erp.services.exceptions import OrderValidationError
+        
+        with pytest.raises(OrderValidationError) as exc_info:
+            service.change_material_readiness(
+                order=completed_order,
+                material_readiness="not_ready"
+            )
+        
+        assert "Cannot modify completed order" in str(exc_info.value)
+    
+    def test_cannot_change_material_readiness_for_cancelled_order(self, service, cancelled_order):
+        """Test that material_readiness cannot be changed for cancelled order"""
+        from atelier_erp.services.exceptions import OrderValidationError
+        
+        with pytest.raises(OrderValidationError) as exc_info:
+            service.change_material_readiness(
+                order=cancelled_order,
+                material_readiness="ready"
+            )
+        
+        assert "Cannot modify cancelled order" in str(exc_info.value)
+    
+    def test_returns_warning_for_partial_readiness(self, service, draft_order):
+        """Test that partial readiness returns a warning"""
+        order, warnings = service.change_material_readiness(
+            order=draft_order,
+            material_readiness="partially_ready"
+        )
+        
+        assert len(warnings) > 0
+        assert any("частично" in w.lower() for w in warnings)
+    
+    def test_can_change_to_ready_in_in_production(self, service, in_production_order):
+        """Test changing material_readiness to ready during production"""
+        order, warnings = service.change_material_readiness(
+            order=in_production_order,
+            material_readiness="ready"
+        )
+        
+        assert order.material_readiness == 'ready'
+        assert len(warnings) == 0
+
+
+@pytest.mark.django_db
+class TestOrderItemGenerationService:
+    """Tests for OrderItemGenerationService"""
+    
+    @pytest.fixture
+    def service(self):
+        from atelier_erp.services import OrderItemGenerationService
+        return OrderItemGenerationService()
+    
+    @pytest.fixture
+    def customer(self):
+        from atelier_erp.models import Customer
+        return Customer.objects.create(
+            full_name="Тест Клиент",
+            phone="+77001234567"
+        )
+    
+    @pytest.fixture
+    def fabric(self):
+        from decimal import Decimal
+        from atelier_erp.models import Fabric
+        return Fabric.objects.create(
+            name="Бархат",
+            hanger_number="VEL-001",
+            supplier="Test Supplier",
+            price_per_meter=Decimal("5000.00")
+        )
+    
+    @pytest.fixture
+    def quote_with_items(self, customer, fabric):
+        from atelier_erp.models import Quote, QuoteItem
+        quote = Quote.objects.create(
+            customer=customer,
+            status=Quote.Status.APPROVED,
+            total=Decimal("50000.00"),
+            quote_number='КП-2024-001'
+        )
+        QuoteItem.objects.create(
+            quote=quote,
+            room_name="Гостиная",
+            window_width_cm=150,
+            window_height_cm=200,
+            fabric=fabric,
+            fabric_meters=Decimal("4.5"),
+            fabric_cost=Decimal("22500.00"),
+            supply_mode="purchase_local",
+            sewing_type="Сложный",
+            sewing_cost=Decimal("2500.00"),
+            accessories_cost=Decimal("0.00"),
+            line_total=Decimal("25000.00")
+        )
+        QuoteItem.objects.create(
+            quote=quote,
+            room_name="Спальня",
+            window_width_cm=120,
+            window_height_cm=180,
+            fabric=fabric,
+            fabric_meters=Decimal("3.5"),
+            fabric_cost=Decimal("17500.00"),
+            supply_mode="in_stock",
+            sewing_type="Стандарт",
+            sewing_cost=Decimal("2500.00"),
+            accessories_cost=Decimal("0.00"),
+            line_total=Decimal("20000.00")
+        )
+        return quote
+    
+    @pytest.fixture
+    def empty_quote(self, customer):
+        from atelier_erp.models import Quote
+        return Quote.objects.create(
+            customer=customer,
+            status=Quote.Status.APPROVED,
+            total=Decimal("0.00"),
+            quote_number='КП-2024-002'
+        )
+    
+    @pytest.fixture
+    def draft_order(self, customer, quote_with_items):
+        from atelier_erp.models import Order
+        return Order.objects.create(
+            customer=customer,
+            quote=quote_with_items,
+            status=Order.Status.NEW,
+            total_amount=Decimal("50000.00")
+        )
+    
+    @pytest.fixture
+    def completed_order(self, customer, quote_with_items):
+        from atelier_erp.models import Order
+        return Order.objects.create(
+            customer=customer,
+            quote=quote_with_items,
+            status=Order.Status.COMPLETED,
+            total_amount=Decimal("50000.00")
+        )
+    
+    @pytest.fixture
+    def cancelled_order(self, customer, quote_with_items):
+        from atelier_erp.models import Order
+        return Order.objects.create(
+            customer=customer,
+            quote=quote_with_items,
+            status=Order.Status.CANCELLED,
+            total_amount=Decimal("50000.00")
+        )
+    
+    def test_generate_order_items_from_quote(self, service, draft_order, quote_with_items, fabric):
+        """Test generating OrderItems from QuoteItems"""
+        created_items = service.generate_order_items_from_quote(
+            order=draft_order,
+            quote=quote_with_items
+        )
+        
+        assert len(created_items) == 2
+        draft_order.refresh_from_db()
+        assert draft_order.items.count() == 2
+        
+        # Check first item mapping (OrderItem fields differ from QuoteItem)
+        first_item = draft_order.items.first()
+        assert first_item.item_type == 'fabric'
+        assert first_item.fabric == fabric
+        assert first_item.window_width_cm == 150
+        assert first_item.window_height_cm == 200
+        assert first_item.total_price == Decimal("25000.00")
+    
+    def test_does_not_create_duplicates(self, service, draft_order, quote_with_items):
+        """Test that duplicate generation is prevented"""
+        from atelier_erp.services.exceptions import OrderValidationError
+        
+        # First generation
+        service.generate_order_items_from_quote(order=draft_order, quote=quote_with_items)
+        
+        # Second generation should fail
+        with pytest.raises(OrderValidationError) as exc_info:
+            service.generate_order_items_from_quote(order=draft_order, quote=quote_with_items)
+        
+        assert "already has" in str(exc_info.value).lower()
+    
+    def test_forbidden_for_completed_order(self, service, completed_order, quote_with_items):
+        """Test that generation is forbidden for completed orders"""
+        from atelier_erp.services.exceptions import OrderValidationError
+        
+        with pytest.raises(OrderValidationError) as exc_info:
+            service.generate_order_items_from_quote(order=completed_order, quote=quote_with_items)
+        
+        assert "completed" in str(exc_info.value).lower()
+    
+    def test_forbidden_for_cancelled_order(self, service, cancelled_order, quote_with_items):
+        """Test that generation is forbidden for cancelled orders"""
+        from atelier_erp.services.exceptions import OrderValidationError
+        
+        with pytest.raises(OrderValidationError) as exc_info:
+            service.generate_order_items_from_quote(order=cancelled_order, quote=quote_with_items)
+        
+        assert "cancelled" in str(exc_info.value).lower()
+    
+    def test_validation_prevents_empty_quote(self, service, draft_order, empty_quote):
+        """Test that validation prevents generation from empty quote"""
+        from atelier_erp.services.exceptions import OrderValidationError
+        
+        # Update order to link empty quote
+        draft_order.quote = empty_quote
+        draft_order.save()
+        
+        with pytest.raises(OrderValidationError) as exc_info:
+            service.generate_order_items_from_quote(order=draft_order, quote=empty_quote)
+        
+        assert "no items" in str(exc_info.value).lower()
+    
+    def test_order_items_count_equals_quote_items_count(self, service, draft_order, quote_with_items):
+        """Test that generated items count equals quote items count"""
+        created_items = service.generate_order_items_from_quote(
+            order=draft_order,
+            quote=quote_with_items
+        )
+        
+        assert len(created_items) == quote_with_items.items.count()
+    
+    def test_rejects_unapproved_quote(self, service, draft_order, customer, fabric):
+        """Test that generation fails when quote is not approved"""
+        from atelier_erp.services.exceptions import OrderValidationError
+        from atelier_erp.models import Quote, QuoteItem
+        
+        # Create unapproved (draft) quote
+        draft_quote = Quote.objects.create(
+            customer=customer,
+            status=Quote.Status.DRAFT,  # Not approved!
+            total=Decimal("25000.00"),
+            quote_number='КП-DRAFT-001'
+        )
+        QuoteItem.objects.create(
+            quote=draft_quote,
+            room_name="Гостиная",
+            window_width_cm=150,
+            window_height_cm=200,
+            fabric=fabric,
+            fabric_meters=Decimal("4.5"),
+            fabric_cost=Decimal("22500.00"),
+            supply_mode="purchase_local",
+            sewing_type="Сложный",
+            sewing_cost=Decimal("2500.00"),
+            accessories_cost=Decimal("0.00"),
+            line_total=Decimal("25000.00")
+        )
+        
+        # Link draft quote to order
+        draft_order.quote = draft_quote
+        draft_order.save()
+        
+        with pytest.raises(OrderValidationError) as exc_info:
+            service.generate_order_items_from_quote(order=draft_order)
+        
+        assert "не принят" in str(exc_info.value) or "not.*accepted" in str(exc_info.value).lower()
+    
+    def test_uses_approved_related_quote(self, service, customer, fabric):
+        """Test that generation works with approved quote from related_quotes"""
+        from atelier_erp.models import Order, Quote, QuoteItem
+        
+        # Create order without source quote
+        order = Order.objects.create(
+            customer=customer,
+            status=Order.Status.NEW,
+            total_amount=Decimal("25000.00")
+        )
+        
+        # Create approved related quote
+        approved_quote = Quote.objects.create(
+            customer=customer,
+            status=Quote.Status.APPROVED,
+            total=Decimal("25000.00"),
+            quote_number='КП-RELATED-001'
+        )
+        QuoteItem.objects.create(
+            quote=approved_quote,
+            room_name="Гостиная",
+            window_width_cm=150,
+            window_height_cm=200,
+            fabric=fabric,
+            fabric_meters=Decimal("4.5"),
+            fabric_cost=Decimal("22500.00"),
+            supply_mode="purchase_local",
+            sewing_type="Сложный",
+            sewing_cost=Decimal("2500.00"),
+            accessories_cost=Decimal("0.00"),
+            line_total=Decimal("25000.00")
+        )
+        
+        # Add as related quote (simulating direct order flow)
+        order.related_quotes.add(approved_quote)
+        
+        created_items = service.generate_order_items_from_quote(order=order)
+        
+        assert len(created_items) == 1
+        # room_name is stored in notes field
+        assert "Гостиная" in created_items[0].notes

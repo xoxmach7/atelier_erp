@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from rest_framework import serializers
 from atelier_erp.models import Order, Task, Fabric, OrderItem, Customer, Quote, Measurement, Payment
+from atelier_erp.api.serializers import RelatedQuoteSerializer
 
 
 class CustomerMinimalSerializer(serializers.ModelSerializer):
@@ -18,13 +19,16 @@ class CustomerMinimalSerializer(serializers.ModelSerializer):
 
 class OrderItemSerializer(serializers.ModelSerializer):
     """Order item serializer"""
+    fabric_name = serializers.CharField(source='fabric.name', read_only=True)
+
     class Meta:
         model = OrderItem
         fields = [
             'id', 'item_type', 'notes',
-            'fabric', 'quantity',
+            'fabric', 'fabric_name', 'quantity',
             'cornice', 'service',
-            'unit_price', 'total_price'
+            'unit_price', 'total_price',
+            'sewing_type', 'window_width_cm', 'window_height_cm', 'folds_count',
         ]
 
 
@@ -74,38 +78,131 @@ class MeasurementSerializer(serializers.ModelSerializer):
         ]
 
 
-class RelatedQuoteSerializer(serializers.ModelSerializer):
-    """Serializer for quotes linked to an order (direct order flow)"""
-    class Meta:
-        model = Quote
-        fields = ['id', 'quote_number', 'status', 'total']
-
-
 class OrderDetailSerializer(serializers.ModelSerializer):
-    """Order detail view - full fields with items, payments, measurements, source quote, and related quotes"""
+    """Order detail view - full fields with execution tracking, workflow state, and available actions"""
     customer = CustomerMinimalSerializer(read_only=True)
     items = OrderItemSerializer(many=True, read_only=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    # Status with labels
+    status_label = serializers.CharField(source='get_status_display', read_only=True)
+    
+    # Material readiness with labels
+    material_readiness_label = serializers.SerializerMethodField()
+    
+    # Production stage with labels
+    production_stage_label = serializers.SerializerMethodField()
+    
+    # Handover stage with labels
+    handover_stage_label = serializers.SerializerMethodField()
+    
+    # Payment info
     is_paid = serializers.BooleanField(read_only=True)
+    balance_due = serializers.DecimalField(source='remaining_amount', max_digits=12, decimal_places=2, read_only=True)
+    payment_state = serializers.SerializerMethodField()
+    payment_state_label = serializers.SerializerMethodField()
+    
+    # Workflow state
+    available_actions = serializers.SerializerMethodField()
+    warnings = serializers.SerializerMethodField()
+    blockers = serializers.SerializerMethodField()
+    
+    # Related data
     source_quote = SourceQuoteSerializer(source='quote', read_only=True)
     related_quotes = RelatedQuoteSerializer(many=True, read_only=True)
     payments = PaymentSerializer(many=True, read_only=True)
     measurements = MeasurementSerializer(many=True, read_only=True)
-    balance_due = serializers.DecimalField(source='remaining_amount', max_digits=12, decimal_places=2, read_only=True)
     
     class Meta:
         model = Order
         fields = [
-            'id', 'order_number', 'customer', 'status', 'status_display',
+            'id', 'order_number', 'customer', 'status', 'status_label',
             'total_amount', 'paid_amount', 'is_paid', 'balance_due',
-            'items', 'notes', 'created_at', 'updated_at', 'planned_completion',
+            'payment_state', 'payment_state_label',
+            'items', 'notes',
+            'material_readiness', 'material_readiness_label',
+            'production_stage', 'production_stage_label',
+            'handover_stage', 'handover_stage_label',
+            'available_actions', 'warnings', 'blockers',
+            'created_at', 'updated_at', 'planned_completion',
             'installation_date', 'actual_completion', 'measurement_date',
             'installation_address_city', 'installation_address_street',
             'installation_address_building', 'installation_address_apartment',
             'installation_address_notes',
-            'source_quote', 'related_quotes', 'payments', 'measurements'
+            'source_quote', 'related_quotes', 'payments', 'measurements',
+            'cancel_reason', 'cancelled_at',
         ]
         read_only_fields = ['order_number', 'created_at', 'updated_at']
+    
+    def get_material_readiness_label(self, obj: Order) -> str:
+        from atelier_erp.constants import MaterialReadiness
+        labels = {
+            MaterialReadiness.NOT_READY: 'Не обеспечен',
+            MaterialReadiness.PARTIALLY_READY: 'Частично обеспечен',
+            MaterialReadiness.READY: 'Обеспечен материалами',
+        }
+        return labels.get(obj.material_readiness, obj.material_readiness)
+    
+    def get_production_stage_label(self, obj: Order) -> str:
+        from atelier_erp.constants import ProductionStage
+        labels = {
+            ProductionStage.NOT_STARTED: 'Не начато',
+            ProductionStage.CUTTING: 'Раскрой',
+            ProductionStage.SEWING: 'Пошив',
+            ProductionStage.QUALITY_CHECK: 'Контроль качества',
+            ProductionStage.DONE: 'Производство завершено',
+        }
+        return labels.get(obj.production_stage, obj.production_stage)
+    
+    def get_handover_stage_label(self, obj: Order) -> str:
+        from atelier_erp.constants import HandoverStage
+        labels = {
+            HandoverStage.NOT_REQUIRED: 'Не требуется',
+            HandoverStage.PENDING: 'Ожидает установки / выдачи',
+            HandoverStage.SCHEDULED: 'Запланировано',
+            HandoverStage.IN_PROGRESS: 'В процессе',
+            HandoverStage.DONE: 'Передано / установлено',
+        }
+        return labels.get(obj.handover_stage, obj.handover_stage)
+    
+    def get_payment_state(self, obj: Order) -> str:
+        """Calculate payment state from paid_amount vs total_amount"""
+        if obj.paid_amount == 0:
+            return 'unpaid'
+        elif obj.paid_amount >= obj.total_amount:
+            return 'paid'
+        elif obj.paid_amount >= obj.total_amount * Decimal('0.5'):
+            return 'partial'
+        else:
+            return 'prepayment_due'
+    
+    def get_payment_state_label(self, obj: Order) -> str:
+        """Get human-readable payment state label"""
+        state = self.get_payment_state(obj)
+        labels = {
+            'unpaid': 'Не оплачен',
+            'prepayment_due': 'Требуется предоплата',
+            'partial': 'Оплачен частично',
+            'paid': 'Оплачен полностью',
+        }
+        return labels.get(state, state)
+    
+    def get_available_actions(self, obj: Order) -> list:
+        """Get available actions using OrderExecutionService"""
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        service = OrderExecutionService()
+        return service.get_available_order_actions(obj)
+    
+    def get_warnings(self, obj: Order) -> list:
+        """Get warnings using OrderExecutionService"""
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        service = OrderExecutionService()
+        return service._get_warnings(obj)
+    
+    def get_blockers(self, obj: Order) -> list:
+        """Get blockers using OrderExecutionService"""
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        service = OrderExecutionService()
+        return service._get_blockers(obj)
 
 
 class OrderCreateSerializer(serializers.ModelSerializer):
@@ -134,6 +231,67 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
     """Order status transition - service layer will handle FSM"""
     new_status = serializers.ChoiceField(choices=Order.Status.choices)
     reason = serializers.CharField(required=False, allow_blank=True)
+
+
+# ============================================
+# ORDER ACTION SERIALIZERS
+# ============================================
+
+class ChangeStatusSerializer(serializers.Serializer):
+    """Change order status - lightweight validation"""
+    status = serializers.ChoiceField(choices=Order.Status.choices)
+    
+    def validate_status(self, value):
+        from atelier_erp.constants import OrderFSMRules
+        # FSM validation happens in service, but we can pre-validate here
+        return value
+
+
+class ChangeMaterialReadinessSerializer(serializers.Serializer):
+    """Change material readiness state"""
+    material_readiness = serializers.ChoiceField(
+        choices=[
+            ('not_ready', 'Не обеспечен'),
+            ('partially_ready', 'Частично обеспечен'),
+            ('ready', 'Обеспечен материалами'),
+        ]
+    )
+
+
+class ChangeProductionStageSerializer(serializers.Serializer):
+    """Change production stage"""
+    production_stage = serializers.ChoiceField(
+        choices=[
+            ('not_started', 'Не начато'),
+            ('cutting', 'Раскрой'),
+            ('sewing', 'Пошив'),
+            ('quality_check', 'Контроль качества'),
+            ('done', 'Производство завершено'),
+        ]
+    )
+
+
+class ChangeHandoverStageSerializer(serializers.Serializer):
+    """Change handover stage"""
+    handover_stage = serializers.ChoiceField(
+        choices=[
+            ('not_required', 'Не требуется'),
+            ('pending', 'Ожидает установки / выдачи'),
+            ('scheduled', 'Запланировано'),
+            ('in_progress', 'В процессе'),
+            ('done', 'Передано / установлено'),
+        ]
+    )
+
+
+class CancelOrderSerializer(serializers.Serializer):
+    """Cancel order with reason"""
+    reason = serializers.CharField(required=True, allow_blank=False, max_length=500)
+    
+    def validate_reason(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Причина отмены обязательна.")
+        return value.strip()
 
 
 class TaskListSerializer(serializers.ModelSerializer):

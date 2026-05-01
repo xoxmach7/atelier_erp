@@ -93,13 +93,14 @@ class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
         fields = [
-            'id', 'item_type', 'description',
-            'fabric', 'fabric_details', 'fabric_meters',
-            'cornice', 'cornice_details', 'cornice_count',
-            'service', 'unit_price', 'quantity', 'line_total',
+            'id', 'item_type', 'notes',
+            'fabric', 'fabric_details',
+            'cornice', 'cornice_details',
+            'service', 'unit_price', 'quantity', 'total_price',
+            'sewing_type', 'window_width_cm', 'window_height_cm', 'folds_count',
             'created_at'
         ]
-        read_only_fields = ['created_at']
+        read_only_fields = ['created_at', 'total_price']
 
 
 class OrderItemCreateSerializer(serializers.ModelSerializer):
@@ -107,10 +108,10 @@ class OrderItemCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
         fields = [
-            'item_type', 'description',
-            'fabric', 'fabric_meters',
-            'cornice', 'cornice_count',
-            'service', 'unit_price', 'quantity'
+            'item_type', 'notes',
+            'fabric', 'cornice',
+            'service', 'unit_price', 'quantity',
+            'sewing_type', 'window_width_cm', 'window_height_cm', 'folds_count'
         ]
 
 
@@ -129,6 +130,13 @@ class OrderListSerializer(serializers.ModelSerializer):
         ]
 
 
+class RelatedQuoteSerializer(serializers.ModelSerializer):
+    """Serializer for quotes linked to an order (direct order flow)"""
+    class Meta:
+        model = Quote
+        fields = ['id', 'quote_number', 'status', 'total']
+
+
 class OrderSerializer(serializers.ModelSerializer):
     """Full order serializer with related workflow data"""
     customer_details = CustomerListSerializer(source='customer', read_only=True)
@@ -140,12 +148,14 @@ class OrderSerializer(serializers.ModelSerializer):
     payments = serializers.SerializerMethodField()
     source_task = serializers.SerializerMethodField()
     source_quote = serializers.SerializerMethodField()
+    # Direct order flow: quotes created for this order
+    related_quotes = RelatedQuoteSerializer(many=True, read_only=True)
     
     class Meta:
         model = Order
         fields = [
             'id', 'order_number', 'customer', 'customer_details',
-            'status', 'material_readiness', 'items', 'measurements', 'payments', 'source_task', 'source_quote',
+            'status', 'material_readiness', 'items', 'measurements', 'payments', 'source_task', 'source_quote', 'related_quotes',
             'installation_address_city', 'installation_address_street',
             'installation_address_building', 'installation_address_apartment',
             'installation_address_notes',
@@ -164,18 +174,10 @@ class OrderSerializer(serializers.ModelSerializer):
         """Get measurements for this order"""
         measurements = obj.measurements.all()
         if measurements:
-            from .serializers import MeasurementListSerializer
-            return MeasurementListSerializer(measurements, many=True).data
-        return []
-    
-    def get_measurements(self, obj):
-        """Get measurements for this order"""
-        measurements = obj.measurements.all()
-        if measurements:
             # Lazy import to avoid circular dependency
             return MeasurementListSerializer(measurements, many=True).data
         return []
-    
+
     def get_payments(self, obj):
         """Get payments for this order"""
         payments = obj.payments.all()

@@ -22,9 +22,12 @@ from atelier_erp.services.exceptions import (
 
 from .serializers import (
     OrderListSerializer, OrderDetailSerializer, OrderCreateSerializer, OrderStatusUpdateSerializer,
+    ChangeStatusSerializer, ChangeMaterialReadinessSerializer, ChangeProductionStageSerializer,
+    ChangeHandoverStageSerializer, CancelOrderSerializer,
     TaskListSerializer, TaskDetailSerializer, TaskCreateSerializer, TaskStatusUpdateSerializer,
     FabricAvailabilitySerializer, InventoryCheckRequestSerializer, InventoryCheckResponseSerializer
 )
+from atelier_erp.constants import OrderFSMRules, OrderExecutionGuide, MaterialReadiness
 
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -54,6 +57,17 @@ class OrderViewSet(viewsets.ModelViewSet):
             return OrderCreateSerializer
         if self.action == 'change_status':
             return OrderStatusUpdateSerializer
+        # New MVP action serializers
+        if self.action == 'change_status_mvp':
+            return ChangeStatusSerializer
+        if self.action == 'change_material_readiness':
+            return ChangeMaterialReadinessSerializer
+        if self.action == 'change_production_stage':
+            return ChangeProductionStageSerializer
+        if self.action == 'change_handover_stage':
+            return ChangeHandoverStageSerializer
+        if self.action == 'cancel':
+            return CancelOrderSerializer
         return OrderDetailSerializer
     
     def create(self, request, *args, **kwargs):
@@ -105,8 +119,15 @@ class OrderViewSet(viewsets.ModelViewSet):
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     def update(self, request, *args, **kwargs):
-        """Update order notes via service layer"""
+        """Update order notes and material_readiness via service layer"""
         order = self.get_object()
+        
+        # Handle material_readiness update directly on model
+        material_readiness = request.data.get('material_readiness')
+        if material_readiness:
+            if material_readiness in [choice[0] for choice in MaterialReadiness.choices]:
+                order.material_readiness = material_readiness
+                order.save(update_fields=['material_readiness', 'updated_at'])
         
         with UnitOfWork() as uow:
             service = OrderService(uow)
@@ -122,6 +143,57 @@ class OrderViewSet(viewsets.ModelViewSet):
                 return Response(response_serializer.data)
             except Exception as e:
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get'])
+    def execution(self, request, pk=None):
+        """
+        Get complete order execution summary for role-based order detail view.
+        
+        Returns role-specific sections for:
+        - admin: full overview, payment, production status
+        - designer: measurements, selected materials
+        - warehouse: material requirements, supply modes
+        - production: items to sew, assignment, deadline
+        - installer: address, products, handover status
+        
+        GET /api/v1/orders/{id}/execution/
+        """
+        order = self.get_object()
+        
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        
+        service = OrderExecutionService()
+        summary = service.get_order_execution_summary(order, user=request.user)
+        
+        return Response(summary)
+    
+    @action(detail=True, methods=['get'])
+    def execution_info(self, request, pk=None):
+        """
+        [DEPRECATED] Use /execution/ instead.
+        Kept for backward compatibility.
+        
+        GET /api/v1/orders/{id}/execution_info/
+        """
+        order = self.get_object()
+        
+        allowed_transitions = OrderFSMRules.get_allowed_transitions(order.status)
+        guidance = OrderExecutionGuide.get_guidance(order.status)
+        
+        return Response({
+            'current_status': order.status,
+            'current_status_display': order.get_status_display(),
+            'material_readiness': order.material_readiness,
+            'material_readiness_display': order.get_material_readiness_display(),
+            'allowed_transitions': allowed_transitions,
+            'guidance': guidance,
+            'material_readiness_options': [
+                {'value': choice[0], 'label': choice[1]}
+                for choice in MaterialReadiness.choices
+            ],
+            'deprecated': True,
+            'use_endpoint': f'/api/v1/orders/{pk}/execution/',
+        })
     
     @action(detail=True, methods=['post'])
     def change_status(self, request, pk=None):
@@ -146,8 +218,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                     order = service.transition_status(
                         order_id=order.id,
                         new_status=new_status,
-                        performed_by=request.user,
-                        reason=reason
+                        changed_by=request.user.id if request.user else None,
+                        notes=reason
                     )
                 uow.commit()
                 
@@ -177,6 +249,330 @@ class OrderViewSet(viewsets.ModelViewSet):
     def complete(self, request, pk=None):
         """Shortcut: Complete order via service layer"""
         return self._simple_transition(request, pk, Order.Status.COMPLETED)
+    
+    # ============================================
+    # NEW ACTION ENDPOINTS (MVP Workflow)
+    # ============================================
+    
+    @action(detail=True, methods=['post'], url_path='change-status')
+    def change_status_mvp(self, request, pk=None):
+        """
+        Change order status with MVP workflow business rules.
+        POST /api/v1/orders/{id}/change-status/
+        Body: {"status": "in_production"}
+        """
+        order = self.get_object()
+        serializer = ChangeStatusSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        new_status = serializer.validated_data['status']
+        
+        # Business rule checks
+        from atelier_erp.constants import MaterialReadiness, ProductionStage
+        
+        # Cannot modify cancelled order
+        if order.status == Order.Status.CANCELLED:
+            return Response(
+                {'detail': 'Нельзя изменить статус отменённого заказа.', 'code': 'cancelled_order'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Cannot modify completed order
+        if order.status == Order.Status.COMPLETED:
+            return Response(
+                {'detail': 'Нельзя изменить статус завершённого заказа.', 'code': 'completed_order'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check for accepted quote and order items for in_work transition
+        if new_status == Order.Status.IN_WORK:
+            from atelier_erp.models import Quote
+            has_accepted_quote = (
+                (order.quote and order.quote.status == Quote.Status.APPROVED) or
+                order.related_quotes.filter(status=Quote.Status.APPROVED).exists()
+            )
+            if not has_accepted_quote:
+                return Response(
+                    {'detail': 'Сначала примите КП и сформируйте позиции заказа.', 'code': 'quote_not_accepted'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if order.items.count() == 0:
+                return Response(
+                    {'detail': 'Сначала сформируйте позиции заказа из КП.', 'code': 'no_order_items'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Cannot start production without materials and order items
+        if new_status == Order.Status.IN_PRODUCTION:
+            if order.material_readiness == MaterialReadiness.NOT_READY:
+                return Response(
+                    {'detail': 'Нельзя начать производство: материалы не обеспечены.', 'code': 'material_not_ready'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if order.items.count() == 0:
+                return Response(
+                    {'detail': 'Сначала сформируйте позиции заказа из КП.', 'code': 'no_order_items'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Cannot mark ready if production not done
+        if new_status == Order.Status.READY:
+            if order.production_stage != ProductionStage.DONE:
+                return Response(
+                    {'detail': 'Нельзя отметить готовность: производство не завершено.', 'code': 'production_not_done'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Cannot complete if not paid
+        if new_status == Order.Status.COMPLETED:
+            balance_due = order.total_amount - order.paid_amount
+            if balance_due > 0:
+                return Response(
+                    {
+                        'detail': f'Нельзя завершить заказ: требуется оплата {balance_due}.',
+                        'code': 'payment_required',
+                        'balance_due': str(balance_due)
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        with UnitOfWork() as uow:
+            service = OrderService(uow)
+            try:
+                order = service.transition_status(
+                    order_id=order.id,
+                    new_status=new_status,
+                    changed_by=request.user.id if request.user else None,
+                    notes=""
+                )
+                uow.commit()
+                
+                response_serializer = OrderDetailSerializer(order)
+                return Response({'order': response_serializer.data})
+            except InvalidOrderStatusTransition as e:
+                return Response(
+                    {'detail': str(e), 'code': 'invalid_transition', 'allowed_transitions': e.allowed},
+                    status=status.HTTP_409_CONFLICT
+                )
+            except Exception as e:
+                return Response(
+                    {'detail': str(e), 'code': 'status_change_error'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+    
+    @action(detail=True, methods=['post'], url_path='change-material-readiness')
+    def change_material_readiness(self, request, pk=None):
+        """
+        Change order material readiness state.
+        POST /api/v1/orders/{id}/change-material-readiness/
+        Body: {"material_readiness": "ready"}
+        """
+        order = self.get_object()
+        serializer = ChangeMaterialReadinessSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        exec_service = OrderExecutionService()
+        
+        try:
+            updated_order, warnings = exec_service.change_material_readiness(
+                order=order,
+                material_readiness=serializer.validated_data['material_readiness'],
+                changed_by=request.user.id if request.user else None,
+                notes=""
+            )
+            
+            # Return both order and execution summary
+            response_serializer = OrderDetailSerializer(updated_order)
+            return Response({
+                'order': response_serializer.data,
+                'warnings': warnings
+            })
+        except Exception as e:
+            return Response(
+                {'detail': str(e), 'code': 'material_readiness_error'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=True, methods=['post'], url_path='change-production-stage')
+    def change_production_stage(self, request, pk=None):
+        """
+        Change order production stage.
+        POST /api/v1/orders/{id}/change-production-stage/
+        Body: {"production_stage": "sewing"}
+        """
+        order = self.get_object()
+        serializer = ChangeProductionStageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        exec_service = OrderExecutionService()
+        
+        try:
+            updated_order = exec_service.change_production_stage(
+                order=order,
+                production_stage=serializer.validated_data['production_stage'],
+                changed_by=request.user.id if request.user else None,
+                notes=""
+            )
+            
+            response_serializer = OrderDetailSerializer(updated_order)
+            return Response({'order': response_serializer.data})
+        except Exception as e:
+            return Response(
+                {'detail': str(e), 'code': 'production_stage_error'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=True, methods=['post'], url_path='change-handover-stage')
+    def change_handover_stage(self, request, pk=None):
+        """
+        Change order handover stage.
+        POST /api/v1/orders/{id}/change-handover-stage/
+        Body: {"handover_stage": "done"}
+        """
+        order = self.get_object()
+        serializer = ChangeHandoverStageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        exec_service = OrderExecutionService()
+        
+        try:
+            updated_order, can_auto_complete = exec_service.change_handover_stage(
+                order=order,
+                handover_stage=serializer.validated_data['handover_stage'],
+                changed_by=request.user.id if request.user else None,
+                notes=""
+            )
+            
+            response_serializer = OrderDetailSerializer(updated_order)
+            return Response({
+                'order': response_serializer.data,
+                'can_auto_complete': can_auto_complete
+            })
+        except Exception as e:
+            return Response(
+                {'detail': str(e), 'code': 'handover_stage_error'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=True, methods=['post'], url_path='cancel')
+    def cancel(self, request, pk=None):
+        """
+        Cancel order with required reason.
+        POST /api/v1/orders/{id}/cancel/
+        Body: {"reason": "Клиент отказался от заказа"}
+        """
+        order = self.get_object()
+        serializer = CancelOrderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        reason = serializer.validated_data['reason']
+        
+        from atelier_erp.services.order_execution_service import OrderExecutionService
+        from atelier_erp.services.exceptions import OrderValidationError
+        
+        exec_service = OrderExecutionService()
+        
+        try:
+            cancelled_order = exec_service.cancel_order(
+                order=order,
+                reason=reason,
+                user=request.user
+            )
+            
+            response_serializer = OrderDetailSerializer(cancelled_order)
+            return Response({
+                'order': response_serializer.data,
+                'message': 'Заказ успешно отменён.'
+            })
+        except OrderValidationError as e:
+            # Map specific errors to codes
+            error_msg = str(e)
+            code = 'cancel_error'
+            if 'уже отменён' in error_msg:
+                code = 'already_cancelled'
+            elif 'завершённый' in error_msg:
+                code = 'completed_order'
+            elif 'Причина' in error_msg:
+                code = 'reason_required'
+            
+            return Response(
+                {'detail': error_msg, 'code': code},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'detail': str(e), 'code': 'cancel_error'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=True, methods=['post'], url_path='generate-items-from-quote')
+    def generate_items_from_quote(self, request, pk=None):
+        """
+        Generate OrderItems from linked QuoteItems.
+        POST /api/v1/orders/{id}/generate-items-from-quote/
+        Body: {"quote_id": "uuid"} (optional - defaults to order.quote)
+        """
+        order = self.get_object()
+        
+        # Get optional quote_id from request
+        quote_id = request.data.get('quote_id')
+        quote = None
+        
+        if quote_id:
+            from ..models import Quote
+            try:
+                quote = Quote.objects.get(id=quote_id)
+            except Quote.DoesNotExist:
+                return Response(
+                    {'detail': 'Quote not found', 'code': 'quote_not_found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        from atelier_erp.services import OrderItemGenerationService
+        from atelier_erp.services.exceptions import OrderValidationError
+        
+        service = OrderItemGenerationService(user=request.user.id if request.user else None)
+        
+        # First validate
+        validation = service.validate_for_generation(order, quote)
+        if not validation['valid']:
+            return Response(
+                {
+                    'detail': validation['reason'],
+                    'code': 'generation_validation_error',
+                    'validation': validation
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            created_items = service.generate_order_items_from_quote(
+                order=order,
+                quote=quote,
+                force=False
+            )
+            
+            # Return fresh order data
+            response_serializer = OrderDetailSerializer(order)
+            return Response({
+                'order': response_serializer.data,
+                'created_count': len(created_items),
+                'message': f'Создано {len(created_items)} позиций из КП'
+            })
+            
+        except OrderValidationError as e:
+            return Response(
+                {'detail': str(e), 'code': 'generation_error'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'detail': str(e), 'code': 'generation_error'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     def _simple_transition(self, request, pk, target_status):
         """Helper for simple state transitions"""

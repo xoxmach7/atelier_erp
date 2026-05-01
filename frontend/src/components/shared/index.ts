@@ -2,7 +2,7 @@
 export { PageHeader } from "./page-header";
 export { EmptyState } from "./empty-state";
 export { LoadingState } from "./loading-state";
-export { StatusBadge } from "./status-badge";
+export { StatusBadge, MaterialReadinessBadge } from "./status-badge";
 
 // Sprint 9: Unified state components
 export { ErrorState, ErrorStatePresets } from "./error-state";

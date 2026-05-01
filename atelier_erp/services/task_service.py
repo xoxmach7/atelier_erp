@@ -421,6 +421,29 @@ class TaskService:
                 TaskFSMRules.get_allowed_transitions(task.status)
             )
     
+    def transition_status(
+        self,
+        task_id: UUID,
+        new_status: str,
+        performed_by: Optional[Any] = None,
+        notes: str = ""
+    ) -> Task:
+        """Generic status transition for tasks with FSM validation."""
+        task = Task.objects.get(id=task_id)
+        
+        # Validate transition
+        self._validate_transition(task, new_status)
+        
+        old_status = task.status
+        task.status = new_status
+        task.save(update_fields=['status', 'updated_at'])
+        
+        # Log history
+        changed_by_id = performed_by.id if performed_by else None
+        self._log_status_change(task, old_status, new_status, changed_by_id, notes)
+        
+        return task
+    
     def _log_status_change(
         self,
         task: Task,

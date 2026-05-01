@@ -153,6 +153,33 @@ def confirmed_order(db, customer):
 
 
 @pytest.fixture
+def completed_order(db, customer):
+    """Completed order fixture"""
+    return Order.objects.create(
+        order_number='О-2024-COMPLETED',
+        customer=customer,
+        status=Order.Status.COMPLETED,
+        total_amount=Decimal('50000.00'),
+        paid_amount=Decimal('50000.00')
+    )
+
+
+@pytest.fixture
+def cancelled_order(db, customer):
+    """Cancelled order fixture"""
+    from django.utils import timezone
+    return Order.objects.create(
+        order_number='О-2024-CANCELLED',
+        customer=customer,
+        status=Order.Status.CANCELLED,
+        total_amount=Decimal('50000.00'),
+        paid_amount=Decimal('0.00'),
+        cancel_reason='Тестовая отмена',
+        cancelled_at=timezone.now()
+    )
+
+
+@pytest.fixture
 def task(db):
     """Test task fixture"""
     return Task.objects.create(
@@ -206,3 +233,33 @@ def order_with_fabric_item(db, confirmed_order, fabric):
         quantity=Decimal('5.00')
     )
     return confirmed_order
+
+
+@pytest.fixture
+def order_factory(db, customer):
+    """Factory fixture for creating orders with custom parameters"""
+    from atelier_erp.models import Order
+    from atelier_erp.constants import HandoverStage, ProductionStage
+    
+    def _create_order(
+        status=Order.Status.NEW,
+        handover_stage=HandoverStage.PENDING,
+        production_stage=ProductionStage.NOT_STARTED,
+        total_amount=Decimal('0'),
+        paid_amount=Decimal('0'),
+        **kwargs
+    ):
+        order_number = kwargs.get('order_number', f'О-TEST-{Order.objects.count() + 1:04d}')
+        order = Order.objects.create(
+            order_number=order_number,
+            customer=customer,
+            status=status,
+            handover_stage=handover_stage,
+            production_stage=production_stage,
+            total_amount=total_amount,
+            paid_amount=paid_amount,
+            **{k: v for k, v in kwargs.items() if k not in ['order_number']}
+        )
+        return order
+    
+    return _create_order

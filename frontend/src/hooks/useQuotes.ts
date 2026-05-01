@@ -14,7 +14,7 @@ import {
   deleteQuoteItem,
   convertQuoteToOrder,
 } from "@/services/http/quotes";
-import type { QuoteDTO, QuoteListResponse, QuoteItemDTO } from "@/types";
+import type { QuoteDTO, QuoteListResponse, QuoteItemDTO, OrderDetailDTO } from "@/types";
 
 interface FetchQuotesOptions {
   status?: string;
@@ -202,7 +202,6 @@ export function useDeleteQuoteItem() {
   });
 }
 
-import type { OrderDetailDTO } from "@/types";
 const ORDERS_QUERY_KEY = "orders";
 
 /**
