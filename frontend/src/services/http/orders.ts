@@ -15,6 +15,8 @@ import type {
   ChangeHandoverStageRequest,
   CancelOrderRequest,
   ActionResponse,
+  PhotoReportListDTO,
+  PhotoReportDTO,
 } from "@/types";
 
 interface OrdersListResponse {
@@ -133,4 +135,24 @@ export async function generateOrderItemsFromQuote(
     `/v1/orders/${orderId}/generate-items-from-quote/`,
     quoteId ? { quote_id: quoteId } : {}
   );
+}
+
+/**
+ * Fetch photo reports for an order
+ * GET /api/v1/orders/{id}/photo-reports/
+ */
+export async function getOrderPhotoReports(orderId: string): Promise<PhotoReportListDTO> {
+  return get<PhotoReportListDTO>(`/v1/orders/${orderId}/photo-reports/`);
+}
+
+/**
+ * Upload photo report for an order
+ * POST /api/v1/orders/{id}/photo-reports/
+ * Uses FormData for multipart/form-data upload
+ */
+export async function uploadOrderPhotoReport(
+  orderId: string,
+  formData: FormData
+): Promise<PhotoReportDTO> {
+  return post<PhotoReportDTO>(`/v1/orders/${orderId}/photo-reports/`, formData);
 }

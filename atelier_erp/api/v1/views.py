@@ -8,12 +8,13 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from atelier_erp.api.permissions import IsManagerOrAdmin
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 
-from atelier_erp.models import Order, Task, Fabric
+from atelier_erp.models import Order, Task, Fabric, PhotoReport, OrderItem
 from atelier_erp.services import OrderService, TaskService, UnitOfWork
 from atelier_erp.services.exceptions import (
     OrderNotFoundError, InvalidOrderStatusTransition,
@@ -25,7 +26,8 @@ from .serializers import (
     ChangeStatusSerializer, ChangeMaterialReadinessSerializer, ChangeProductionStageSerializer,
     ChangeHandoverStageSerializer, CancelOrderSerializer,
     TaskListSerializer, TaskDetailSerializer, TaskCreateSerializer, TaskStatusUpdateSerializer,
-    FabricAvailabilitySerializer, InventoryCheckRequestSerializer, InventoryCheckResponseSerializer
+    FabricAvailabilitySerializer, InventoryCheckRequestSerializer, InventoryCheckResponseSerializer,
+    PhotoReportSerializer, PhotoReportUploadSerializer
 )
 from atelier_erp.constants import OrderFSMRules, OrderExecutionGuide, MaterialReadiness
 
@@ -194,6 +196,114 @@ class OrderViewSet(viewsets.ModelViewSet):
             'deprecated': True,
             'use_endpoint': f'/api/v1/orders/{pk}/execution/',
         })
+    
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='photo-reports',
+        url_name='photo-reports',
+        parser_classes=[MultiPartParser, FormParser]
+    )
+    def photo_reports(self, request, pk=None):
+        """
+        Photo report management for order.
+        
+        GET /api/v1/orders/{id}/photo-reports/ - List active photo reports
+        POST /api/v1/orders/{id}/photo-reports/ - Upload new photo report
+        
+        Upload rules:
+        - Only if handover_stage == done (except cancelled)
+        - Max file size: 10 MB
+        - Allowed types: JPEG, PNG, WebP
+        - Cancelled orders: upload forbidden
+        - Completed orders: read allowed, upload forbidden
+        """
+        order = self.get_object()
+        
+        if request.method == 'GET':
+            # List active photo reports
+            photo_reports = order.photo_reports.filter(is_active=True)
+            serializer = PhotoReportSerializer(
+                photo_reports, 
+                many=True, 
+                context={'request': request}
+            )
+            return Response({
+                'count': photo_reports.count(),
+                'photo_reports': serializer.data
+            })
+        
+        # POST - Upload new photo report
+        # Check order status
+        if order.status == Order.Status.CANCELLED:
+            return Response(
+                {'error': 'Cannot upload photo report for cancelled order'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if order.status == Order.Status.COMPLETED:
+            return Response(
+                {'error': 'Cannot upload photo report for completed order'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if photo report is available
+        # Allow upload if:
+        # A) handover_stage == done
+        # B) handover_stage == not_required AND production_stage == done
+        can_upload_photo_report = (
+            order.handover_stage == 'done'
+            or (
+                order.handover_stage == 'not_required'
+                and order.production_stage == 'done'
+            )
+        )
+        
+        if not can_upload_photo_report:
+            return Response(
+                {
+                    'code': 'photo_report_not_available',
+                    'detail': 'Фотоотчёт доступен после установки / выдачи или после завершения производства, если установка не требуется'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate and save
+        serializer = PhotoReportUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Get optional order_item
+        order_item_id = serializer.validated_data.get('order_item')
+        order_item = None
+        if order_item_id:
+            try:
+                order_item = OrderItem.objects.get(id=order_item_id, order=order)
+            except OrderItem.DoesNotExist:
+                return Response(
+                    {'error': 'Order item not found'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Create photo report with file from request.FILES
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            return Response(
+                {'error': 'No file provided in request'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        photo_report = PhotoReport.objects.create(
+            order=order,
+            order_item=order_item,
+            file=uploaded_file,
+            caption=request.data.get('caption', ''),
+            uploaded_by=request.user if request.user.is_authenticated else None
+        )
+        
+        return Response(
+            PhotoReportSerializer(photo_report, context={'request': request}).data,
+            status=status.HTTP_201_CREATED
+        )
     
     @action(detail=True, methods=['post'])
     def change_status(self, request, pk=None):

@@ -6,7 +6,7 @@ Minimal serializers for orders, tasks, inventory
 from decimal import Decimal
 
 from rest_framework import serializers
-from atelier_erp.models import Order, Task, Fabric, OrderItem, Customer, Quote, Measurement, Payment
+from atelier_erp.models import Order, Task, Fabric, OrderItem, Customer, Quote, Measurement, Payment, PhotoReport
 from atelier_erp.api.serializers import RelatedQuoteSerializer
 
 
@@ -363,3 +363,55 @@ class InventoryCheckResponseSerializer(serializers.Serializer):
     available_meters = serializers.DecimalField(max_digits=10, decimal_places=2)
     required_meters = serializers.DecimalField(max_digits=10, decimal_places=2)
     shortfall = serializers.DecimalField(max_digits=10, decimal_places=2, allow_null=True)
+
+
+class PhotoReportSerializer(serializers.ModelSerializer):
+    """Photo report serializer with file URL and uploader info"""
+    file_url = serializers.SerializerMethodField()
+    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = PhotoReport
+        fields = [
+            'id', 'order', 'order_item',
+            'file', 'file_url', 'caption',
+            'uploaded_by', 'uploaded_by_name',
+            'created_at', 'is_active'
+        ]
+        read_only_fields = ['uploaded_by', 'created_at', 'is_active']
+    
+    def get_file_url(self, obj):
+        """Return absolute URL for the file"""
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
+
+
+class PhotoReportUploadSerializer(serializers.Serializer):
+    """Upload serializer with validation"""
+    file = serializers.FileField(required=True)
+    caption = serializers.CharField(required=False, allow_blank=True)
+    order_item = serializers.UUIDField(required=False, allow_null=True)
+    
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+    ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    
+    def validate_file(self, value):
+        """Validate file type and size"""
+        # Check file size
+        if value.size > self.MAX_FILE_SIZE:
+            raise serializers.ValidationError(
+                f'File size must be less than 10 MB. Current size: {value.size / (1024*1024):.1f} MB'
+            )
+        
+        # Check content type
+        content_type = value.content_type
+        if content_type not in self.ALLOWED_TYPES:
+            raise serializers.ValidationError(
+                f'Only image files are allowed (JPEG, PNG, WebP). Got: {content_type}'
+            )
+        
+        return value

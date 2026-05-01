@@ -369,6 +369,35 @@ class OrderExecutionService:
         balance_due = order.total_amount - order.paid_amount
         payment_state = 'paid' if balance_due <= 0 else 'partial' if order.paid_amount > 0 else 'unpaid'
         
+        # Photo report status
+        # Available if: handover_stage == done OR (not_required AND production done)
+        photo_report_count = order.photo_reports.filter(is_active=True).count()
+        
+        is_handover_done = order.handover_stage == 'done'
+        is_not_required_with_production_done = (
+            order.handover_stage == 'not_required'
+            and order.production_stage == 'done'
+        )
+        photo_report_available = is_handover_done or is_not_required_with_production_done
+        
+        if not photo_report_available:
+            photo_report_status = 'not_available'
+        elif photo_report_count == 0:
+            photo_report_status = 'not_uploaded'
+        else:
+            photo_report_status = 'uploaded'
+        
+        # Build photo reports list
+        photo_reports = []
+        for pr in order.photo_reports.filter(is_active=True):
+            photo_reports.append({
+                'id': str(pr.id),
+                'file_url': pr.file.url if pr.file else None,
+                'caption': pr.caption,
+                'uploaded_at': pr.created_at,
+                'uploaded_by_name': pr.uploaded_by.get_full_name() if pr.uploaded_by else None,
+            })
+        
         # Build warnings
         warnings = []
         if not order_items and not fallback_items:
@@ -405,8 +434,11 @@ class OrderExecutionService:
             'balance_due': balance_due,
             'payment_state': payment_state,
             'warnings': warnings,
-            # Placeholders for future features
-            'photo_report_status': 'not_implemented',
+            # Photo report summary
+            'photo_report_status': photo_report_status,
+            'photo_report_count': photo_report_count,
+            'photo_reports': photo_reports,
+            # Placeholder for future features
             'act_status': 'not_implemented',
         }
     

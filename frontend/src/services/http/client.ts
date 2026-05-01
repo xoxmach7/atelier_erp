@@ -135,12 +135,19 @@ async function executeTokenRefresh(): Promise<string> {
 /**
  * Build headers with optional auth token
  */
-function buildHeaders(customHeaders?: HeadersInit, accessToken?: string | null): HeadersInit {
+function buildHeaders(customHeaders?: HeadersInit, accessToken?: string | null, isFormData?: boolean): HeadersInit {
   const token = accessToken ?? getAccessToken();
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    ...customHeaders,
-  };
+  const headers: HeadersInit = {};
+
+  // Don't set Content-Type for FormData - browser sets it with boundary
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  // Apply custom headers after defaults
+  if (customHeaders) {
+    Object.assign(headers, customHeaders);
+  }
 
   if (token) {
     (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
@@ -297,12 +304,13 @@ export async function get<T>(endpoint: string, config?: RequestConfig): Promise<
 
 export async function post<T>(endpoint: string, data: unknown, config?: RequestConfig): Promise<T> {
   const url = buildUrl(endpoint);
+  const isFormData = data instanceof FormData;
 
   return executeRequestWithRefresh<T>((accessToken) =>
     fetch(url, {
       method: "POST",
-      headers: buildHeaders(config?.headers, accessToken),
-      body: JSON.stringify(data),
+      headers: buildHeaders(config?.headers, accessToken, isFormData),
+      body: isFormData ? data : JSON.stringify(data),
       ...config,
     })
   );

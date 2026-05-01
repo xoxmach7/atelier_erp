@@ -509,9 +509,22 @@ export interface RoleSectionsDTO {
     balance_due: number;
     payment_state: 'paid' | 'partial' | 'unpaid';
     warnings: WarningDTO[];
-    photo_report_status: string;
+    photo_report_status: 'not_available' | 'not_uploaded' | 'uploaded';
+    photo_report_count?: number;
+    photo_reports?: PhotoReportSummaryDTO[];
     act_status: string;
   };
+}
+
+/**
+ * Photo report summary DTO for execution summary
+ */
+export interface PhotoReportSummaryDTO {
+  id: string;
+  file_url?: string;
+  caption?: string;
+  uploaded_at: string;
+  uploaded_by_name?: string | null;
 }
 
 /**
@@ -611,4 +624,42 @@ export interface ActionErrorResponse {
   code: string;
   balance_due?: string;
   allowed_transitions?: string[];
+}
+
+/**
+ * Photo report status for execution summary
+ */
+export type PhotoReportStatus = 'not_available' | 'not_uploaded' | 'uploaded';
+
+/**
+ * Photo report DTO
+ */
+export interface PhotoReportDTO {
+  id: string;
+  order: string;
+  order_item?: string | null;
+  file?: string;
+  file_url?: string;
+  caption?: string;
+  uploaded_by?: string | null;
+  uploaded_by_name?: string | null;
+  created_at: string;
+  is_active: boolean;
+}
+
+/**
+ * Photo report list response
+ */
+export interface PhotoReportListDTO {
+  count: number;
+  photo_reports: PhotoReportDTO[];
+}
+
+/**
+ * Photo report upload request
+ */
+export interface PhotoReportUploadRequest {
+  file: File;
+  caption?: string;
+  order_item?: string | null;
 }

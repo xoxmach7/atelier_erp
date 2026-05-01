@@ -589,6 +589,57 @@ class OrderItem(UUIDModel):
         verbose_name_plural = 'Order Items'
 
 
+class PhotoReport(UUIDModel, TimestampedModel):
+    """Photo report for order - execution artifact, not main status"""
+    
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='photo_reports',
+        db_index=True
+    )
+    order_item = models.ForeignKey(
+        OrderItem,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='photo_reports',
+        db_index=True
+    )
+    
+    # File storage
+    file = models.FileField(
+        upload_to='photo_reports/%Y/%m/',
+        help_text='Photo file (jpg/jpeg/png/webp, max 10MB)'
+    )
+    caption = models.TextField(blank=True, help_text='Optional description')
+    
+    # Audit
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='uploaded_photo_reports'
+    )
+    
+    # Soft delete
+    is_active = models.BooleanField(default=True, db_index=True)
+    
+    class Meta:
+        db_table = 'photo_reports'
+        ordering = ['-created_at']
+        indexes = [
+            Index(fields=['order', 'is_active'], name='idx_photoreport_order_active'),
+            Index(fields=['created_at'], name='idx_photoreport_created'),
+        ]
+        verbose_name = 'Photo Report'
+        verbose_name_plural = 'Photo Reports'
+    
+    def __str__(self):
+        return f"PhotoReport {self.id} for Order {self.order_id}"
+
+
 class OrderStatusHistory(UUIDModel):
     """Audit trail for order status changes"""
     

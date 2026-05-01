@@ -14,6 +14,8 @@ import {
   changeHandoverStage,
   cancelOrder,
   generateOrderItemsFromQuote,
+  getOrderPhotoReports,
+  uploadOrderPhotoReport,
 } from "@/services/http/orders";
 import type {
   OrderListItemDTO,
@@ -26,6 +28,8 @@ import type {
   ChangeHandoverStageRequest,
   CancelOrderRequest,
   ActionResponse,
+  PhotoReportListDTO,
+  PhotoReportDTO,
 } from "@/types";
 
 interface OrdersListResponse {
@@ -205,6 +209,35 @@ export function useGenerateOrderItems() {
       // Invalidate order and execution data
       queryClient.invalidateQueries({ queryKey: [EXECUTION_QUERY_KEY, variables.orderId] });
       queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY, "detail", variables.orderId] });
+    },
+  });
+}
+
+const PHOTO_REPORTS_QUERY_KEY = "photo-reports";
+
+/**
+ * Hook for fetching photo reports for an order
+ */
+export function useOrderPhotoReports(orderId: string) {
+  return useQuery<PhotoReportListDTO, Error>({
+    queryKey: [PHOTO_REPORTS_QUERY_KEY, orderId],
+    queryFn: () => getOrderPhotoReports(orderId),
+    enabled: !!orderId,
+  });
+}
+
+/**
+ * Hook for uploading photo report
+ */
+export function useUploadOrderPhotoReport(orderId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<PhotoReportDTO, Error, FormData>({
+    mutationFn: (formData) => uploadOrderPhotoReport(orderId, formData),
+    onSuccess: () => {
+      // Invalidate photo reports and execution data
+      queryClient.invalidateQueries({ queryKey: [PHOTO_REPORTS_QUERY_KEY, orderId] });
+      queryClient.invalidateQueries({ queryKey: [EXECUTION_QUERY_KEY, orderId] });
     },
   });
 }
