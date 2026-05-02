@@ -618,8 +618,32 @@ class OrderViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
         
-        # Cannot complete if not paid
+        # TODO: Move completed transition validation fully into service layer to avoid duplicated business rules.
+        # Cannot complete if production not done, handover not done, no signed act, or not paid
         if new_status == Order.Status.COMPLETED:
+            if order.production_stage != ProductionStage.DONE:
+                return Response(
+                    {'detail': 'Нельзя завершить заказ: производство не завершено.', 'code': 'production_not_done'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if order.handover_stage not in [HandoverStage.DONE, HandoverStage.NOT_REQUIRED]:
+                return Response(
+                    {'detail': 'Нельзя завершить заказ: установка/выдача не завершена.', 'code': 'handover_not_done'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            # Check for signed completion act
+            try:
+                act = order.completion_act
+                if not act.is_active or act.status != OrderCompletionAct.Status.SIGNED:
+                    return Response(
+                        {'detail': 'Нельзя завершить заказ: требуется подписанный АВР.', 'code': 'signed_act_required'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except OrderCompletionAct.DoesNotExist:
+                return Response(
+                    {'detail': 'Нельзя завершить заказ: требуется подписанный АВР.', 'code': 'act_required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             balance_due = order.total_amount - order.paid_amount
             if balance_due > 0:
                 return Response(

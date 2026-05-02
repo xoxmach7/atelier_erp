@@ -860,11 +860,22 @@ class OrderExecutionService:
             if order.items.count() == 0:
                 blockers.append('Сначала сформируйте позиции заказа из КП')
         
-        # completed requires full payment
+        # completed requires: production done, handover done/not_required, signed act, full payment
         if target_status == Order.Status.COMPLETED:
+            if order.production_stage != ProductionStage.DONE:
+                blockers.append('Производство не завершено')
+            if order.handover_stage not in [HandoverStage.DONE, HandoverStage.NOT_REQUIRED]:
+                blockers.append('Установка/выдача не завершена')
+            # Check for signed completion act
+            try:
+                act = order.completion_act
+                if not act.is_active or act.status != OrderCompletionAct.Status.SIGNED:
+                    blockers.append('Требуется подписанный АВР')
+            except OrderCompletionAct.DoesNotExist:
+                blockers.append('Требуется подписанный АВР')
             if order.paid_amount < order.total_amount:
                 blockers.append(f'Требуется полная оплата. Остаток: {order.total_amount - order.paid_amount}')
-        
+
         return blockers
     
     # ============================================
@@ -991,11 +1002,11 @@ class OrderExecutionService:
         if order.status == Order.Status.COMPLETED:
             raise OrderValidationError("Нельзя изменить этап установки для завершённого заказа.")
         
-        # Cannot set handover done before production is done
-        if handover_stage == HandoverStage.DONE:
+        # Cannot set handover done or not_required before production is done
+        if handover_stage in [HandoverStage.DONE, HandoverStage.NOT_REQUIRED]:
             if order.production_stage != ProductionStage.DONE:
                 raise OrderValidationError(
-                    "Нельзя завершить установку: производство не завершено. "
+                    "Нельзя изменить этап установки: производство не завершено. "
                     "Сначала отметьте производство как готовое."
                 )
         

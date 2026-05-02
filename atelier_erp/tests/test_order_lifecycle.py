@@ -213,7 +213,11 @@ class TestOrderLifecycleIntegration:
         assert order.production_stage == ProductionStage.DONE
 
         # 12. Set handover_stage = not_required via direct assignment
-        # (API endpoint requires READY/ON_INSTALLATION/WAITING_FINAL_PAYMENT status)
+        # TODO: Normalize handover flow - API endpoint requires READY/ON_INSTALLATION/WAITING_FINAL_PAYMENT
+        # status, but for orders without installation, we need to set NOT_REQUIRED during production.
+        # This is a documented bypass pending API enhancement to allow NOT_REQUIRED in IN_PRODUCTION status.
+        # Issue: change_handover_stage API should support setting NOT_REQUIRED when production_stage=DONE
+        # even if order.status is IN_PRODUCTION (for orders that don't need installation/handover).
         order.handover_stage = HandoverStage.NOT_REQUIRED
         order.save()
 
