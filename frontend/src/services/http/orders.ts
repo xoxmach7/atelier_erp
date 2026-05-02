@@ -15,6 +15,10 @@ import type {
   ChangeHandoverStageRequest,
   CancelOrderRequest,
   ActionResponse,
+  PhotoReportListDTO,
+  PhotoReportDTO,
+  CompletionActResponse,
+  OrderCompletionActDTO,
 } from "@/types";
 
 interface OrdersListResponse {
@@ -132,5 +136,64 @@ export async function generateOrderItemsFromQuote(
   return post<{ order: OrderDetailDTO; created_count: number; message: string }>(
     `/v1/orders/${orderId}/generate-items-from-quote/`,
     quoteId ? { quote_id: quoteId } : {}
+  );
+}
+
+/**
+ * Fetch photo reports for an order
+ * GET /api/v1/orders/{id}/photo-reports/
+ */
+export async function getOrderPhotoReports(orderId: string): Promise<PhotoReportListDTO> {
+  return get<PhotoReportListDTO>(`/v1/orders/${orderId}/photo-reports/`);
+}
+
+/**
+ * Upload photo report for an order
+ * POST /api/v1/orders/{id}/photo-reports/
+ * Uses FormData for multipart/form-data upload
+ */
+export async function uploadOrderPhotoReport(
+  orderId: string,
+  formData: FormData
+): Promise<PhotoReportDTO> {
+  return post<PhotoReportDTO>(`/v1/orders/${orderId}/photo-reports/`, formData);
+}
+
+// ============================================================================
+// Order Completion Act (АВР) API
+// ============================================================================
+
+/**
+ * Get order completion act (АВР)
+ * GET /api/v1/orders/{id}/completion-act/
+ */
+export async function getOrderCompletionAct(
+  orderId: string
+): Promise<CompletionActResponse> {
+  return get<CompletionActResponse>(`/v1/orders/${orderId}/completion-act/`);
+}
+
+/**
+ * Create order completion act (АВР)
+ * POST /api/v1/orders/{id}/completion-act/
+ */
+export async function createOrderCompletionAct(
+  orderId: string
+): Promise<CompletionActResponse> {
+  return post<CompletionActResponse>(`/v1/orders/${orderId}/completion-act/`, {});
+}
+
+/**
+ * Upload signed completion act file
+ * POST /api/v1/orders/{id}/completion-act/upload-signed/
+ * Uses FormData for multipart/form-data upload
+ */
+export async function uploadSignedCompletionAct(
+  orderId: string,
+  formData: FormData
+): Promise<{ act: OrderCompletionActDTO; created: boolean; message: string }> {
+  return post<{ act: OrderCompletionActDTO; created: boolean; message: string }>(
+    `/v1/orders/${orderId}/completion-act/upload-signed/`,
+    formData
   );
 }

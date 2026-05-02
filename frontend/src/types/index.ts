@@ -509,9 +509,24 @@ export interface RoleSectionsDTO {
     balance_due: number;
     payment_state: 'paid' | 'partial' | 'unpaid';
     warnings: WarningDTO[];
-    photo_report_status: string;
-    act_status: string;
+    photo_report_status: 'not_available' | 'not_uploaded' | 'uploaded';
+    photo_report_count?: number;
+    photo_reports?: PhotoReportSummaryDTO[];
+    completion_act_status: CompletionActStatus;
+    completion_act_available: boolean;
+    completion_act?: CompletionActSummaryDTO;
   };
+}
+
+/**
+ * Photo report summary DTO for execution summary
+ */
+export interface PhotoReportSummaryDTO {
+  id: string;
+  file_url?: string;
+  caption?: string;
+  uploaded_at: string;
+  uploaded_by_name?: string | null;
 }
 
 /**
@@ -611,4 +626,106 @@ export interface ActionErrorResponse {
   code: string;
   balance_due?: string;
   allowed_transitions?: string[];
+}
+
+/**
+ * Photo report status for execution summary
+ */
+export type PhotoReportStatus = 'not_available' | 'not_uploaded' | 'uploaded';
+
+/**
+ * Photo report DTO
+ */
+export interface PhotoReportDTO {
+  id: string;
+  order: string;
+  order_item?: string | null;
+  file?: string;
+  file_url?: string;
+  caption?: string;
+  uploaded_by?: string | null;
+  uploaded_by_name?: string | null;
+  created_at: string;
+  is_active: boolean;
+}
+
+/**
+ * Photo report list response
+ */
+export interface PhotoReportListDTO {
+  count: number;
+  photo_reports: PhotoReportDTO[];
+}
+
+/**
+ * Photo report upload request
+ */
+export interface PhotoReportUploadRequest {
+  file: File;
+  caption?: string;
+  order_item?: string | null;
+}
+
+// ============================================================================
+// Order Completion Act (АВР) Types
+// ============================================================================
+
+/**
+ * Completion act status
+ */
+export type CompletionActStatus =
+  | 'not_available'
+  | 'not_created'
+  | 'draft'
+  | 'signed';
+
+/**
+ * Order completion act (АВР) DTO
+ */
+export interface OrderCompletionActDTO {
+  id: string;
+  order: string;
+  act_number: string;
+  status: 'draft' | 'signed';
+  status_label: string;
+  signed_file?: string | null;
+  signed_file_url?: string | null;
+  signed_file_uploaded_by?: string | null;
+  signed_file_uploaded_by_name?: string | null;
+  signed_at?: string | null;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Completion act summary in installer section
+ */
+export interface CompletionActSummaryDTO {
+  id: string;
+  act_number: string;
+  status: 'draft' | 'signed';
+  status_label: string;
+  signed_file_url?: string | null;
+  signed_at?: string | null;
+  signed_file_uploaded_by_name?: string | null;
+  notes?: string;
+}
+
+/**
+ * Completion act response (GET endpoint)
+ */
+export interface CompletionActResponse {
+  exists: boolean;
+  status: CompletionActStatus;
+  message?: string;
+  act?: OrderCompletionActDTO;
+}
+
+/**
+ * Completion act upload request
+ */
+export interface CompletionActUploadRequest {
+  signed_file: File;
+  notes?: string;
 }

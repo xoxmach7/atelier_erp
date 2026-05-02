@@ -8,12 +8,13 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from atelier_erp.api.permissions import IsManagerOrAdmin
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 
-from atelier_erp.models import Order, Task, Fabric
+from atelier_erp.models import Order, Task, Fabric, PhotoReport, OrderItem, OrderCompletionAct
 from atelier_erp.services import OrderService, TaskService, UnitOfWork
 from atelier_erp.services.exceptions import (
     OrderNotFoundError, InvalidOrderStatusTransition,
@@ -25,9 +26,11 @@ from .serializers import (
     ChangeStatusSerializer, ChangeMaterialReadinessSerializer, ChangeProductionStageSerializer,
     ChangeHandoverStageSerializer, CancelOrderSerializer,
     TaskListSerializer, TaskDetailSerializer, TaskCreateSerializer, TaskStatusUpdateSerializer,
-    FabricAvailabilitySerializer, InventoryCheckRequestSerializer, InventoryCheckResponseSerializer
+    FabricAvailabilitySerializer, InventoryCheckRequestSerializer, InventoryCheckResponseSerializer,
+    PhotoReportSerializer, PhotoReportUploadSerializer,
+    OrderCompletionActSerializer, OrderCompletionActUploadSerializer
 )
-from atelier_erp.constants import OrderFSMRules, OrderExecutionGuide, MaterialReadiness
+from atelier_erp.constants import OrderFSMRules, OrderExecutionGuide, MaterialReadiness, ProductionStage, HandoverStage
 
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -195,6 +198,298 @@ class OrderViewSet(viewsets.ModelViewSet):
             'use_endpoint': f'/api/v1/orders/{pk}/execution/',
         })
     
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='photo-reports',
+        url_name='photo-reports',
+        parser_classes=[MultiPartParser, FormParser]
+    )
+    def photo_reports(self, request, pk=None):
+        """
+        Photo report management for order.
+        
+        GET /api/v1/orders/{id}/photo-reports/ - List active photo reports
+        POST /api/v1/orders/{id}/photo-reports/ - Upload new photo report
+        
+        Upload rules:
+        - Only if handover_stage == done (except cancelled)
+        - Max file size: 10 MB
+        - Allowed types: JPEG, PNG, WebP
+        - Cancelled orders: upload forbidden
+        - Completed orders: read allowed, upload forbidden
+        """
+        order = self.get_object()
+        
+        if request.method == 'GET':
+            # List active photo reports
+            photo_reports = order.photo_reports.filter(is_active=True)
+            serializer = PhotoReportSerializer(
+                photo_reports, 
+                many=True, 
+                context={'request': request}
+            )
+            return Response({
+                'count': photo_reports.count(),
+                'photo_reports': serializer.data
+            })
+        
+        # POST - Upload new photo report
+        # Check order status
+        if order.status == Order.Status.CANCELLED:
+            return Response(
+                {'error': 'Cannot upload photo report for cancelled order'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if order.status == Order.Status.COMPLETED:
+            return Response(
+                {'error': 'Cannot upload photo report for completed order'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if photo report is available
+        # Allow upload if:
+        # A) handover_stage == done
+        # B) handover_stage == not_required AND production_stage == done
+        can_upload_photo_report = (
+            order.handover_stage == 'done'
+            or (
+                order.handover_stage == 'not_required'
+                and order.production_stage == 'done'
+            )
+        )
+        
+        if not can_upload_photo_report:
+            return Response(
+                {
+                    'code': 'photo_report_not_available',
+                    'detail': 'Фотоотчёт доступен после установки / выдачи или после завершения производства, если установка не требуется'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate and save
+        serializer = PhotoReportUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Get optional order_item
+        order_item_id = serializer.validated_data.get('order_item')
+        order_item = None
+        if order_item_id:
+            try:
+                order_item = OrderItem.objects.get(id=order_item_id, order=order)
+            except OrderItem.DoesNotExist:
+                return Response(
+                    {'error': 'Order item not found'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Create photo report with file from request.FILES
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            return Response(
+                {'error': 'No file provided in request'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        photo_report = PhotoReport.objects.create(
+            order=order,
+            order_item=order_item,
+            file=uploaded_file,
+            caption=request.data.get('caption', ''),
+            uploaded_by=request.user if request.user.is_authenticated else None
+        )
+        
+        return Response(
+            PhotoReportSerializer(photo_report, context={'request': request}).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='completion-act',
+        url_name='completion-act',
+        parser_classes=[MultiPartParser, FormParser]
+    )
+    def completion_act(self, request, pk=None):
+        """
+        Order completion act (АВР) management.
+
+        GET /api/v1/orders/{id}/completion-act/ - Get existing act or status
+        POST /api/v1/orders/{id}/completion-act/ - Create act if not exists
+
+        AVR availability rules:
+        A) handover_stage == done
+        B) handover_stage == not_required AND production_stage == done
+        """
+        order = self.get_object()
+
+        # Check AVR availability
+        can_create_act = (
+            order.handover_stage == HandoverStage.DONE
+            or (
+                order.handover_stage == HandoverStage.NOT_REQUIRED
+                and order.production_stage == ProductionStage.DONE
+            )
+        )
+
+        if request.method == 'GET':
+            # Try to get existing act
+            try:
+                act = order.completion_act
+                if act.is_active:
+                    serializer = OrderCompletionActSerializer(act, context={'request': request})
+                    return Response({
+                        'exists': True,
+                        'status': act.status,
+                        'act': serializer.data
+                    })
+            except OrderCompletionAct.DoesNotExist:
+                pass
+
+            # No active act exists
+            if not can_create_act:
+                return Response({
+                    'exists': False,
+                    'status': 'not_available',
+                    'message': 'АВР доступен после установки / выдачи'
+                })
+            return Response({
+                'exists': False,
+                'status': 'not_created',
+                'message': 'АВР ещё не создан'
+            })
+
+        # POST - Create act
+        if not can_create_act:
+            return Response(
+                {
+                    'code': 'act_not_available',
+                    'detail': 'АВР доступен после установки / выдачи'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if act already exists
+        try:
+            existing_act = order.completion_act
+            if existing_act.is_active:
+                serializer = OrderCompletionActSerializer(existing_act, context={'request': request})
+                return Response({
+                    'exists': True,
+                    'act': serializer.data,
+                    'message': 'АВР уже существует'
+                })
+        except OrderCompletionAct.DoesNotExist:
+            pass
+
+        # Generate act number: АВР-{order_number}
+        act_number = f"АВР-{order.order_number}"
+
+        # Create the act
+        act = OrderCompletionAct.objects.create(
+            order=order,
+            act_number=act_number,
+            status=OrderCompletionAct.Status.DRAFT,
+            created_by=request.user if request.user.is_authenticated else None
+        )
+
+        serializer = OrderCompletionActSerializer(act, context={'request': request})
+        return Response({
+            'exists': True,
+            'act': serializer.data,
+            'message': 'АВР успешно создан'
+        }, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='completion-act/upload-signed',
+        url_name='completion-act-upload-signed',
+        parser_classes=[MultiPartParser, FormParser]
+    )
+    def upload_signed_completion_act(self, request, pk=None):
+        """
+        Upload signed completion act file.
+        POST /api/v1/orders/{id}/completion-act/upload-signed/
+
+        Body (multipart/form-data):
+        - signed_file: File (PDF, JPG, PNG, WebP, max 20MB)
+        - notes: Optional notes
+
+        If act doesn't exist, creates it automatically.
+        Sets status to 'signed' after upload.
+        Does NOT change Order.status.
+        """
+        order = self.get_object()
+
+        # Check AVR availability
+        can_upload = (
+            order.handover_stage == HandoverStage.DONE
+            or (
+                order.handover_stage == HandoverStage.NOT_REQUIRED
+                and order.production_stage == ProductionStage.DONE
+            )
+        )
+
+        if not can_upload:
+            return Response(
+                {
+                    'code': 'act_not_available',
+                    'detail': 'АВР доступен после установки / выдачи'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate upload data
+        serializer = OrderCompletionActUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Get or create act
+        act, created = OrderCompletionAct.objects.get_or_create(
+            order=order,
+            defaults={
+                'act_number': f"АВР-{order.order_number}",
+                'status': OrderCompletionAct.Status.DRAFT,
+                'created_by': request.user if request.user.is_authenticated else None,
+                'is_active': True
+            }
+        )
+
+        # If act was soft-deleted, reactivate it
+        if not act.is_active:
+            act.is_active = True
+            act.status = OrderCompletionAct.Status.DRAFT
+
+        # Update act with signed file
+        uploaded_file = request.FILES.get('signed_file')
+        if not uploaded_file:
+            return Response(
+                {'error': 'No file provided in request'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        act.signed_file = uploaded_file
+        act.status = OrderCompletionAct.Status.SIGNED
+        act.signed_at = timezone.now()
+        act.signed_file_uploaded_by = request.user if request.user.is_authenticated else None
+
+        # Update notes if provided
+        notes = request.data.get('notes', '')
+        if notes:
+            act.notes = notes
+
+        act.save()
+
+        response_serializer = OrderCompletionActSerializer(act, context={'request': request})
+        return Response({
+            'act': response_serializer.data,
+            'created': created,
+            'message': 'Подписанный АВР успешно загружен'
+        })
+
     @action(detail=True, methods=['post'])
     def change_status(self, request, pk=None):
         """
@@ -323,8 +618,32 @@ class OrderViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
         
-        # Cannot complete if not paid
+        # TODO: Move completed transition validation fully into service layer to avoid duplicated business rules.
+        # Cannot complete if production not done, handover not done, no signed act, or not paid
         if new_status == Order.Status.COMPLETED:
+            if order.production_stage != ProductionStage.DONE:
+                return Response(
+                    {'detail': 'Нельзя завершить заказ: производство не завершено.', 'code': 'production_not_done'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if order.handover_stage not in [HandoverStage.DONE, HandoverStage.NOT_REQUIRED]:
+                return Response(
+                    {'detail': 'Нельзя завершить заказ: установка/выдача не завершена.', 'code': 'handover_not_done'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            # Check for signed completion act
+            try:
+                act = order.completion_act
+                if not act.is_active or act.status != OrderCompletionAct.Status.SIGNED:
+                    return Response(
+                        {'detail': 'Нельзя завершить заказ: требуется подписанный АВР.', 'code': 'signed_act_required'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except OrderCompletionAct.DoesNotExist:
+                return Response(
+                    {'detail': 'Нельзя завершить заказ: требуется подписанный АВР.', 'code': 'act_required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             balance_due = order.total_amount - order.paid_amount
             if balance_due > 0:
                 return Response(

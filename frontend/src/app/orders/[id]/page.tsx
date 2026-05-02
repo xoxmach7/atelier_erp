@@ -25,9 +25,14 @@ import {
   useChangeHandoverStage,
   useCancelOrder,
   useGenerateOrderItems,
+  useOrderPhotoReports,
+  useUploadOrderPhotoReport,
+  useOrderCompletionAct,
+  useCreateOrderCompletionAct,
+  useUploadSignedCompletionAct,
 } from "@/hooks/useOrders";
 import { useCreateMeasurement, useUpdateMeasurement } from "@/hooks/useMeasurements";
-import type { OrderDetailDTO, OrderItemDTO, MeasurementDTO, PaymentDTO, TaskStatus, OrderExecutionDTO, AvailableActionDTO, WarningDTO, OrderStatus, DesignerMeasurementDTO, SelectedMaterialDTO, MaterialRequirementDTO, ProductionItemDTO, ProductionAssignmentDTO } from "@/types";
+import type { OrderDetailDTO, OrderItemDTO, MeasurementDTO, PaymentDTO, TaskStatus, OrderExecutionDTO, AvailableActionDTO, WarningDTO, OrderStatus, DesignerMeasurementDTO, SelectedMaterialDTO, MaterialRequirementDTO, ProductionItemDTO, ProductionAssignmentDTO, PhotoReportDTO, PhotoReportStatus, PhotoReportSummaryDTO, CompletionActStatus, CompletionActSummaryDTO } from "@/types";
 import {
   ArrowLeft,
   Package,
@@ -89,6 +94,21 @@ function getFabricLabel(item: { fabric_name?: string | null; fabric?: string | n
     return item.fabric;
   }
   return null;
+}
+
+// Helper to normalize photo report status from backend
+function normalizePhotoReportStatus(value: unknown): PhotoReportStatus {
+  if (value === 'not_uploaded' || value === 'uploaded') return value;
+  return 'not_available';
+}
+
+// Helper to resolve media URLs - handles both absolute and relative URLs
+function resolveMediaUrl(url?: string | null): string | null {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+  const origin = apiBaseUrl.replace(/\/api\/?$/, '');
+  return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
 function OrderItemRow({ item }: { item: OrderItemDTO }) {
@@ -1475,6 +1495,12 @@ function InstallerHandoverSection({
   warnings,
   orderId,
   onHandoverStageChanged,
+  photoReportStatus,
+  photoReportCount,
+  photoReports,
+  completionActStatus,
+  completionActAvailable,
+  completionAct,
 }: {
   address: {
     city?: string;
@@ -1503,9 +1529,28 @@ function InstallerHandoverSection({
   warnings: WarningDTO[];
   orderId: string;
   onHandoverStageChanged: () => void;
+  photoReportStatus: PhotoReportStatus;
+  photoReportCount: number;
+  photoReports: PhotoReportSummaryDTO[];
+  completionActStatus: CompletionActStatus;
+  completionActAvailable: boolean;
+  completionAct?: CompletionActSummaryDTO;
 }) {
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const photoReportsQuery = useOrderPhotoReports(orderId);
+  const uploadMutation = useUploadOrderPhotoReport(orderId);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [caption, setCaption] = useState('');
   const [error, setError] = useState<string | null>(null);
   const changeStageMutation = useChangeHandoverStage();
+
+  // Completion Act (AVR) hooks
+  const completionActQuery = useOrderCompletionAct(orderId);
+  const createActMutation = useCreateOrderCompletionAct();
+  const uploadActMutation = useUploadSignedCompletionAct();
+  const [actUploadError, setActUploadError] = useState<string | null>(null);
+  const [selectedActFile, setSelectedActFile] = useState<File | null>(null);
+  const [actNotes, setActNotes] = useState('');
 
   const isDone = handoverStage === 'done';
   const isPending = handoverStage === 'pending';
@@ -1692,16 +1737,313 @@ function InstallerHandoverSection({
           </Alert>
         )}
 
-        {/* Placeholders for future features */}
-        <div className="space-y-2 pt-2 border-t border-slate-100">
-          <div className="flex items-center justify-between text-sm text-slate-500">
-            <span>Фотоотчёт:</span>
-            <span className="text-xs px-2 py-0.5 rounded bg-slate-100">Будет следующим этапом</span>
+        {/* Photo Report Section */}
+        <div className="space-y-3 pt-3 border-t border-slate-100">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-700">Фотоотчёт:</span>
+            {photoReportStatus === 'uploaded' ? (
+              <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">
+                Загружено: {photoReportCount}
+              </span>
+            ) : photoReportStatus === 'not_uploaded' ? (
+              <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">
+                Не загружен
+              </span>
+            ) : (
+              <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
+                Недоступен
+              </span>
+            )}
           </div>
-          <div className="flex items-center justify-between text-sm text-slate-500">
-            <span>АВР (акт выполненных работ):</span>
-            <span className="text-xs px-2 py-0.5 rounded bg-slate-100">Будет следующим этапом</span>
+
+          {/* Upload Error */}
+          {uploadError && (
+            <Alert variant="destructive" className="text-sm">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{uploadError}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Photo List */}
+          {photoReports.length > 0 && (
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {photoReports.map((photo) => {
+                const resolvedUrl = resolveMediaUrl(photo.file_url);
+                return (
+                  <div key={photo.id} className="border rounded-lg p-2 space-y-2">
+                    {resolvedUrl ? (
+                      <img
+                        src={resolvedUrl}
+                        alt={photo.caption || 'Фото отчёт'}
+                        className="w-full h-32 object-cover rounded border"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-32 bg-slate-100 rounded flex flex-col items-center justify-center text-slate-400 text-sm border">
+                        <Camera className="h-5 w-5 mb-1" />
+                        <span>Фото недоступно</span>
+                      </div>
+                    )}
+                    {photo.caption && (
+                      <p className="text-xs text-slate-600">{photo.caption}</p>
+                    )}
+                    <div className="flex justify-between text-xs text-slate-500">
+                      <span>{photo.uploaded_by_name || '—'}</span>
+                      <span>{formatDateTime(photo.uploaded_at)}</span>
+                    </div>
+                    {resolvedUrl && (
+                      <a
+                        href={resolvedUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                      >
+                        Открыть фото
+                      </a>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Upload UI - only when handover is done */}
+          {photoReportStatus !== 'not_available' && (
+            <div className="space-y-2">
+              <input
+                id="photo-report-file"
+                name="file"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                className="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              <Textarea
+                id="photo-report-caption"
+                name="caption"
+                placeholder="Комментарий к фото (опционально)"
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                className="text-sm min-h-[60px]"
+              />
+              <Button
+                onClick={async () => {
+                  if (!selectedFile) {
+                    setUploadError('Выберите файл для загрузки');
+                    return;
+                  }
+                  try {
+                    setUploadError(null);
+                    const formData = new FormData();
+                    formData.append('file', selectedFile);
+                    if (caption) formData.append('caption', caption);
+                    await uploadMutation.mutateAsync(formData);
+                    setSelectedFile(null);
+                    setCaption('');
+                    photoReportsQuery.refetch();
+                  } catch (err: unknown) {
+                    const errorData = err as { detail?: string; code?: string };
+                    setUploadError(errorData.detail || 'Ошибка при загрузке фото');
+                  }
+                }}
+                disabled={!selectedFile || uploadMutation.isPending}
+                className="w-full"
+                variant="outline"
+              >
+                {uploadMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Загрузка...
+                  </>
+                ) : (
+                  <>
+                    <Camera className="h-4 w-4 mr-2" />
+                    {photoReports.length > 0 ? 'Добавить ещё фото' : 'Загрузить фото'}
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {photoReportStatus === 'not_available' && (
+            <Alert className="bg-slate-50 border-slate-200 text-sm">
+              <Info className="h-4 w-4 text-slate-600" />
+              <AlertDescription className="text-slate-600">
+                Фотоотчёт доступен после установки / выдачи
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+
+        {/* Completion Act (АВР) Section */}
+        <div className="space-y-3 pt-3 border-t border-slate-100">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-700">АВР (акт выполненных работ):</span>
+            {completionActStatus === 'signed' ? (
+              <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">
+                Подписан
+              </span>
+            ) : completionActStatus === 'draft' ? (
+              <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">
+                Черновик
+              </span>
+            ) : completionActStatus === 'not_available' ? (
+              <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
+                Недоступен
+              </span>
+            ) : (
+              <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
+                Не создан
+              </span>
+            )}
           </div>
+
+          {/* Upload Error */}
+          {actUploadError && (
+            <Alert variant="destructive" className="text-sm">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{actUploadError}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Act Details */}
+          {completionAct && (
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-slate-600">Номер АВР:</span>
+                <span className="font-medium">{completionAct.act_number}</span>
+              </div>
+              {completionAct.signed_file_url && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Подписан:</span>
+                    <span>{formatDateTime(completionAct.signed_at ?? null)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Кем загружен:</span>
+                    <span>{completionAct.signed_file_uploaded_by_name || '—'}</span>
+                  </div>
+                  <a
+                    href={resolveMediaUrl(completionAct.signed_file_url) || '#'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-blue-600 hover:text-blue-800 underline block mt-2"
+                  >
+                    Открыть подписанный АВР
+                  </a>
+                </>
+              )}
+              {completionAct.notes && (
+                <p className="text-xs text-slate-600 mt-2">{completionAct.notes}</p>
+              )}
+            </div>
+          )}
+
+          {/* Create Act Button */}
+          {completionActStatus === 'not_created' && completionActAvailable && (
+            <Button
+              onClick={async () => {
+                try {
+                  setActUploadError(null);
+                  await createActMutation.mutateAsync(orderId);
+                  completionActQuery.refetch();
+                } catch (err: unknown) {
+                  const errorData = err as { detail?: string; code?: string };
+                  setActUploadError(errorData.detail || 'Ошибка при создании АВР');
+                }
+              }}
+              disabled={createActMutation.isPending}
+              className="w-full"
+              variant="outline"
+            >
+              {createActMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Создание...
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Создать АВР
+                </>
+              )}
+            </Button>
+          )}
+
+          {/* Upload Signed Act */}
+          {completionActAvailable && completionActStatus !== 'not_available' && (
+            <div className="space-y-2">
+              <input
+                id="act-file"
+                name="signed_file"
+                type="file"
+                accept=".pdf,image/jpeg,image/png,image/webp"
+                onChange={(e) => setSelectedActFile(e.target.files?.[0] || null)}
+                className="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              <Textarea
+                id="act-notes"
+                name="notes"
+                placeholder="Примечания к АВР (опционально)"
+                value={actNotes}
+                onChange={(e) => setActNotes(e.target.value)}
+                className="text-sm min-h-[60px]"
+              />
+              <Button
+                onClick={async () => {
+                  if (!selectedActFile) {
+                    setActUploadError('Выберите файл для загрузки');
+                    return;
+                  }
+                  try {
+                    setActUploadError(null);
+                    const formData = new FormData();
+                    formData.append('signed_file', selectedActFile);
+                    if (actNotes) formData.append('notes', actNotes);
+                    await uploadActMutation.mutateAsync({ orderId, formData });
+                    setSelectedActFile(null);
+                    setActNotes('');
+                    completionActQuery.refetch();
+                  } catch (err: unknown) {
+                    const errorData = err as { detail?: string; code?: string };
+                    setActUploadError(errorData.detail || 'Ошибка при загрузке АВР');
+                  }
+                }}
+                disabled={!selectedActFile || uploadActMutation.isPending}
+                className="w-full"
+                variant={completionActStatus === 'signed' ? 'outline' : 'default'}
+              >
+                {uploadActMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Загрузка...
+                  </>
+                ) : completionActStatus === 'signed' ? (
+                  <>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Заменить подписанный АВР
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Загрузить подписанный АВР
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {completionActStatus === 'not_available' && (
+            <Alert className="bg-slate-50 border-slate-200 text-sm">
+              <Info className="h-4 w-4 text-slate-600" />
+              <AlertDescription className="text-slate-600">
+                АВР доступен после установки / выдачи
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
 
         {/* Action Buttons */}
@@ -3062,6 +3404,12 @@ export default function OrderDetailPage() {
               warnings={execution.role_sections.installer.warnings}
               orderId={order.id}
               onHandoverStageChanged={refetchExecution}
+              photoReportStatus={normalizePhotoReportStatus(execution.role_sections.installer.photo_report_status)}
+              photoReportCount={execution.role_sections.installer.photo_report_count ?? 0}
+              photoReports={execution.role_sections.installer.photo_reports || []}
+              completionActStatus={execution.role_sections.installer.completion_act_status}
+              completionActAvailable={execution.role_sections.installer.completion_act_available}
+              completionAct={execution.role_sections.installer.completion_act}
             />
           )}
 

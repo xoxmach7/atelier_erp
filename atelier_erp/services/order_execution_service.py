@@ -369,6 +369,64 @@ class OrderExecutionService:
         balance_due = order.total_amount - order.paid_amount
         payment_state = 'paid' if balance_due <= 0 else 'partial' if order.paid_amount > 0 else 'unpaid'
         
+        # Photo report status
+        # Available if: handover_stage == done OR (not_required AND production done)
+        photo_report_count = order.photo_reports.filter(is_active=True).count()
+
+        is_handover_done = order.handover_stage == HandoverStage.DONE
+        is_not_required_with_production_done = (
+            order.handover_stage == HandoverStage.NOT_REQUIRED
+            and order.production_stage == ProductionStage.DONE
+        )
+        photo_report_available = is_handover_done or is_not_required_with_production_done
+
+        if not photo_report_available:
+            photo_report_status = 'not_available'
+        elif photo_report_count == 0:
+            photo_report_status = 'not_uploaded'
+        else:
+            photo_report_status = 'uploaded'
+
+        # Build photo reports list
+        photo_reports = []
+        for pr in order.photo_reports.filter(is_active=True):
+            photo_reports.append({
+                'id': str(pr.id),
+                'file_url': pr.file.url if pr.file else None,
+                'caption': pr.caption,
+                'uploaded_at': pr.created_at,
+                'uploaded_by_name': pr.uploaded_by.get_full_name() if pr.uploaded_by else None,
+            })
+
+        # Completion act (АВР) status - same availability as photo reports
+        completion_act_available = is_handover_done or is_not_required_with_production_done
+
+        completion_act_status = 'not_available'
+        completion_act_data = None
+
+        if completion_act_available:
+            try:
+                act = order.completion_act
+                if act.is_active:
+                    completion_act_status = act.status
+                    completion_act_data = {
+                        'id': str(act.id),
+                        'act_number': act.act_number,
+                        'status': act.status,
+                        'status_label': act.get_status_display(),
+                        'signed_file_url': act.signed_file.url if act.signed_file else None,
+                        'signed_at': act.signed_at,
+                        'signed_file_uploaded_by_name': (
+                            act.signed_file_uploaded_by.get_full_name()
+                            if act.signed_file_uploaded_by else None
+                        ),
+                        'notes': act.notes,
+                    }
+                else:
+                    completion_act_status = 'not_created'
+            except Exception:
+                completion_act_status = 'not_created'
+
         # Build warnings
         warnings = []
         if not order_items and not fallback_items:
@@ -389,7 +447,7 @@ class OrderExecutionService:
                 'message': 'Производство не завершено',
                 'severity': 'warning',
             })
-        
+
         return {
             'address': address,
             'customer': {
@@ -405,9 +463,14 @@ class OrderExecutionService:
             'balance_due': balance_due,
             'payment_state': payment_state,
             'warnings': warnings,
-            # Placeholders for future features
-            'photo_report_status': 'not_implemented',
-            'act_status': 'not_implemented',
+            # Photo report summary
+            'photo_report_status': photo_report_status,
+            'photo_report_count': photo_report_count,
+            'photo_reports': photo_reports,
+            # Completion act (АВР) summary
+            'completion_act_status': completion_act_status,
+            'completion_act_available': completion_act_available,
+            'completion_act': completion_act_data,
         }
     
     def get_available_actions(
@@ -797,11 +860,22 @@ class OrderExecutionService:
             if order.items.count() == 0:
                 blockers.append('Сначала сформируйте позиции заказа из КП')
         
-        # completed requires full payment
+        # completed requires: production done, handover done/not_required, signed act, full payment
         if target_status == Order.Status.COMPLETED:
+            if order.production_stage != ProductionStage.DONE:
+                blockers.append('Производство не завершено')
+            if order.handover_stage not in [HandoverStage.DONE, HandoverStage.NOT_REQUIRED]:
+                blockers.append('Установка/выдача не завершена')
+            # Check for signed completion act
+            try:
+                act = order.completion_act
+                if not act.is_active or act.status != OrderCompletionAct.Status.SIGNED:
+                    blockers.append('Требуется подписанный АВР')
+            except OrderCompletionAct.DoesNotExist:
+                blockers.append('Требуется подписанный АВР')
             if order.paid_amount < order.total_amount:
                 blockers.append(f'Требуется полная оплата. Остаток: {order.total_amount - order.paid_amount}')
-        
+
         return blockers
     
     # ============================================
@@ -928,11 +1002,11 @@ class OrderExecutionService:
         if order.status == Order.Status.COMPLETED:
             raise OrderValidationError("Нельзя изменить этап установки для завершённого заказа.")
         
-        # Cannot set handover done before production is done
-        if handover_stage == HandoverStage.DONE:
+        # Cannot set handover done or not_required before production is done
+        if handover_stage in [HandoverStage.DONE, HandoverStage.NOT_REQUIRED]:
             if order.production_stage != ProductionStage.DONE:
                 raise OrderValidationError(
-                    "Нельзя завершить установку: производство не завершено. "
+                    "Нельзя изменить этап установки: производство не завершено. "
                     "Сначала отметьте производство как готовое."
                 )
         

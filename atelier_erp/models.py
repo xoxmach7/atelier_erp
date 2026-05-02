@@ -589,6 +589,141 @@ class OrderItem(UUIDModel):
         verbose_name_plural = 'Order Items'
 
 
+class PhotoReport(UUIDModel, TimestampedModel):
+    """Photo report for order - execution artifact, not main status"""
+    
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='photo_reports',
+        db_index=True
+    )
+    order_item = models.ForeignKey(
+        OrderItem,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='photo_reports',
+        db_index=True
+    )
+    
+    # File storage
+    file = models.FileField(
+        upload_to='photo_reports/%Y/%m/',
+        help_text='Photo file (jpg/jpeg/png/webp, max 10MB)'
+    )
+    caption = models.TextField(blank=True, help_text='Optional description')
+    
+    # Audit
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='uploaded_photo_reports'
+    )
+    
+    # Soft delete
+    is_active = models.BooleanField(default=True, db_index=True)
+    
+    class Meta:
+        db_table = 'photo_reports'
+        ordering = ['-created_at']
+        indexes = [
+            Index(fields=['order', 'is_active'], name='idx_photoreport_order_active'),
+            Index(fields=['created_at'], name='idx_photoreport_created'),
+        ]
+        verbose_name = 'Photo Report'
+        verbose_name_plural = 'Photo Reports'
+    
+    def __str__(self):
+        return f"PhotoReport {self.id} for Order {self.order_id}"
+
+
+class OrderCompletionAct(UUIDModel, TimestampedModel):
+    """
+    Act of completed work (АВР - Акт выполненных работ).
+    Execution artifact - NOT a replacement for main Order status.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = 'draft', _('Черновик')
+        SIGNED = 'signed', _('Подписан')
+
+    order = models.OneToOneField(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='completion_act',
+        db_index=True
+    )
+
+    act_number = models.CharField(
+        max_length=64,
+        unique=True,
+        db_index=True,
+        help_text='Unique act number, e.g., АВР-О-2026-014'
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        db_index=True
+    )
+
+    # Signed file storage
+    signed_file = models.FileField(
+        upload_to='completion_acts/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text='Signed act file (PDF, JPG, PNG, WebP, max 20MB)'
+    )
+
+    signed_file_uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='uploaded_completion_acts'
+    )
+
+    signed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the act was signed/uploaded'
+    )
+
+    notes = models.TextField(
+        blank=True,
+        help_text='Optional notes about the act'
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+'
+    )
+
+    # Soft delete
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        db_table = 'order_completion_acts'
+        ordering = ['-created_at']
+        indexes = [
+            Index(fields=['order', 'is_active'], name='idx_complact_order_active'),
+            Index(fields=['act_number'], name='idx_complact_number'),
+            Index(fields=['status', 'created_at'], name='idx_complact_status_created'),
+        ]
+        verbose_name = 'Order Completion Act'
+        verbose_name_plural = 'Order Completion Acts'
+
+    def __str__(self):
+        return f"{self.act_number} for Order {self.order.order_number}"
+
+
 class OrderStatusHistory(UUIDModel):
     """Audit trail for order status changes"""
     
