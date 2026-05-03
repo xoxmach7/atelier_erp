@@ -130,15 +130,29 @@ function EstimateContent() {
 
     const newItem: EstimateItem = {
       id: generateId(),
-      name: `Позиция ${room.items.length + 1}`,
+      window_name: `Позиция ${room.items.length + 1}`,
       width_cm: 0,
       height_cm: 0,
+      // Main fabric
       curtain_fabric_id: null,
       curtain_fabric_meters: 0,
       curtain_supply_mode: 'in_stock',
+      // Tulle fabric
       tulle_fabric_id: null,
       tulle_fabric_meters: 0,
       tulle_supply_mode: 'in_stock',
+      // Sewing
+      folds_count: 0,
+      sewing_type: 'standard',
+      complexity: 'medium',
+      sewing_cost: 0,
+      // Cornice
+      cornice_length_m: 0,
+      cornice_cost: 0,
+      // Additional costs
+      installation_price: 0,
+      accessories_cost: 0,
+      additional_services_total: 0,
     };
 
     setProject((prev) => ({
@@ -185,61 +199,61 @@ function EstimateContent() {
       let subtotal = 0;
       const quoteItems: CreateQuoteInput["items"] = [];
       
-      // Map draft rooms/items to QuoteItems
+      // Phase 2: One EstimateItem = One QuoteItem
       project.rooms.forEach((room) => {
         room.items.forEach((item) => {
           const curtainFabric = fabrics.find((f) => f.id === item.curtain_fabric_id);
           const tulleFabric = fabrics.find((f) => f.id === item.tulle_fabric_id);
-          
-          // Calculate costs
-          const fabricCost = curtainFabric 
-            ? parseFloat(curtainFabric.price_per_meter) * item.curtain_fabric_meters 
+
+          // Calculate fabric costs
+          const fabricCost = curtainFabric
+            ? parseFloat(curtainFabric.price_per_meter) * item.curtain_fabric_meters
             : 0;
-          const tulleCost = tulleFabric 
-            ? parseFloat(tulleFabric.price_per_meter) * item.tulle_fabric_meters 
+          const tulleCost = tulleFabric
+            ? parseFloat(tulleFabric.price_per_meter) * item.tulle_fabric_meters
             : 0;
-          
-          // Create QuoteItem for curtain (if fabric selected)
-          if (item.curtain_fabric_id && item.curtain_fabric_meters > 0) {
-            quoteItems.push({
-              room_name: room.name,
-              window_width_cm: item.width_cm,
-              window_height_cm: item.height_cm,
-              folds_count: 0,
-              fabric: item.curtain_fabric_id,
-              fabric_meters: item.curtain_fabric_meters,
-              fabric_cost: fabricCost,
-              supply_mode: item.curtain_supply_mode || 'in_stock',
-              sewing_type: "standard",
-              complexity: "medium",
-              sewing_cost: 0,
-              accessories_cost: 0,
-              cornice: null,
-              cornice_cost: 0,
-            });
-            subtotal += fabricCost;
-          }
-          
-          // Create QuoteItem for tulle (if fabric selected) - separate line item
-          if (item.tulle_fabric_id && item.tulle_fabric_meters > 0) {
-            quoteItems.push({
-              room_name: `${room.name} (Tulle)`,
-              window_width_cm: item.width_cm,
-              window_height_cm: item.height_cm,
-              folds_count: 0,
-              fabric: item.tulle_fabric_id,
-              fabric_meters: item.tulle_fabric_meters,
-              fabric_cost: tulleCost,
-              supply_mode: item.tulle_supply_mode || 'in_stock',
-              sewing_type: "standard",
-              complexity: "medium",
-              sewing_cost: 0,
-              accessories_cost: 0,
-              cornice: null,
-              cornice_cost: 0,
-            });
-            subtotal += tulleCost;
-          }
+
+          // Calculate line_total (matches backend formula)
+          const lineTotal =
+            fabricCost +
+            tulleCost +
+            (item.sewing_cost || 0) +
+            (item.cornice_cost || 0) +
+            (item.installation_price || 0) +
+            (item.accessories_cost || 0) +
+            (item.additional_services_total || 0);
+
+          // Create single QuoteItem with all components
+          quoteItems.push({
+            room_name: room.name,
+            window_name: item.window_name,
+            window_width_cm: item.width_cm,
+            window_height_cm: item.height_cm,
+            folds_count: item.folds_count || 0,
+            // Main fabric
+            fabric: item.curtain_fabric_id || null,
+            fabric_meters: item.curtain_fabric_meters || 0,
+            fabric_cost: fabricCost,
+            // Tulle fabric (now part of same QuoteItem)
+            tulle_fabric: item.tulle_fabric_id || null,
+            tulle_meters: item.tulle_fabric_meters || 0,
+            tulle_cost: tulleCost,
+            // Supply mode (use curtain supply mode as primary)
+            supply_mode: item.curtain_supply_mode || 'in_stock',
+            // Sewing
+            sewing_type: item.sewing_type || 'standard',
+            complexity: item.complexity || 'medium',
+            sewing_cost: item.sewing_cost || 0,
+            // Cornice
+            cornice_length_m: item.cornice_length_m || 0,
+            cornice_cost: item.cornice_cost || 0,
+            // Installation and additional services
+            installation_price: item.installation_price || 0,
+            accessories_cost: item.accessories_cost || 0,
+            additional_services_total: item.additional_services_total || 0,
+          });
+
+          subtotal += lineTotal;
         });
       });
       

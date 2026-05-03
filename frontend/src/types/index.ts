@@ -258,19 +258,35 @@ export type EstimateSupplyMode = 'in_stock' | 'purchase_local' | 'purchase_impor
 
 /**
  * Estimate item - single window/position in a room
- * NOTE: MVP uses manual meters input, no complex formula yet
+ * Phase 2: One EstimateItem = One QuoteItem with full component support
  */
 export interface EstimateItem {
   id: string;
-  name: string; // e.g., "Window 1", "Door curtain"
+  // Room context (passed from parent room)
+  window_name: string; // e.g., "Окно 1", "Дверь", "Балкон"
+  // Dimensions
   width_cm: number;
   height_cm: number;
+  // Main fabric (curtain / портьера)
   curtain_fabric_id: string | null;
   curtain_fabric_meters: number;
-  curtain_supply_mode: EstimateSupplyMode; // How curtain fabric is sourced
+  curtain_supply_mode: EstimateSupplyMode;
+  // Tulle fabric (тюль) - now part of same QuoteItem
   tulle_fabric_id: string | null;
   tulle_fabric_meters: number;
-  tulle_supply_mode: EstimateSupplyMode; // How tulle fabric is sourced
+  tulle_supply_mode: EstimateSupplyMode;
+  // Sewing
+  folds_count: number;
+  sewing_type: string; // "standard" | "european" | "simple"
+  complexity: string; // "simple" | "medium" | "complex" | "premium"
+  sewing_cost: number;
+  // Cornice
+  cornice_length_m: number;
+  cornice_cost: number;
+  // Additional costs
+  installation_price: number;
+  accessories_cost: number;
+  additional_services_total: number;
 }
 
 /**

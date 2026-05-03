@@ -23,7 +23,7 @@ interface EstimateItemRowProps {
 }
 
 export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateItemRowProps) {
-  const { curtainCost, tulleCost, total } = calculateLineTotal(item, fabrics);
+  const { fabricCost, tulleCost, sewingCost, corniceCost, installationPrice, accessoriesCost, additionalServicesTotal, lineTotal } = calculateLineTotal(item, fabrics);
 
   const curtainFabric = fabrics.find((f) => f.id === item.curtain_fabric_id);
   const tulleFabric = fabrics.find((f) => f.id === item.tulle_fabric_id);
@@ -112,11 +112,11 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 grid grid-cols-4 gap-4">
           <div className="space-y-2">
-            <Label className="text-xs">Item name</Label>
+            <Label className="text-xs">Название проёма</Label>
             <Input
-              value={item.name}
-              onChange={(e) => onUpdate({ name: e.target.value })}
-              placeholder="e.g., Window 1"
+              value={item.window_name}
+              onChange={(e) => onUpdate({ window_name: e.target.value })}
+              placeholder="e.g., Окно 1, Дверь"
               className="h-8 text-sm"
             />
           </div>
@@ -141,9 +141,9 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
             />
           </div>
           <div className="space-y-2">
-            <Label className="text-xs">Line Total</Label>
+            <Label className="text-xs">Итого по позиции</Label>
             <div className="h-8 flex items-center font-semibold text-slate-900">
-              {formatCurrency(total)}
+              {formatCurrency(lineTotal)}
             </div>
           </div>
         </div>
@@ -173,7 +173,7 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
               className="h-7 text-sm w-24"
             />
             {curtainFabric && (
-              <span className="text-xs text-slate-500">= {formatCurrency(curtainCost)}</span>
+              <span className="text-xs text-slate-500">= {formatCurrency(fabricCost)}</span>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -291,6 +291,144 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
               <span>{tulleAvailability.text}</span>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Additional Costs Section */}
+      <div className="border-t pt-4 mt-2">
+        <div className="text-xs font-medium text-slate-500 mb-3">Дополнительные расходы</div>
+        <div className="grid grid-cols-4 gap-4">
+          {/* Sewing */}
+          <div className="space-y-2">
+            <Label className="text-xs">Пошив (₸)</Label>
+            <Input
+              type="number"
+              value={item.sewing_cost || ""}
+              onChange={(e) => onUpdate({ sewing_cost: parseFloat(e.target.value) || 0 })}
+              placeholder="0"
+              className="h-7 text-sm"
+            />
+          </div>
+          {/* Cornice */}
+          <div className="space-y-2">
+            <Label className="text-xs">Карниз: длина (м)</Label>
+            <Input
+              type="number"
+              step="0.1"
+              value={item.cornice_length_m || ""}
+              onChange={(e) => onUpdate({ cornice_length_m: parseFloat(e.target.value) || 0 })}
+              placeholder="м"
+              className="h-7 text-sm"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">Карниз: стоимость (₸)</Label>
+            <Input
+              type="number"
+              value={item.cornice_cost || ""}
+              onChange={(e) => onUpdate({ cornice_cost: parseFloat(e.target.value) || 0 })}
+              placeholder="0"
+              className="h-7 text-sm"
+            />
+          </div>
+          {/* Installation */}
+          <div className="space-y-2">
+            <Label className="text-xs">Монтаж (₸)</Label>
+            <Input
+              type="number"
+              value={item.installation_price || ""}
+              onChange={(e) => onUpdate({ installation_price: parseFloat(e.target.value) || 0 })}
+              placeholder="0"
+              className="h-7 text-sm"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-4 mt-3">
+          {/* Accessories */}
+          <div className="space-y-2">
+            <Label className="text-xs">Аксессуары (₸)</Label>
+            <Input
+              type="number"
+              value={item.accessories_cost || ""}
+              onChange={(e) => onUpdate({ accessories_cost: parseFloat(e.target.value) || 0 })}
+              placeholder="0"
+              className="h-7 text-sm"
+            />
+          </div>
+          {/* Additional Services */}
+          <div className="space-y-2">
+            <Label className="text-xs">Доп. услуги (₸)</Label>
+            <Input
+              type="number"
+              value={item.additional_services_total || ""}
+              onChange={(e) => onUpdate({ additional_services_total: parseFloat(e.target.value) || 0 })}
+              placeholder="0"
+              className="h-7 text-sm"
+            />
+          </div>
+          {/* Folds Count */}
+          <div className="space-y-2">
+            <Label className="text-xs">Кол-во складок</Label>
+            <Input
+              type="number"
+              value={item.folds_count || ""}
+              onChange={(e) => onUpdate({ folds_count: parseInt(e.target.value) || 0 })}
+              placeholder="0"
+              className="h-7 text-sm"
+            />
+          </div>
+          {/* Sewing Type */}
+          <div className="space-y-2">
+            <Label className="text-xs">Тип пошива</Label>
+            <Select
+              value={item.sewing_type || 'standard'}
+              onValueChange={(value) => onUpdate({ sewing_type: value })}
+            >
+              <SelectTrigger className="h-7 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="simple">Простой</SelectItem>
+                <SelectItem value="standard">Стандарт</SelectItem>
+                <SelectItem value="european">Европейский</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-4 mt-3">
+          {/* Complexity */}
+          <div className="space-y-2">
+            <Label className="text-xs">Сложность</Label>
+            <Select
+              value={item.complexity || 'medium'}
+              onValueChange={(value) => onUpdate({ complexity: value })}
+            >
+              <SelectTrigger className="h-7 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="simple">Простая</SelectItem>
+                <SelectItem value="medium">Средняя</SelectItem>
+                <SelectItem value="complex">Сложная</SelectItem>
+                <SelectItem value="premium">Премиум</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {/* Cost Breakdown Display */}
+          <div className="col-span-3 space-y-1 text-xs text-slate-500">
+            <div className="flex justify-between">
+              <span>Ткань: {formatCurrency(fabricCost)}</span>
+              <span>Тюль: {formatCurrency(tulleCost)}</span>
+              <span>Пошив: {formatCurrency(sewingCost)}</span>
+              <span>Карниз: {formatCurrency(corniceCost)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Монтаж: {formatCurrency(installationPrice)}</span>
+              <span>Аксессуары: {formatCurrency(accessoriesCost)}</span>
+              <span>Доп. услуги: {formatCurrency(additionalServicesTotal)}</span>
+              <span className="font-semibold text-slate-900">Итого: {formatCurrency(lineTotal)}</span>
+            </div>
+          </div>
         </div>
       </div>
 

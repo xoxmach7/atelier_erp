@@ -18,11 +18,22 @@ export function generateId(): string {
 }
 
 export interface LineTotalResult {
-  curtainCost: number;
+  fabricCost: number;
   tulleCost: number;
-  total: number;
+  sewingCost: number;
+  corniceCost: number;
+  installationPrice: number;
+  accessoriesCost: number;
+  additionalServicesTotal: number;
+  lineTotal: number;
 }
 
+/**
+ * Calculate line total for an EstimateItem
+ * Phase 2: Matches backend formula
+ * line_total = fabric_cost + tulle_cost + sewing_cost + cornice_cost
+ *              + installation_price + accessories_cost + additional_services_total
+ */
 export function calculateLineTotal(
   item: EstimateItem,
   fabrics: FabricDTO[]
@@ -30,17 +41,40 @@ export function calculateLineTotal(
   const curtainFabric = fabrics.find((f) => f.id === item.curtain_fabric_id);
   const tulleFabric = fabrics.find((f) => f.id === item.tulle_fabric_id);
 
-  const curtainCost = curtainFabric
+  // Calculate fabric costs
+  const fabricCost = curtainFabric
     ? parseFloat(curtainFabric.price_per_meter) * item.curtain_fabric_meters
     : 0;
   const tulleCost = tulleFabric
     ? parseFloat(tulleFabric.price_per_meter) * item.tulle_fabric_meters
     : 0;
 
+  // Other costs come directly from item (user input or calculated)
+  const sewingCost = item.sewing_cost || 0;
+  const corniceCost = item.cornice_cost || 0;
+  const installationPrice = item.installation_price || 0;
+  const accessoriesCost = item.accessories_cost || 0;
+  const additionalServicesTotal = item.additional_services_total || 0;
+
+  // Total matches backend line_total formula
+  const lineTotal =
+    fabricCost +
+    tulleCost +
+    sewingCost +
+    corniceCost +
+    installationPrice +
+    accessoriesCost +
+    additionalServicesTotal;
+
   return {
-    curtainCost,
+    fabricCost,
     tulleCost,
-    total: curtainCost + tulleCost,
+    sewingCost,
+    corniceCost,
+    installationPrice,
+    accessoriesCost,
+    additionalServicesTotal,
+    lineTotal,
   };
 }
 
@@ -57,8 +91,8 @@ export function calculateRoomTotal(
   let itemCount = room.items.length;
 
   room.items.forEach((item) => {
-    const { total } = calculateLineTotal(item, fabrics);
-    roomTotal += total;
+    const { lineTotal } = calculateLineTotal(item, fabrics);
+    roomTotal += lineTotal;
   });
 
   return { roomTotal, itemCount };
