@@ -87,12 +87,15 @@ export interface CustomerDetailsDTO {
 
 /**
  * Order item from OrderSerializer items
- * Matches backend OrderItem model
+ * Matches backend OrderItem model with room/window context
  */
 export interface OrderItemDTO {
   id: string;
   item_type: string;
   notes: string;
+  // Room/window context for production clarity
+  room_name?: string;
+  window_name?: string;
   fabric?: string | null;  // May be UUID or object reference
   fabric_name?: string | null;  // Human-readable fabric name
   cornice?: string | null;

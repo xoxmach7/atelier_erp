@@ -64,6 +64,7 @@ export function useQuote(quoteId: string | null) {
 
 /**
  * Hook for creating a new quote
+ * P0: Full component support to prevent data loss
  */
 export interface CreateQuoteInput {
   task?: string;
@@ -78,19 +79,31 @@ export interface CreateQuoteInput {
   prepayment_percent?: number;
   items?: Array<{
     room_name: string;
+    window_name?: string;  // e.g., "Окно 1", "Дверь"
     window_width_cm: number;
     window_height_cm: number;
     folds_count?: number;
+    // Main fabric (curtain / портьера)
     fabric?: string | null;
     fabric_meters?: number;
     fabric_cost?: number;
+    // Tulle fabric (тюль) - P0: prevent data loss
+    tulle_fabric?: string | null;
+    tulle_meters?: number;
+    tulle_cost?: number;
     supply_mode?: "in_stock" | "purchase_local" | "purchase_import" | "client_supplied";
+    // Sewing
     sewing_type?: string;
     complexity?: string;
     sewing_cost?: number;
-    accessories_cost?: number;
+    // Cornice / Curtain rod
     cornice?: string | null;
+    cornice_length_m?: number;
     cornice_cost?: number;
+    // Installation and additional services
+    installation_price?: number;
+    accessories_cost?: number;
+    additional_services_total?: number;
   }>;
 }
 

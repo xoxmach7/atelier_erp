@@ -31,16 +31,18 @@ export type SupplyMode = "in_stock" | "purchase_local" | "purchase_import" | "cl
 
 /**
  * Quote Item DTO - matches backend QuoteItemSerializer
+ * P0: Full component breakdown to prevent data loss
  */
 export interface QuoteItemDTO {
   id: string;
   quote: string; // Quote ID
   room_name: string;
+  window_name: string; // e.g., "Окно 1", "Дверь"
   // Measurements
   window_width_cm: number;
   window_height_cm: number;
   folds_count: number;
-  // Materials
+  // Main fabric (curtain / портьера)
   fabric: string | null; // Fabric ID
   fabric_details?: {
     id: string;
@@ -50,14 +52,22 @@ export interface QuoteItemDTO {
   };
   fabric_meters: number;
   fabric_cost: number;
+  // Tulle fabric (тюль) - P0: prevent data loss
+  tulle_fabric: string | null; // Fabric ID
+  tulle_fabric_details?: {
+    id: string;
+    hanger_number: string;
+    name: string;
+    price_per_meter: number;
+  };
+  tulle_meters: number;
+  tulle_cost: number;
   supply_mode: SupplyMode;
   // Sewing
   sewing_type: string;
   complexity: string; // simple, medium, complex, premium
   sewing_cost: number;
-  // Accessories
-  accessories_cost: number;
-  // Cornice
+  // Cornice / Curtain rod
   cornice: string | null; // Cornice ID
   cornice_details?: {
     id: string;
@@ -65,7 +75,12 @@ export interface QuoteItemDTO {
     name: string;
     price: number;
   };
+  cornice_length_m: number;
   cornice_cost: number;
+  // Installation and additional services
+  installation_price: number;
+  accessories_cost: number;
+  additional_services_total: number;
   // Total
   line_total: number;
   created_at: string;

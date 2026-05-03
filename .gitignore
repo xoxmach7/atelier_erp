@@ -13,6 +13,7 @@ staticfiles/
 .env
 .env.*
 !.env.example
+.env.example
 
 # Python
 *.py[cod]
