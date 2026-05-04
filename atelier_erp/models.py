@@ -841,6 +841,7 @@ class Measurement(UUIDModel):
     obstacles = models.TextField(blank=True)
     
     # Selected materials (pre-order phase)
+    # LEGACY: selected_fabric is legacy; use curtain_fabric for new measurement flow
     selected_fabric = models.ForeignKey(
         Fabric,
         on_delete=models.SET_NULL,
@@ -849,7 +850,27 @@ class Measurement(UUIDModel):
         related_name='measurement_selections'
     )
     selected_cornice_type = models.CharField(max_length=100, blank=True)
-    
+
+    # Phase 3: Separate curtain and tulle fabrics with meters
+    # Measurement = what selected and how much needed (no prices)
+    curtain_fabric = models.ForeignKey(
+        Fabric,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='curtain_measurements'
+    )
+    curtain_meters = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('0'))
+
+    tulle_fabric = models.ForeignKey(
+        Fabric,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tulle_measurements'
+    )
+    tulle_meters = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('0'))
+
     notes = models.TextField(blank=True)
     measured_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     measured_at = models.DateTimeField(auto_now_add=True, db_index=True)

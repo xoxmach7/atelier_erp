@@ -409,6 +409,7 @@ export interface ExecutionCustomerDTO {
 
 /**
  * Designer/Measurer measurement from execution endpoint
+ * Phase 3: Includes curtain and tulle fabrics with meters
  */
 export interface DesignerMeasurementDTO {
   id: string;
@@ -417,14 +418,17 @@ export interface DesignerMeasurementDTO {
   width_cm: number;
   height_cm: number;
   mounting_type?: string;
-  // Extended fields (may come from backend in future)
+  // Extended fields
   depth_cm?: number | null;
-  window_type?: string;
-  has_radiator?: boolean;
-  has_slope?: boolean;
-  obstacles?: string;
+  // Phase 3: Curtain and tulle fabrics with meters
+  curtain_fabric?: string | null;
+  curtain_fabric_name?: string | null;
+  curtain_meters?: number;
+  tulle_fabric?: string | null;
+  tulle_fabric_name?: string | null;
+  tulle_meters?: number;
+  // Legacy fields
   selected_fabric?: string | null;
-  selected_cornice_type?: string;
   notes?: string;
 }
 
@@ -433,8 +437,11 @@ export interface DesignerMeasurementDTO {
  */
 export interface SelectedMaterialDTO {
   room?: string | null;
-  fabric?: string | null;
+  // Phase 3: Curtain and tulle fabrics with meters
+  fabric?: string | null;  // Main curtain fabric
   fabric_meters?: number | string | null;
+  tulle_fabric?: string | null;
+  tulle_meters?: number | string | null;
   sewing_type?: string | null;
   supply_mode?: string | null;
 }

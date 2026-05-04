@@ -32,6 +32,7 @@ import {
   useUploadSignedCompletionAct,
 } from "@/hooks/useOrders";
 import { useCreateMeasurement, useUpdateMeasurement } from "@/hooks/useMeasurements";
+import { useFabrics } from "@/hooks/useFabrics";
 import type { OrderDetailDTO, OrderItemDTO, MeasurementDTO, PaymentDTO, TaskStatus, OrderExecutionDTO, AvailableActionDTO, WarningDTO, OrderStatus, DesignerMeasurementDTO, SelectedMaterialDTO, MaterialRequirementDTO, ProductionItemDTO, ProductionAssignmentDTO, PhotoReportDTO, PhotoReportStatus, PhotoReportSummaryDTO, CompletionActStatus, CompletionActSummaryDTO } from "@/types";
 import {
   ArrowLeft,
@@ -453,7 +454,7 @@ function OrderMetadata({ order }: { order: OrderDetailDTO }) {
 }
 
 /**
- * Measurements Section - Shows related measurements for this order
+ * Measurements Section - Sheber Design
  */
 function MeasurementsSection({ orderId, measurements }: { orderId: string; measurements: MeasurementDTO[] }) {
   // Check if orderId is valid (not a placeholder)
@@ -461,17 +462,22 @@ function MeasurementsSection({ orderId, measurements }: { orderId: string; measu
   const measurementsHref = isValidOrderId ? `/measurements?order=${orderId}` : "/measurements";
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
+    <Card className="bg-[var(--card-sheber)] border-[var(--border-sheber)] shadow-[var(--sh)]">
+      <CardHeader className="pb-3 border-b border-[var(--borderl)]">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Ruler className="h-4 w-4" />
+          <CardTitle className="text-base flex items-center gap-2 text-[var(--t1)]">
+            <Ruler className="h-4 w-4 text-[var(--a)]" />
             Замеры
             {measurements.length > 0 && (
-              <span className="text-sm font-normal text-slate-500">({measurements.length})</span>
+              <span className="text-sm font-normal text-[var(--t3)]">({measurements.length})</span>
             )}
           </CardTitle>
-          <Button variant="ghost" size="sm" asChild>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            asChild
+            className="text-[var(--a)] hover:bg-[var(--al)] hover:text-[var(--ad)]"
+          >
             <Link href={measurementsHref}>
               <Plus className="h-4 w-4 mr-1" />
               Добавить
@@ -479,33 +485,82 @@ function MeasurementsSection({ orderId, measurements }: { orderId: string; measu
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-4">
         {measurements.length === 0 ? (
-          <div className="text-sm text-slate-500">
+          <div className="text-sm text-[var(--t2)]">
             Замеры не записаны.
-            <Link href={measurementsHref} className="ml-2 text-blue-600 hover:underline">
+            <Link 
+              href={measurementsHref} 
+              className="ml-2 text-[var(--a)] hover:text-[var(--ad)] hover:underline"
+            >
               Создать замер
             </Link>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {measurements.slice(0, 3).map((m) => (
-              <div key={m.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                <div>
-                  <div className="font-medium">{m.room_name}</div>
-                  <div className="text-xs text-slate-500">
-                    {m.width_cm}×{m.height_cm} cm • {m.mounting_type || "Без крепления"}
+              <div 
+                key={m.id} 
+                className="p-3 rounded-[var(--r)] bg-[var(--bg)] border border-[var(--borderl)]"
+              >
+                {/* Header: Room / Window */}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="font-medium text-[var(--t1)]">
+                    {m.room_name} / {m.window_name || 'Окно'}
+                  </div>
+                  <div className="text-xs text-[var(--t3)]">
+                    {m.width_cm}×{m.height_cm} см
                   </div>
                 </div>
-                <div className="text-xs text-slate-400">
-                  {formatDate(m.measured_at)}
+
+                {/* Fabrics */}
+                <div className="space-y-1 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[var(--t3)]">Шторы:</span>
+                    <span className="text-[var(--t1)]">
+                      {m.curtain_fabric_details?.name || m.curtain_fabric_name || 'не указана'}
+                    </span>
+                    {(m.curtain_meters && m.curtain_meters > 0) && (
+                      <span className="text-xs text-[var(--t2)] bg-[var(--card-sheber)] px-1.5 py-0.5 rounded">
+                        {m.curtain_meters} м
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[var(--t3)]">Тюль:</span>
+                    <span className="text-[var(--t1)]">
+                      {m.tulle_fabric_details?.name || m.tulle_fabric_name || 'не указана'}
+                    </span>
+                    {(m.tulle_meters && m.tulle_meters > 0) && (
+                      <span className="text-xs text-[var(--t2)] bg-[var(--card-sheber)] px-1.5 py-0.5 rounded">
+                        {m.tulle_meters} м
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Mounting & Notes */}
+                <div className="mt-2 pt-2 border-t border-[var(--borderl)] flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    {m.mounting_type && (
+                      <span className="text-[var(--t3)] bg-[var(--card-sheber)] px-2 py-0.5 rounded-full">
+                        {m.mounting_type}
+                      </span>
+                    )}
+                    {m.notes && (
+                      <span className="text-[var(--t3)] truncate max-w-[150px]">
+                        {m.notes}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[var(--t3)]">{formatDate(m.measured_at)}</span>
                 </div>
               </div>
             ))}
             {measurements.length > 3 && (
               <Link 
                 href={measurementsHref}
-                className="text-sm text-blue-600 hover:underline block pt-2"
+                className="text-sm text-[var(--a)] hover:text-[var(--ad)] hover:underline block pt-2"
               >
                 Смотреть все {measurements.length} замеров →
               </Link>
@@ -961,7 +1016,7 @@ function AvailableActionsPanel({
 }
 
 /**
- * Designer/Measurer Section - Shows measurements and materials for designer role
+ * Designer/Measurer Section - Sheber Design
  */
 function DesignerMeasurerSection({
   measurements,
@@ -1006,12 +1061,17 @@ function DesignerMeasurerSection({
         depth_cm: data.depth_cm || null,
         ceiling_height_cm: null,
         mounting_type: data.mounting_type || '',
-        window_type: data.window_type || '',
+        window_type: '',
         has_radiator: false,
         has_slope: false,
         obstacles: '',
-        selected_fabric: data.selected_fabric || null,
+        selected_fabric: null,
         selected_cornice_type: '',
+        // Phase 3: New fabric fields
+        curtain_fabric: data.curtain_fabric || null,
+        curtain_meters: data.curtain_meters || 0,
+        tulle_fabric: data.tulle_fabric || null,
+        tulle_meters: data.tulle_meters || 0,
         notes: data.notes || '',
         measured_by: null,
       });
@@ -1036,8 +1096,13 @@ function DesignerMeasurerSection({
           height_cm: data.height_cm,
           depth_cm: data.depth_cm || null,
           mounting_type: data.mounting_type || '',
-          window_type: data.window_type || '',
-          selected_fabric: data.selected_fabric || null,
+          window_type: '',
+          selected_fabric: null,
+          // Phase 3: New fabric fields
+          curtain_fabric: data.curtain_fabric || null,
+          curtain_meters: data.curtain_meters || 0,
+          tulle_fabric: data.tulle_fabric || null,
+          tulle_meters: data.tulle_meters || 0,
           notes: data.notes || '',
         },
       });
@@ -1051,29 +1116,34 @@ function DesignerMeasurerSection({
   };
 
   return (
-    <Card className="border-l-4 border-l-purple-500">
-      <CardHeader className="pb-3">
+    <Card className="bg-[var(--card-sheber)] border-[var(--border-sheber)] shadow-[var(--sh)]">
+      <CardHeader className="pb-3 border-b border-[var(--borderl)]">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Ruler className="h-4 w-4" />
+          <CardTitle className="text-base flex items-center gap-2 text-[var(--t1)]">
+            <Ruler className="h-4 w-4 text-[var(--a)]" />
             Замеры и изделия
           </CardTitle>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-[var(--t3)]">
               {roomsCount} комнат, {windowsCount} окон
             </span>
-            <Button variant="outline" size="sm" onClick={() => setIsCreateOpen(true)}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsCreateOpen(true)}
+              className="border-[var(--a)] text-[var(--a)] hover:bg-[var(--al)] hover:text-[var(--ad)]"
+            >
               <Plus className="h-4 w-4 mr-1" />
               Добавить
             </Button>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 pt-4">
         {successMessage && (
-          <Alert className="bg-green-50 border-green-200">
-            <CheckCircle className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-700">{successMessage}</AlertDescription>
+          <Alert className="bg-[var(--al)] border-[var(--a)]/20">
+            <CheckCircle className="h-4 w-4 text-[var(--a)]" />
+            <AlertDescription className="text-[var(--ad)]">{successMessage}</AlertDescription>
           </Alert>
         )}
 
@@ -1081,7 +1151,7 @@ function DesignerMeasurerSection({
           <EmptyState
             title="Нет замеров"
             description="Добавьте замеры для окон"
-            icon={<Ruler className="h-6 w-6 text-slate-400" />}
+            icon={<Ruler className="h-6 w-6 text-[var(--t3)]" />}
             action={{
               label: 'Добавить замер',
               onClick: () => setIsCreateOpen(true),
@@ -1090,35 +1160,70 @@ function DesignerMeasurerSection({
         ) : (
           <div className="space-y-4">
             {Object.entries(measurementsByRoom).map(([roomName, roomMeasurements]) => (
-              <div key={roomName} className="border rounded-lg p-3">
-                <h4 className="font-medium text-slate-900 mb-2">{roomName}</h4>
+              <div 
+                key={roomName} 
+                className="p-3 bg-[var(--bg)] rounded-[var(--rl)] border border-[var(--borderl)]"
+              >
+                <h4 className="font-medium text-[var(--t1)] mb-3 pb-2 border-b border-[var(--borderl)]">{roomName}</h4>
                 <div className="space-y-2">
                   {roomMeasurements.map((m) => (
                     <div
                       key={m.id}
-                      className="flex items-center justify-between p-2 bg-slate-50 rounded hover:bg-slate-100 transition-colors"
+                      className="flex items-center justify-between p-3 bg-[var(--card-sheber)] rounded-[var(--r)] border border-[var(--border-sheber)] hover:shadow-[var(--sh)] transition-shadow"
                     >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm">{m.window_name || 'Окно'}</span>
-                          <span className="text-xs text-slate-500">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-sm text-[var(--t1)]">{m.window_name || 'Окно'}</span>
+                          <span className="text-xs text-[var(--t3)]">
                             {m.width_cm}×{m.height_cm} см
                             {m.depth_cm && ` × ${m.depth_cm} см`}
                           </span>
                         </div>
-                        {m.mounting_type && (
-                          <span className="text-xs text-slate-500">{m.mounting_type}</span>
-                        )}
-                        {m.notes && (
-                          <div className="text-xs text-slate-400 mt-1 truncate max-w-xs">
-                            {m.notes}
+                        {/* Phase 3: Display fabric data */}
+                        <div className="space-y-1 text-sm">
+                          {/* Curtain fabric */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[var(--t3)]">Шторы:</span>
+                            <span className="text-[var(--t1)] truncate">
+                              {m.curtain_fabric_name || 'не указана'}
+                            </span>
+                            {(m.curtain_meters && m.curtain_meters > 0) && (
+                              <span className="text-xs text-[var(--t2)] bg-[var(--bg)] px-1.5 py-0.5 rounded">
+                                {m.curtain_meters} м
+                              </span>
+                            )}
                           </div>
-                        )}
+                          {/* Tulle fabric */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[var(--t3)]">Тюль:</span>
+                            <span className="text-[var(--t1)] truncate">
+                              {m.tulle_fabric_name || 'не указана'}
+                            </span>
+                            {(m.tulle_meters && m.tulle_meters > 0) && (
+                              <span className="text-xs text-[var(--t2)] bg-[var(--bg)] px-1.5 py-0.5 rounded">
+                                {m.tulle_meters} м
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2 text-xs">
+                          {m.mounting_type && (
+                            <span className="text-[var(--t3)] bg-[var(--bg)] px-2 py-0.5 rounded-full">
+                              {m.mounting_type}
+                            </span>
+                          )}
+                          {m.notes && (
+                            <span className="text-[var(--t3)] truncate max-w-[150px]">
+                              {m.notes}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setEditingMeasurement(m)}
+                        className="text-[var(--t3)] hover:text-[var(--a)] hover:bg-[var(--al)]"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -1133,13 +1238,26 @@ function DesignerMeasurerSection({
         {selectedMaterials.length > 0 && (
           <div className="pt-3 border-t">
             <h4 className="text-sm font-medium text-slate-900 mb-2">Выбранные материалы (из КП)</h4>
-            <div className="space-y-1">
+            <div className="space-y-2">
               {selectedMaterials.map((mat, i) => (
-                <div key={i} className="text-sm flex justify-between">
-                  <span>{mat.room || '—'}: {mat.fabric || '—'}</span>
-                  {mat.fabric_meters && (
-                    <span className="text-slate-500">{mat.fabric_meters} м</span>
-                  )}
+                <div key={i} className="text-sm">
+                  <div className="font-medium">{mat.room || '—'}</div>
+                  <div className="space-y-0.5 text-xs text-slate-600">
+                    {/* Curtain fabric */}
+                    <div className="flex justify-between">
+                      <span>Шторы: {mat.fabric || 'не указана'}</span>
+                      {mat.fabric_meters && (
+                        <span className="text-slate-500">{mat.fabric_meters} м</span>
+                      )}
+                    </div>
+                    {/* Tulle fabric */}
+                    <div className="flex justify-between">
+                      <span>Тюль: {mat.tulle_fabric || 'не указана'}</span>
+                      {mat.tulle_meters && (
+                        <span className="text-slate-500">{mat.tulle_meters} м</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1169,8 +1287,11 @@ function DesignerMeasurerSection({
             height_cm: editingMeasurement.height_cm,
             depth_cm: editingMeasurement.depth_cm || undefined,
             mounting_type: editingMeasurement.mounting_type,
-            window_type: editingMeasurement.window_type,
-            selected_fabric: editingMeasurement.selected_fabric || undefined,
+            // Phase 3: Fabric fields
+            curtain_fabric: editingMeasurement.curtain_fabric,
+            curtain_meters: editingMeasurement.curtain_meters,
+            tulle_fabric: editingMeasurement.tulle_fabric,
+            tulle_meters: editingMeasurement.tulle_meters,
             notes: editingMeasurement.notes,
           }}
         />
@@ -1179,6 +1300,7 @@ function DesignerMeasurerSection({
   );
 }
 
+// Phase 3: Measurement form data with curtain and tulle fabrics
 type MeasurementFormData = {
   room_name: string;
   window_name?: string;
@@ -1186,9 +1308,14 @@ type MeasurementFormData = {
   height_cm: number;
   depth_cm?: number;
   mounting_type?: string;
-  window_type?: string;
+  // Phase 3: Curtain and tulle fabrics with meters
+  curtain_fabric?: string | null;
+  curtain_meters?: number;
+  tulle_fabric?: string | null;
+  tulle_meters?: number;
+  // Legacy fields (kept for compatibility)
   selected_fabric?: string | null;
-  fabric_comment?: string; // MVP: temporary field for fabric text, merged into notes
+  fabric_comment?: string;
   notes?: string;
 };
 
@@ -2777,7 +2904,7 @@ function ProductionSewingSection({
 }
 
 /**
- * Measurement Form Modal
+ * Measurement Form Modal - Sheber Design
  */
 function MeasurementModal({
   isOpen,
@@ -2792,6 +2919,7 @@ function MeasurementModal({
   title: string;
   initialData?: Partial<MeasurementFormData>;
 }) {
+  // Phase 3: Form with curtain and tulle fabrics
   const [formData, setFormData] = useState<MeasurementFormData>({
     room_name: initialData?.room_name || '',
     window_name: initialData?.window_name || '',
@@ -2799,102 +2927,178 @@ function MeasurementModal({
     height_cm: initialData?.height_cm || 0,
     depth_cm: initialData?.depth_cm,
     mounting_type: initialData?.mounting_type || '',
-    window_type: initialData?.window_type || '',
-    fabric_comment: '', // MVP: fabric selection from catalog not implemented
+    // Phase 3: Fabric fields
+    curtain_fabric: initialData?.curtain_fabric || null,
+    curtain_meters: initialData?.curtain_meters || 0,
+    tulle_fabric: initialData?.tulle_fabric || null,
+    tulle_meters: initialData?.tulle_meters || 0,
     notes: initialData?.notes || '',
   });
+
+  // Fetch fabrics for selection
+  const { data: fabricsData } = useFabrics({ pageSize: 100 });
+  const fabrics = fabricsData?.results || [];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.room_name || formData.width_cm <= 0 || formData.height_cm <= 0) {
       return;
     }
-    // MVP: selected_fabric must be UUID or null, never free text
-    // Fabric comment is merged into notes
-    const mergedNotes = formData.fabric_comment
-      ? `Ткань: ${formData.fabric_comment}${formData.notes ? '\n' + formData.notes : ''}`
-      : formData.notes;
+    // Phase 3: Submit with fabric fields
     onSubmit({
       ...formData,
-      selected_fabric: null, // Always null for MVP
-      notes: mergedNotes,
+      selected_fabric: null, // Legacy field - always null
     });
   };
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent className="sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>{title}</SheetTitle>
+      <SheetContent 
+        className="sm:max-w-lg bg-[var(--card-sheber)] border-[var(--border-sheber)]"
+        style={{ borderRadius: 'var(--rl)' }}
+      >
+        <SheetHeader className="pb-4 border-b border-[var(--border-sheber)]">
+          <SheetTitle className="text-[var(--t1)] text-lg font-semibold">{title}</SheetTitle>
         </SheetHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Комната *</label>
-            <input
-              type="text"
-              value={formData.room_name}
-              onChange={(e) => setFormData({ ...formData, room_name: e.target.value })}
-              className="w-full px-3 py-2 border rounded-md text-sm"
-              placeholder="Например: Гостиная"
-              required
-            />
+        <form onSubmit={handleSubmit} className="space-y-4 py-5">
+          {/* Room & Window in one row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Комната *</label>
+              <input
+                type="text"
+                value={formData.room_name}
+                onChange={(e) => setFormData({ ...formData, room_name: e.target.value })}
+                className="w-full px-3 py-2 text-sm bg-[var(--input-bg)] border border-[var(--border-sheber)] rounded-[var(--r)] text-[var(--t1)] placeholder:text-[var(--t3)] focus:outline-none focus:ring-2 focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
+                placeholder="Гостиная"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Окно / изделие *</label>
+              <input
+                type="text"
+                value={formData.window_name}
+                onChange={(e) => setFormData({ ...formData, window_name: e.target.value })}
+                className="w-full px-3 py-2 text-sm bg-[var(--input-bg)] border border-[var(--border-sheber)] rounded-[var(--r)] text-[var(--t1)] placeholder:text-[var(--t3)] focus:outline-none focus:ring-2 focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
+                placeholder="Окно 1"
+                required
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Окно / изделие</label>
-            <input
-              type="text"
-              value={formData.window_name}
-              onChange={(e) => setFormData({ ...formData, window_name: e.target.value })}
-              className="w-full px-3 py-2 border rounded-md text-sm"
-              placeholder="Например: Окно 1"
-            />
-          </div>
-
+          {/* Dimensions in one row */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Ширина (см) *</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Ширина (см) *</label>
               <input
                 type="number"
                 value={formData.width_cm || ''}
                 onChange={(e) => setFormData({ ...formData, width_cm: parseInt(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border rounded-md text-sm"
+                className="w-full px-3 py-2 text-sm bg-[var(--input-bg)] border border-[var(--border-sheber)] rounded-[var(--r)] text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
                 min={1}
                 max={1000}
                 required
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Высота (см) *</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Высота (см) *</label>
               <input
                 type="number"
                 value={formData.height_cm || ''}
                 onChange={(e) => setFormData({ ...formData, height_cm: parseInt(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border rounded-md text-sm"
+                className="w-full px-3 py-2 text-sm bg-[var(--input-bg)] border border-[var(--border-sheber)] rounded-[var(--r)] text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
                 min={1}
                 max={500}
                 required
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Глубина (см)</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Глубина (см)</label>
               <input
                 type="number"
                 value={formData.depth_cm || ''}
                 onChange={(e) => setFormData({ ...formData, depth_cm: parseInt(e.target.value) || undefined })}
-                className="w-full px-3 py-2 border rounded-md text-sm"
+                className="w-full px-3 py-2 text-sm bg-[var(--input-bg)] border border-[var(--border-sheber)] rounded-[var(--r)] text-[var(--t1)] placeholder:text-[var(--t3)] focus:outline-none focus:ring-2 focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
                 min={0}
                 max={100}
+                placeholder="—"
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Тип крепления</label>
+          {/* Curtain Fabric + Meters in one row */}
+          <div className="space-y-2 p-3 bg-[var(--bg)] rounded-[var(--rl)] border border-[var(--borderl)]">
+            <div className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Ткань штор + метры</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-[var(--t3)]">Ткань</label>
+                <select
+                  value={formData.curtain_fabric || "__none__"}
+                  onChange={(e) => setFormData({ ...formData, curtain_fabric: e.target.value === "__none__" ? null : e.target.value })}
+                  className="w-full px-3 py-2 text-sm bg-[var(--card-sheber)] border border-[var(--border-sheber)] rounded-[var(--r)] text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
+                >
+                  <option value="__none__">Не выбрана</option>
+                  {fabrics.map((fabric) => (
+                    <option key={fabric.id} value={fabric.id}>
+                      {fabric.hanger_number} — {fabric.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-[var(--t3)]">Метры</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={formData.curtain_meters || ''}
+                  onChange={(e) => setFormData({ ...formData, curtain_meters: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 text-sm bg-[var(--card-sheber)] border border-[var(--border-sheber)] rounded-[var(--r)] text-[var(--t1)] placeholder:text-[var(--t3)] focus:outline-none focus:ring-2 focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Tulle Fabric + Meters in one row */}
+          <div className="space-y-2 p-3 bg-[var(--bg)] rounded-[var(--rl)] border border-[var(--borderl)]">
+            <div className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Ткань тюля + метры</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-[var(--t3)]">Ткань</label>
+                <select
+                  value={formData.tulle_fabric || "__none__"}
+                  onChange={(e) => setFormData({ ...formData, tulle_fabric: e.target.value === "__none__" ? null : e.target.value })}
+                  className="w-full px-3 py-2 text-sm bg-[var(--card-sheber)] border border-[var(--border-sheber)] rounded-[var(--r)] text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
+                >
+                  <option value="__none__">Не выбрана</option>
+                  {fabrics.map((fabric) => (
+                    <option key={fabric.id} value={fabric.id}>
+                      {fabric.hanger_number} — {fabric.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-[var(--t3)]">Метры</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={formData.tulle_meters || ''}
+                  onChange={(e) => setFormData({ ...formData, tulle_meters: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 text-sm bg-[var(--card-sheber)] border border-[var(--border-sheber)] rounded-[var(--r)] text-[var(--t1)] placeholder:text-[var(--t3)] focus:outline-none focus:ring-2 focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Тип крепления</label>
             <select
               value={formData.mounting_type}
               onChange={(e) => setFormData({ ...formData, mounting_type: e.target.value })}
-              className="w-full px-3 py-2 border rounded-md text-sm"
+              className="w-full px-3 py-2 text-sm bg-[var(--input-bg)] border border-[var(--border-sheber)] rounded-[var(--r)] text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
             >
               <option value="">—</option>
               <option value="ceiling">Потолок</option>
@@ -2904,46 +3108,32 @@ function MeasurementModal({
             </select>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Тип окна</label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Примечание</label>
             <input
               type="text"
-              value={formData.window_type}
-              onChange={(e) => setFormData({ ...formData, window_type: e.target.value })}
-              className="w-full px-3 py-2 border rounded-md text-sm"
-              placeholder="Например: Панорамное"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Комментарий по ткани</label>
-            <input
-              type="text"
-              value={formData.fabric_comment || ''}
-              onChange={(e) => setFormData({ ...formData, fabric_comment: e.target.value })}
-              className="w-full px-3 py-2 border rounded-md text-sm"
-              placeholder="Например: тестовая ткань"
-            />
-            <p className="text-xs text-slate-500">
-              Выбор ткани из справочника будет доступен позже
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Примечания</label>
-            <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 border rounded-md text-sm min-h-20"
-              placeholder="Особенности, препятствия..."
+              className="w-full px-3 py-2 text-sm bg-[var(--input-bg)] border border-[var(--border-sheber)] rounded-[var(--r)] text-[var(--t1)] placeholder:text-[var(--t3)] focus:outline-none focus:ring-2 focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
+              placeholder="Дополнительные детали..."
             />
           </div>
 
-          <SheetFooter className="flex-col sm:flex-row gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+          <SheetFooter className="flex-col sm:flex-row gap-2 pt-5 border-t border-[var(--border-sheber)]">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onClose}
+              className="border-[var(--border-sheber)] text-[var(--t2)] hover:bg-[var(--bg)] hover:text-[var(--t1)]"
+            >
               Отмена
             </Button>
-            <Button type="submit">Сохранить</Button>
+            <Button 
+              type="submit"
+              className="bg-[var(--a)] hover:bg-[var(--ad)] text-white"
+            >
+              Сохранить
+            </Button>
           </SheetFooter>
         </form>
       </SheetContent>

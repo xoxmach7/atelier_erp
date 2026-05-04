@@ -1,0 +1,293 @@
+{
+  "meta": {
+    "project": "Sheber ERP / Atelier Management",
+    "version": "1.0.0",
+    "fonts": {
+      "primary": "TT Norms Pro",
+      "fallback": "DM Sans, -apple-system, Helvetica Neue, sans-serif"
+    }
+  },
+
+  "color": {
+    "accent": {
+      "default":  "#0EA5E9",
+      "dark":     "#0284C7",
+      "darker":   "#0369A1",
+      "light":    "#E0F2FE",
+      "mid":      "#BAE6FD"
+    },
+    "background": {
+      "page":     "#F0F4F8",
+      "card":     "#FFFFFF",
+      "input":    "#F8FAFC",
+      "inputAlt": "#E9E9E9"
+    },
+    "border": {
+      "default":  "#E2E8F0",
+      "light":    "#F1F5F9"
+    },
+    "text": {
+      "primary":   "#0F172A",
+      "secondary": "#475569",
+      "tertiary":  "#94A3B8"
+    },
+    "status": {
+      "success":        "#16A34A",
+      "successBg":      "#DCFCE7",
+      "successBorder":  "#BBF7D0",
+      "warning":        "#D97706",
+      "warningBg":      "#FEF3C7",
+      "warningBorder":  "#FDE68A",
+      "danger":         "#DC2626",
+      "dangerBg":       "#FEE2E2",
+      "dangerBorder":   "#FECACA",
+      "purple":         "#7C3AED",
+      "purpleBg":       "#EDE9FE"
+    },
+    "badge": {
+      "new":           { "bg": "#E0F2FE", "text": "#0369A1" },
+      "inWork":        { "bg": "#DBEAFE", "text": "#1D4ED8" },
+      "inProduction":  { "bg": "#EDE9FE", "text": "#6D28D9" },
+      "ready":         { "bg": "#DCFCE7", "text": "#15803D" },
+      "installation":  { "bg": "#E0E7FF", "text": "#3730A3" },
+      "awaitPayment":  { "bg": "#FEF3C7", "text": "#B45309" },
+      "completed":     { "bg": "#D1FAE5", "text": "#065F46" },
+      "cancelled":     { "bg": "#FEE2E2", "text": "#B91C1C" },
+      "matNotReady":   { "bg": "#FEE2E2", "text": "#B91C1C" },
+      "matPartial":    { "bg": "#FEF3C7", "text": "#B45309" },
+      "matReady":      { "bg": "#DCFCE7", "text": "#15803D" },
+      "overdue":       { "bg": "#FEE2E2", "text": "#B91C1C", "border": "#FECACA" },
+      "draft":         { "bg": "#F1F5F9", "text": "#475569" }
+    },
+    "role": {
+      "admin":     "#0EA5E9",
+      "designer":  "#7C3AED",
+      "sewing":    "#16A34A",
+      "warehouse": "#D97706",
+      "installer": "#3730A3"
+    },
+    "statusDot": {
+      "ok":      { "fill": "#16A34A", "ring": "#DCFCE7" },
+      "warning": { "fill": "#F59E0B", "ring": "#FEF3C7" },
+      "problem": { "fill": "#DC2626", "ring": "#FEE2E2" },
+      "gray":    { "fill": "#94A3B8", "ring": "#F1F5F9" }
+    }
+  },
+
+  "typography": {
+    "heading40": { "size": "40px", "weight": 400, "lineHeight": "150%", "letterSpacing": "0%" },
+    "title18":   { "size": "18px", "weight": 600, "lineHeight": "140%" },
+    "title17":   { "size": "17px", "weight": 700, "lineHeight": "140%" },
+    "subtitle15":{ "size": "15px", "weight": 500, "lineHeight": "140%" },
+    "body14":    { "size": "14px", "weight": 400, "lineHeight": "150%" },
+    "body13":    { "size": "13px", "weight": 400, "lineHeight": "150%" },
+    "caption12": { "size": "12px", "weight": 400, "lineHeight": "150%", "color": "#475569" },
+    "tiny11":    { "size": "11px", "weight": 400, "lineHeight": "150%", "color": "#94A3B8" },
+    "label10":   { "size": "10px", "weight": 700, "lineHeight": "150%", "letterSpacing": "0.08em", "textTransform": "uppercase" }
+  },
+
+  "spacing": {
+    "0":  "0px",
+    "1":  "4px",
+    "2":  "6px",
+    "3":  "8px",
+    "4":  "10px",
+    "5":  "12px",
+    "6":  "14px",
+    "7":  "16px",
+    "8":  "18px",
+    "9":  "20px",
+    "10": "24px",
+    "12": "32px",
+    "16": "48px"
+  },
+
+  "borderRadius": {
+    "sm":   "6px",
+    "md":   "10px",
+    "lg":   "14px",
+    "xl":   "16px",
+    "full": "9999px"
+  },
+
+  "shadow": {
+    "sm":  "0 1px 3px rgba(15,23,42,.07), 0 1px 2px rgba(15,23,42,.04)",
+    "md":  "0 4px 12px rgba(15,23,42,.08)",
+    "lg":  "0 8px 24px rgba(15,23,42,.12)",
+    "xl":  "0 24px 64px rgba(15,23,42,.18)",
+    "accent": "0 4px 12px rgba(14,165,233,.30)",
+    "accentLg": "0 8px 24px rgba(14,165,233,.30)"
+  },
+
+  "component": {
+    "input": {
+      "height":       "44px",
+      "width":        "326px",
+      "paddingX":     "14px",
+      "paddingY":     "10px",
+      "borderRadius": "10px",
+      "borderWidth":  "1.5px",
+      "borderColor":  "#E2E8F0",
+      "background":   "#F8FAFC",
+      "focusBorder":  "#0EA5E9",
+      "focusShadow":  "0 0 0 3px rgba(14,165,233,.1)",
+      "placeholderColor": "#94A3B8"
+    },
+    "button": {
+      "primary": {
+        "height":        "43px",
+        "width":         "325px (Hug)",
+        "paddingX":      "144px",
+        "paddingY":      "12px",
+        "gap":           "10px",
+        "borderRadius":  "10px",
+        "cornerStyle":   "Круглый",
+        "background":    "#0EA5E9",
+        "color":         "#FFFFFF",
+        "flow":          "Horizontal"
+      },
+      "sm": {
+        "paddingX": "12px",
+        "paddingY": "6px",
+        "fontSize": "12px"
+      },
+      "lg": {
+        "paddingX": "24px",
+        "paddingY": "13px",
+        "fontSize": "15px"
+      }
+    },
+    "card": {
+      "background":   "#FFFFFF",
+      "borderRadius": "14px",
+      "borderColor":  "#E2E8F0",
+      "shadow":       "0 1px 3px rgba(15,23,42,.07), 0 1px 2px rgba(15,23,42,.04)"
+    },
+    "badge": {
+      "paddingX":     "9px",
+      "paddingY":     "3px",
+      "borderRadius": "20px",
+      "fontSize":     "11px",
+      "fontWeight":   600,
+      "gap":          "4px",
+      "dotSize":      "5px"
+    },
+    "barLineChart": {
+      "width":       "382px",
+      "height":      "240px",
+      "paddingTop":  "32px",
+      "paddingX":    "16px",
+      "paddingBottom": "16px",
+      "background":  "#FFFFFF"
+    },
+    "iconBar": {
+      "width":  "84px",
+      "height": "30px",
+      "gap":    "24px",
+      "top":    "135px",
+      "left":   "29px",
+      "flow":   "Horizontal"
+    },
+    "orderListItem": {
+      "width":    "402px",
+      "height":   "318px (Hug)",
+      "flow":     "Vertical",
+      "gap":      "3px"
+    },
+    "measurementForm": {
+      "inputWidth":   "300px",
+      "inputHeight":  "43px",
+      "borderRadius": "10px",
+      "paddingX":     "20px",
+      "paddingY":     "12px",
+      "gap":          "10px",
+      "background":   "#E9E9E9"
+    },
+    "sidebar": {
+      "width":      "220px",
+      "background": "#FFFFFF",
+      "borderRight": "1px solid #E2E8F0"
+    },
+    "mobileBottomNav": {
+      "height":     "56px",
+      "background": "#FFFFFF",
+      "borderTop":  "1px solid #E2E8F0"
+    }
+  },
+
+  "layout": {
+    "contentMaxWidth": "900px",
+    "sidebarWidth":    "220px",
+    "mobileBreakpoint": "768px",
+    "contentPaddingDesktop": "20px",
+    "contentPaddingMobile":  "12px 14px 80px",
+    "gridGap": "12px"
+  },
+
+  "screens": {
+    "login":              { "maxWidth": "360px", "route": "/login" },
+    "dashboard":          { "role": "admin", "route": "/dashboard" },
+    "ordersList":         { "roles": ["admin","designer","sewing","warehouse","installer"], "route": "/orders" },
+    "orderDetail":        { "roles": "all", "route": "/orders/:id" },
+    "createOrder":        { "roles": ["admin","designer"], "route": "/orders/new" },
+    "editOrder":          { "roles": ["admin","designer"], "route": "/orders/:id/edit" },
+    "createMeasurement":  { "roles": ["admin","designer"], "route": "/measurements/new" },
+    "editMeasurement":    { "roles": ["admin","designer"], "route": "/measurements/:id/edit" },
+    "quoteBuilder":       { "roles": ["admin","designer"], "route": "/orders/:id/quote" }
+  },
+
+  "orderStatuses": [
+    { "key": "new",                    "label": "Новый",               "badge": "b-new" },
+    { "key": "in_work",                "label": "В работе",            "badge": "b-inwork" },
+    { "key": "in_production",          "label": "В производстве",      "badge": "b-prod" },
+    { "key": "ready",                  "label": "Готов",               "badge": "b-ready" },
+    { "key": "on_installation",        "label": "Установка/выдача",    "badge": "b-install" },
+    { "key": "waiting_final_payment",  "label": "Ожидает оплату",      "badge": "b-payment" },
+    { "key": "completed",              "label": "Завершён",            "badge": "b-done" },
+    { "key": "cancelled",              "label": "Отменён",             "badge": "b-cancel" }
+  ],
+
+  "materialReadiness": [
+    { "key": "not_ready",       "label": "Не готовы",         "badge": "b-mat-no" },
+    { "key": "partially_ready", "label": "Частично готовы",   "badge": "b-mat-part" },
+    { "key": "ready",           "label": "Готовы",            "badge": "b-mat-yes" }
+  ],
+
+  "productionStage": [
+    { "key": "not_started", "label": "Не начато" },
+    { "key": "sewing",      "label": "В пошиве" },
+    { "key": "done",        "label": "Завершено" }
+  ],
+
+  "handoverStage": [
+    { "key": "not_started",   "label": "Не начато" },
+    { "key": "scheduled",     "label": "Запланировано" },
+    { "key": "in_progress",   "label": "В процессе" },
+    { "key": "done",          "label": "Выполнено" },
+    { "key": "not_required",  "label": "Не требуется" }
+  ],
+
+  "tailwindMapping": {
+    "accent":          "sky-500",
+    "accentDark":      "sky-600",
+    "accentLight":     "sky-100",
+    "background":      "slate-100",
+    "card":            "white",
+    "borderDefault":   "slate-200",
+    "textPrimary":     "slate-900",
+    "textSecondary":   "slate-500",
+    "textTertiary":    "slate-400",
+    "success":         "green-600",
+    "successBg":       "green-100",
+    "warning":         "amber-600",
+    "warningBg":       "amber-100",
+    "danger":          "red-600",
+    "dangerBg":        "red-100",
+    "purple":          "violet-700",
+    "purpleBg":        "violet-100",
+    "radius":          "rounded-[10px]",
+    "radiusLg":        "rounded-[14px]",
+    "shadowSm":        "shadow-sm",
+    "shadowMd":        "shadow-md"
+  }
+}

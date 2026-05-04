@@ -109,6 +109,11 @@ export interface FabricRequirement {
 export interface EstimateSummaryResult {
   totalCurtainCost: number;
   totalTulleCost: number;
+  totalSewingCost: number;
+  totalCorniceCost: number;
+  totalInstallationCost: number;
+  totalAccessoriesCost: number;
+  totalAdditionalServicesCost: number;
   totalCost: number;
   itemCount: number;
   warnings: string[];
@@ -121,6 +126,11 @@ export function calculateEstimateSummary(
 ): EstimateSummaryResult {
   let totalCurtainCost = 0;
   let totalTulleCost = 0;
+  let totalSewingCost = 0;
+  let totalCorniceCost = 0;
+  let totalInstallationCost = 0;
+  let totalAccessoriesCost = 0;
+  let totalAdditionalServicesCost = 0;
   let itemCount = 0;
   const warnings: string[] = [];
   const fabricRequirements: Record<string, FabricRequirement> = {};
@@ -129,6 +139,7 @@ export function calculateEstimateSummary(
     room.items.forEach((item) => {
       itemCount++;
 
+      // Fabrics
       if (item.curtain_fabric_id) {
         const fabric = fabrics.find((f) => f.id === item.curtain_fabric_id);
         if (fabric) {
@@ -166,6 +177,13 @@ export function calculateEstimateSummary(
           fabricRequirements[fabric.id].required += item.tulle_fabric_meters;
         }
       }
+
+      // Other costs
+      totalSewingCost += item.sewing_cost || 0;
+      totalCorniceCost += item.cornice_cost || 0;
+      totalInstallationCost += item.installation_price || 0;
+      totalAccessoriesCost += item.accessories_cost || 0;
+      totalAdditionalServicesCost += item.additional_services_total || 0;
     });
   });
 
@@ -173,15 +191,29 @@ export function calculateEstimateSummary(
   Object.entries(fabricRequirements).forEach(([, req]) => {
     if (req.required > req.available) {
       warnings.push(
-        `${req.name}: need ${formatMeters(req.required)}, have ${formatMeters(req.available)}`
+        `${req.name}: требуется ${formatMeters(req.required)}, доступно ${formatMeters(req.available)}`
       );
     }
   });
 
+  const totalCost =
+    totalCurtainCost +
+    totalTulleCost +
+    totalSewingCost +
+    totalCorniceCost +
+    totalInstallationCost +
+    totalAccessoriesCost +
+    totalAdditionalServicesCost;
+
   return {
     totalCurtainCost,
     totalTulleCost,
-    totalCost: totalCurtainCost + totalTulleCost,
+    totalSewingCost,
+    totalCorniceCost,
+    totalInstallationCost,
+    totalAccessoriesCost,
+    totalAdditionalServicesCost,
+    totalCost,
     itemCount,
     warnings,
     fabricRequirements,

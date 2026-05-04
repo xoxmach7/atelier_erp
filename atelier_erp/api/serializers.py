@@ -570,9 +570,17 @@ class ActivityLogSerializer(serializers.ModelSerializer):
 
 
 class MeasurementSerializer(serializers.ModelSerializer):
-    """Measurement serializer for CRUD operations"""
+    """Measurement serializer for CRUD operations
+    Phase 3: Supports curtain_fabric + tulle_fabric with meters
+    Measurement = what selected and how much needed (no prices)
+    """
+    # Legacy fabric fields
     selected_fabric_details = FabricListSerializer(source='selected_fabric', read_only=True)
     measured_by_name = serializers.CharField(source='measured_by.get_full_name', read_only=True, allow_null=True)
+
+    # Phase 3: Curtain and tulle fabrics with meters
+    curtain_fabric_details = FabricListSerializer(source='curtain_fabric', read_only=True)
+    tulle_fabric_details = FabricListSerializer(source='tulle_fabric', read_only=True)
 
     class Meta:
         model = Measurement
@@ -581,20 +589,35 @@ class MeasurementSerializer(serializers.ModelSerializer):
             'width_cm', 'height_cm', 'depth_cm', 'ceiling_height_cm',
             'mounting_type', 'window_type', 'has_radiator', 'has_slope',
             'obstacles', 'selected_fabric', 'selected_fabric_details',
-            'selected_cornice_type', 'notes',
+            'selected_cornice_type',
+            # Phase 3: Curtain and tulle fabrics
+            'curtain_fabric', 'curtain_fabric_details', 'curtain_meters',
+            'tulle_fabric', 'tulle_fabric_details', 'tulle_meters',
+            'notes',
             'measured_by', 'measured_by_name', 'measured_at'
         ]
         read_only_fields = ['measured_at']
 
 
 class MeasurementListSerializer(serializers.ModelSerializer):
-    """Minimal measurement serializer for list views"""
+    """Minimal measurement serializer for list views
+    Phase 3: Includes curtain and tulle fabric references
+    """
     selected_fabric_hanger = serializers.CharField(source='selected_fabric.hanger_number', read_only=True, allow_null=True)
+    # Phase 3: Curtain and tulle fabric hangers for list view
+    curtain_fabric_hanger = serializers.CharField(source='curtain_fabric.hanger_number', read_only=True, allow_null=True)
+    curtain_fabric_name = serializers.CharField(source='curtain_fabric.name', read_only=True, allow_null=True)
+    tulle_fabric_hanger = serializers.CharField(source='tulle_fabric.hanger_number', read_only=True, allow_null=True)
+    tulle_fabric_name = serializers.CharField(source='tulle_fabric.name', read_only=True, allow_null=True)
 
     class Meta:
         model = Measurement
         fields = [
             'id', 'order', 'room_name', 'window_name',
             'width_cm', 'height_cm', 'mounting_type',
-            'selected_fabric_hanger', 'measured_at'
+            'selected_fabric_hanger',
+            # Phase 3: Curtain and tulle fabrics
+            'curtain_fabric_hanger', 'curtain_fabric_name', 'curtain_meters',
+            'tulle_fabric_hanger', 'tulle_fabric_name', 'tulle_meters',
+            'measured_at'
         ]

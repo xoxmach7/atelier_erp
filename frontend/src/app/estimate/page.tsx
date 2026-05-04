@@ -9,7 +9,6 @@ import { LoadingState } from "@/components/shared/loading-state";
 import {
   ContextualNavigation,
   WorkflowNavPatterns,
-  DraftStatusCard,
   ErrorState,
   ResetConfirmationDialog,
   ResetDialogPresets,
@@ -21,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useFabrics } from "@/hooks/useFabrics";
 import { useCustomers } from "@/hooks/useCustomers";
-import { useTasks } from "@/hooks/useTasks";
+import { useCreateCustomer } from "@/hooks/useCustomers";
 import { useEstimateDraft } from "./hooks/useEstimateDraft";
 import { useCreateQuote, type CreateQuoteInput } from "@/hooks/useQuotes";
 import {
@@ -34,7 +33,6 @@ import {
 import {
   RoomSection,
   SummaryPanel,
-  InventoryStatusCard,
 } from "./components";
 import { generateId } from "./utils/estimateHelpers";
 import type { EstimateRoom, EstimateItem, QuoteDTO } from "@/types";
@@ -68,9 +66,8 @@ function EstimateContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: customersData, isLoading: isLoadingCustomers } = useCustomers();
-  const { data: tasksData, isLoading: isLoadingTasks } = useTasks();
   const customers = customersData?.results || [];
-  const tasks = tasksData?.results || [];
+  const createCustomer = useCreateCustomer();
 
   // Read customer and order from query params (order context for direct order flow)
   const customerFromQuery = searchParams.get("customer");
@@ -88,14 +85,19 @@ function EstimateContent() {
   const [savedQuote, setSavedQuote] = useState<QuoteDTO | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(customerFromQuery || "");
-  const [selectedTaskId, setSelectedTaskId] = useState<string>("");
+  
+  // New customer form state
+  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
   
   // Mutations
   const createQuote = useCreateQuote();
   
   // Derived state
   const isPersisted = !!savedQuote;
-  // MVP: Task is optional - allow Client -> Quote flow directly
+  // MVP: Only client is required - task is optional
   const canSave = project.rooms.length > 0 && 
                   project.rooms.some(r => r.items.length > 0) &&
                   selectedCustomerId;
@@ -275,7 +277,6 @@ function EstimateContent() {
         items: quoteItems,
         // Only include task if selected (Client -> Task -> Quote flow)
         // Otherwise allow direct Client -> Quote flow (MVP)
-        ...(selectedTaskId && { task: selectedTaskId }),
         // Link to existing order when creating from order context
         ...(orderFromQuery && { order: orderFromQuery }),
       };
@@ -347,7 +348,6 @@ function EstimateContent() {
         </PageHeader>
 
         <ContextualNavigation links={WorkflowNavPatterns.estimate()} />
-        <DraftStatusCard draftType="estimate" hasContent={false} />
 
         <div className="mt-6">
           <EmptyState
@@ -444,66 +444,139 @@ function EstimateContent() {
 
       <ContextualNavigation links={WorkflowNavPatterns.estimate()} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Main working area */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="bg-slate-50 border-dashed">
+        <div className="lg:col-span-2 space-y-5">
+          {/* Client Selection Card - Simplified UX */}
+          <Card className="bg-[var(--card-sheber)] border-[var(--border-sheber)] shadow-[var(--sh)] rounded-[var(--rl)]">
             <CardContent className="p-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Выберите задачу *</Label>
-                  <Select 
-                    value={selectedTaskId} 
-                    onValueChange={setSelectedTaskId}
-                    disabled={isPersisted}
+              {!showNewCustomerForm ? (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <Label className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Клиент</Label>
+                    {orderFromQuery && (
+                      <span className="text-xs text-[var(--t3)]">
+                        Привязка к заказу: Заказ №{orderFromQuery}
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <Select
+                        value={selectedCustomerId}
+                        onValueChange={setSelectedCustomerId}
+                        disabled={isPersisted}
+                      >
+                        <SelectTrigger className="bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)] focus:ring-[var(--a)]/20 focus:border-[var(--a)] h-9 text-sm">
+                          <SelectValue placeholder="Выберите клиента..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[var(--card-sheber)] border-[var(--border-sheber)]">
+                          {customers.length === 0 && (
+                            <SelectItem value="__none__" disabled>Нет клиентов</SelectItem>
+                          )}
+                          {customers.map((customer) => (
+                            <SelectItem key={customer.id} value={customer.id} className="text-[var(--t1)] focus:bg-[var(--bg)]">
+                              {customer.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {!isPersisted && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowNewCustomerForm(true)}
+                        className="border-[var(--border-sheber)] text-[var(--a)] hover:bg-[var(--al)] whitespace-nowrap"
+                      >
+                        <Plus className="mr-1 h-4 w-4" />
+                        Новый клиент
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {selectedCustomerId && (
+                    <div className="mt-2 text-sm text-[var(--t2)]">
+                      {customers.find(c => c.id === selectedCustomerId)?.phone}
+                    </div>
+                  )}
+                  
+                  {!isPersisted && !selectedCustomerId && (
+                    <p className="text-xs text-[var(--warn)] mt-2 flex items-center gap-1">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--warn)]"></span>
+                      Выберите клиента для сохранения КП
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <Label className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Новый клиент</Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowNewCustomerForm(false)}
+                      className="text-[var(--t3)] h-auto py-1"
+                    >
+                      Отмена
+                    </Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-[var(--t3)]">ФИО / Название</Label>
+                      <Input
+                        value={newCustomerName}
+                        onChange={(e) => setNewCustomerName(e.target.value)}
+                        placeholder="Иванов Иван"
+                        className="h-8 text-sm bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-[var(--t3)]">Телефон</Label>
+                      <Input
+                        value={newCustomerPhone}
+                        onChange={(e) => setNewCustomerPhone(e.target.value)}
+                        placeholder="+7..."
+                        className="h-8 text-sm bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)]"
+                      />
+                    </div>
+                  </div>
+                  
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      if (!newCustomerName.trim()) return;
+                      setIsCreatingCustomer(true);
+                      try {
+                        const newCustomer = await createCustomer.mutateAsync({
+                          full_name: newCustomerName.trim(),
+                          phone: newCustomerPhone.trim() || "",
+                        });
+                        setSelectedCustomerId(newCustomer.id);
+                        setShowNewCustomerForm(false);
+                        setNewCustomerName("");
+                        setNewCustomerPhone("");
+                      } catch (err) {
+                        console.error("Failed to create customer:", err);
+                        alert("Не удалось создать клиента");
+                      } finally {
+                        setIsCreatingCustomer(false);
+                      }
+                    }}
+                    disabled={!newCustomerName.trim() || isCreatingCustomer}
+                    className="mt-3 bg-[var(--a)] hover:bg-[var(--ad)] text-white"
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Выберите задачу..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tasks.length === 0 && (
-                        <SelectItem value="__none__" disabled>Нет доступных задач</SelectItem>
-                      )}
-                      {tasks.map((task) => (
-                        <SelectItem key={task.id} value={task.id}>
-                          {task.task_number} - {task.client_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Выберите клиента *</Label>
-                  <Select 
-                    value={selectedCustomerId} 
-                    onValueChange={setSelectedCustomerId}
-                    disabled={isPersisted}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Выберите клиента..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers.length === 0 && (
-                        <SelectItem value="__none__" disabled>Нет доступных клиентов</SelectItem>
-                      )}
-                      {customers.map((customer) => (
-                        <SelectItem key={customer.id} value={customer.id}>
-                          {customer.full_name} {customer.phone && `(${customer.phone})`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              {!isPersisted && (!selectedTaskId || !selectedCustomerId) && (
-                <p className="text-xs text-amber-600 mt-2">
-                  * Обязательно для сохранения КП
-                </p>
+                    {isCreatingCustomer ? "Создание..." : "Добавить клиента"}
+                  </Button>
+                </>
               )}
             </CardContent>
           </Card>
 
-          <div className="space-y-6">
+          {/* Room Sections */}
+          <div className="space-y-5">
             {project.rooms.map((room) => (
               <RoomSection
                 key={room.id}
@@ -519,15 +592,24 @@ function EstimateContent() {
           </div>
         </div>
 
-        {/* Summary panel */}
+        {/* Summary panel - Simplified */}
         <div className="lg:col-span-1 space-y-4">
-          <DraftStatusCard draftType="estimate" hasContent={true} />
+          {!isPersisted && (
+            <Button
+              onClick={saveToQuote}
+              disabled={!canSave || isSaving}
+              className="w-full bg-[var(--a)] hover:bg-[var(--ad)] text-white h-12 text-base"
+            >
+              <Save className="mr-2 h-5 w-5" />
+              {isSaving ? "Сохранение..." : "Сохранить КП"}
+            </Button>
+          )}
           <SummaryPanel
             rooms={project.rooms}
             fabrics={fabrics}
             onReset={() => setShowResetDialog(true)}
+            isPersisted={isPersisted}
           />
-          <InventoryStatusCard fabricsCount={fabrics.length} />
         </div>
       </div>
 

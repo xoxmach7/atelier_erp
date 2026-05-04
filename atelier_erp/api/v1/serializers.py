@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from rest_framework import serializers
 from atelier_erp.models import Order, Task, Fabric, OrderItem, Customer, Quote, Measurement, Payment, PhotoReport
-from atelier_erp.api.serializers import RelatedQuoteSerializer
+from atelier_erp.api.serializers import RelatedQuoteSerializer, FabricListSerializer
 
 
 class CustomerMinimalSerializer(serializers.ModelSerializer):
@@ -69,12 +69,23 @@ class PaymentSerializer(serializers.ModelSerializer):
 
 
 class MeasurementSerializer(serializers.ModelSerializer):
-    """Measurement serializer for embedding in order detail"""
+    """Measurement serializer for embedding in order detail
+    Phase 3: Includes curtain_fabric + tulle_fabric with meters
+    Measurement = what selected and how much needed (no prices)
+    """
+    # Phase 3: Curtain and tulle fabrics with meters
+    curtain_fabric_details = FabricListSerializer(source='curtain_fabric', read_only=True)
+    tulle_fabric_details = FabricListSerializer(source='tulle_fabric', read_only=True)
+
     class Meta:
         model = Measurement
         fields = [
             'id', 'room_name', 'window_name', 'width_cm', 'height_cm',
-            'mounting_type', 'measured_at'
+            'mounting_type', 'measured_at',
+            # Phase 3: Curtain and tulle fabrics
+            'curtain_fabric', 'curtain_fabric_details', 'curtain_meters',
+            'tulle_fabric', 'tulle_fabric_details', 'tulle_meters',
+            'notes',
         ]
 
 
