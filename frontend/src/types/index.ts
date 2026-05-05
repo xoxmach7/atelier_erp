@@ -282,7 +282,8 @@ export interface EstimateItem {
   sewing_cost: number;
   // Cornice
   cornice_length_m: number;
-  cornice_cost: number;
+  cornice_price_per_meter: number;  // Frontend-only for calculation
+  cornice_cost: number;  // Computed: length × price_per_meter
   // Additional costs
   installation_price: number;
   accessories_cost: number;

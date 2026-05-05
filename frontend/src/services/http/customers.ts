@@ -5,7 +5,7 @@
 
 import { get, post } from "./client";
 
-const CUSTOMERS_ENDPOINT = "/customers";
+const CUSTOMERS_ENDPOINT = "/customers/";
 
 export interface CustomerDTO {
   id: string;
@@ -48,7 +48,7 @@ export async function fetchCustomers(
  * Fetch single customer by ID
  */
 export async function fetchCustomerById(customerId: string): Promise<CustomerDTO> {
-  return get<CustomerDTO>(`${CUSTOMERS_ENDPOINT}/${customerId}/`);
+  return get<CustomerDTO>(`${CUSTOMERS_ENDPOINT}${customerId}/`);
 }
 
 /**

@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { useFabrics } from "@/hooks/useFabrics";
 import { useCustomers } from "@/hooks/useCustomers";
 import { useCreateCustomer } from "@/hooks/useCustomers";
+import { useOrder } from "@/hooks/useOrders";
 import { useEstimateDraft } from "./hooks/useEstimateDraft";
 import { useCreateQuote, type CreateQuoteInput } from "@/hooks/useQuotes";
 import {
@@ -35,8 +36,8 @@ import {
   SummaryPanel,
 } from "./components";
 import { generateId } from "./utils/estimateHelpers";
-import type { EstimateRoom, EstimateItem, QuoteDTO } from "@/types";
-import { Plus, Ruler, ArrowLeft, Calculator, Save, CheckCircle, Eye } from "lucide-react";
+import type { EstimateRoom, EstimateItem, QuoteDTO, MeasurementDTO, OrderDetailDTO } from "@/types";
+import { Plus, Ruler, ArrowLeft, Calculator, Save, CheckCircle, Eye, FileSpreadsheet, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
 /**
@@ -91,6 +92,12 @@ function EstimateContent() {
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+  const [customerError, setCustomerError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  
+  // Load order data if opened from order context
+  const { data: orderData, isLoading: isLoadingOrder } = useOrder(orderFromQuery);
+  const [isPrefilled, setIsPrefilled] = useState(false);
   
   // Mutations
   const createQuote = useCreateQuote();
@@ -126,6 +133,79 @@ function EstimateContent() {
     }));
   };
 
+  /**
+   * Helper: Map MeasurementDTO to EstimateItem
+   */
+  const measurementToEstimateItem = useCallback((measurement: MeasurementDTO): EstimateItem => {
+    return {
+      id: generateId(),
+      window_name: measurement.window_name || "Окно",
+      width_cm: measurement.width_cm || 0,
+      height_cm: measurement.height_cm || 0,
+      // Main fabric (curtain)
+      curtain_fabric_id: measurement.curtain_fabric || null,
+      curtain_fabric_meters: measurement.curtain_meters || 0,
+      curtain_supply_mode: 'in_stock',
+      // Tulle fabric
+      tulle_fabric_id: measurement.tulle_fabric || null,
+      tulle_fabric_meters: measurement.tulle_meters || 0,
+      tulle_supply_mode: 'in_stock',
+      // Sewing - empty, user fills in
+      folds_count: 0,
+      sewing_type: 'standard',
+      complexity: 'medium',
+      sewing_cost: 0,
+      // Cornice - empty, user fills in
+      cornice_length_m: 0,
+      cornice_price_per_meter: 0,
+      cornice_cost: 0,
+      // Additional costs - empty, user fills in
+      installation_price: 0,
+      accessories_cost: 0,
+      additional_services_total: 0,
+    };
+  }, []);
+
+  /**
+   * Helper: Group measurements by room and create EstimateRooms
+   */
+  const measurementsToEstimateRooms = useCallback((measurements: MeasurementDTO[]): EstimateRoom[] => {
+    // Group by room_name
+    const grouped = measurements.reduce((acc, measurement) => {
+      const roomName = measurement.room_name || "Без комнаты";
+      if (!acc[roomName]) {
+        acc[roomName] = [];
+      }
+      acc[roomName].push(measurementToEstimateItem(measurement));
+      return acc;
+    }, {} as Record<string, EstimateItem[]>);
+
+    // Create rooms from grouped items
+    return Object.entries(grouped).map(([roomName, items], index) => ({
+      id: generateId(),
+      name: roomName,
+      items: items,
+    }));
+  }, [measurementToEstimateItem]);
+
+  /**
+   * Prefill estimate from order measurements when order data loads
+   */
+  useEffect(() => {
+    if (orderFromQuery && orderData && !isPrefilled && project.rooms.length === 0) {
+      const measurements = orderData.measurements || [];
+      if (measurements.length > 0) {
+        const rooms = measurementsToEstimateRooms(measurements);
+        setProject((prev) => ({
+          ...prev,
+          rooms: rooms,
+        }));
+        setIsPrefilled(true);
+        console.log(`[ESTIMATE] Prefilled ${rooms.length} rooms from ${measurements.length} measurements`);
+      }
+    }
+  }, [orderFromQuery, orderData, isPrefilled, project.rooms.length, measurementsToEstimateRooms, setProject]);
+
   const addItemToRoom = (roomId: string) => {
     const room = project.rooms.find((r) => r.id === roomId);
     if (!room) return;
@@ -150,6 +230,7 @@ function EstimateContent() {
       sewing_cost: 0,
       // Cornice
       cornice_length_m: 0,
+      cornice_price_per_meter: 0,
       cornice_cost: 0,
       // Additional costs
       installation_price: 0,
@@ -336,7 +417,11 @@ function EstimateContent() {
     );
   }
 
-  // Empty estimate state
+  // Check if we have measurements from order
+  const hasOrderMeasurements = orderFromQuery && orderData && (orderData.measurements?.length || 0) > 0;
+  const measurementsCount = orderData?.measurements?.length || 0;
+
+  // Empty estimate state - show different message if order has measurements
   if (project.rooms.length === 0) {
     return (
       <>
@@ -350,15 +435,80 @@ function EstimateContent() {
         <ContextualNavigation links={WorkflowNavPatterns.estimate()} />
 
         <div className="mt-6">
-          <EmptyState
-            title="Начните строить смету"
-            description="Добавляйте комнаты и позиции для расчета стоимости тканей. Выбирайте ткани из склада с проверкой наличия."
-            icon={<Ruler className="h-6 w-6 text-slate-600" />}
-            action={{
-              label: "Добавить первую комнату",
-              onClick: addRoom,
-            }}
-          />
+          {hasOrderMeasurements ? (
+            // Show measurement-based empty state
+            <Card className="bg-amber-50 border-amber-200">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                    <FileSpreadsheet className="h-6 w-6 text-amber-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-amber-900 mb-1">
+                      КП из замеров
+                    </h3>
+                    <p className="text-amber-700 mb-3">
+                      В заказе есть {measurementsCount} замеров. Позиции будут автоматически созданы из замеров при открытии конструктора.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button onClick={addRoom} variant="default" className="bg-amber-600 hover:bg-amber-700">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Добавить комнату
+                      </Button>
+                      <Button variant="outline" asChild>
+                        <Link href={`/orders/${orderFromQuery}`}>
+                          <ArrowLeft className="mr-2 h-4 w-4" />
+                          Вернуться к заказу
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : orderFromQuery && !hasOrderMeasurements ? (
+            // Show warning if order has no measurements
+            <Card className="bg-slate-50 border-slate-200">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                    <AlertCircle className="h-6 w-6 text-slate-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-slate-900 mb-1">
+                      В заказе нет замеров
+                    </h3>
+                    <p className="text-slate-600 mb-3">
+                      Сначала добавьте замеры или создайте позицию вручную.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button onClick={addRoom} variant="outline">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Добавить позицию вручную
+                      </Button>
+                      <Button variant="outline" asChild>
+                        <Link href={`/measurements?order=${orderFromQuery}`}>
+                          <Ruler className="mr-2 h-4 w-4" />
+                          Добавить замеры
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            // Default empty state
+            <EmptyState
+              title="Начните строить смету"
+              description="Добавляйте комнаты и позиции для расчета стоимости тканей. Выбирайте ткани из склада с проверкой наличия."
+              icon={<Ruler className="h-6 w-6 text-slate-600" />}
+              action={{
+                label: "Добавить первую комнату",
+                onClick: addRoom,
+              }}
+            />
+          )}
         </div>
       </>
     );
@@ -443,6 +593,34 @@ function EstimateContent() {
       </PageHeader>
 
       <ContextualNavigation links={WorkflowNavPatterns.estimate()} />
+
+      {/* Measurement-based quote banner */}
+      {isPrefilled && hasOrderMeasurements && (
+        <Card className="bg-blue-50 border-blue-200 mb-5">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-blue-900">КП из замеров</h3>
+                  <p className="text-sm text-blue-700">
+                    Загружено: {measurementsCount} позиций из замеров заказа
+                    {orderData?.order_number && ` ${orderData.order_number}`}
+                  </p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" asChild className="border-blue-300 text-blue-700 hover:bg-blue-100">
+                <Link href={`/orders/${orderFromQuery}`}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  К заказу
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Main working area */}
@@ -537,30 +715,66 @@ function EstimateContent() {
                       <Label className="text-xs text-[var(--t3)]">Телефон</Label>
                       <Input
                         value={newCustomerPhone}
-                        onChange={(e) => setNewCustomerPhone(e.target.value)}
-                        placeholder="+7..."
-                        className="h-8 text-sm bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)]"
+                        onChange={(e) => {
+                          setNewCustomerPhone(e.target.value);
+                          setPhoneError(null); // Clear error on change
+                        }}
+                        placeholder="+7 700 111 22 33"
+                        className={`h-8 text-sm bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)] ${phoneError ? 'border-[var(--err)]' : ''}`}
                       />
+                      {phoneError && (
+                        <div className="text-xs text-[var(--err)] mt-1">
+                          {phoneError}
+                        </div>
+                      )}
                     </div>
                   </div>
                   
+                  {customerError && (
+                    <div className="text-xs text-[var(--err)] mt-2">
+                      {customerError}
+                    </div>
+                  )}
+
                   <Button
                     size="sm"
                     onClick={async () => {
                       if (!newCustomerName.trim()) return;
+                      
+                      // Normalize phone: remove all non-digit characters
+                      const normalizedPhone = newCustomerPhone.replace(/\D/g, "");
+                      
+                      // Validate phone: must be 10-20 digits
+                      if (normalizedPhone.length > 0 && (normalizedPhone.length < 10 || normalizedPhone.length > 20)) {
+                        setPhoneError("Телефон должен содержать 10–20 цифр");
+                        return;
+                      }
+                      
                       setIsCreatingCustomer(true);
+                      setCustomerError(null);
+                      setPhoneError(null);
+                      
                       try {
                         const newCustomer = await createCustomer.mutateAsync({
                           full_name: newCustomerName.trim(),
-                          phone: newCustomerPhone.trim() || "",
+                          phone: normalizedPhone || "",
                         });
                         setSelectedCustomerId(newCustomer.id);
                         setShowNewCustomerForm(false);
                         setNewCustomerName("");
                         setNewCustomerPhone("");
-                      } catch (err) {
+                      } catch (err: any) {
                         console.error("Failed to create customer:", err);
-                        alert("Не удалось создать клиента");
+                        const errorMsg = err?.response?.data?.phone?.[0]
+                          || err?.response?.data?.detail
+                          || err?.message
+                          || "Не удалось создать клиента";
+                        // Check if it's a phone validation error from backend
+                        if (err?.response?.data?.phone) {
+                          setPhoneError(errorMsg);
+                        } else {
+                          setCustomerError(errorMsg);
+                        }
                       } finally {
                         setIsCreatingCustomer(false);
                       }

@@ -13,7 +13,7 @@ import {
 import type { FabricDTO, EstimateItem, EstimateSupplyMode } from "@/types";
 import { FabricSelector } from "./FabricSelector";
 import { formatCurrency, calculateLineTotal } from "../utils/estimateHelpers";
-import { Trash2, Package, ShoppingCart, Globe, User, AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 interface EstimateItemRowProps {
   item: EstimateItem;
@@ -23,89 +23,7 @@ interface EstimateItemRowProps {
 }
 
 export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateItemRowProps) {
-  const { fabricCost, tulleCost, sewingCost, corniceCost, installationPrice, accessoriesCost, additionalServicesTotal, lineTotal } = calculateLineTotal(item, fabrics);
-
-  const curtainFabric = fabrics.find((f) => f.id === item.curtain_fabric_id);
-  const tulleFabric = fabrics.find((f) => f.id === item.tulle_fabric_id);
-
-  // Helper to get availability status for a fabric
-  const getAvailabilityStatus = (
-    fabric: FabricDTO | undefined,
-    requiredMeters: number,
-    supplyMode: EstimateSupplyMode
-  ): { text: string; color: string; icon: React.ReactNode } => {
-    if (!fabric) {
-      return { text: "", color: "", icon: null };
-    }
-
-    const available = parseFloat(fabric.available_meters || "0");
-    const stock = parseFloat(fabric.stock_meters || "0");
-
-    // For client_supplied - no stock relevance
-    if (supplyMode === "client_supplied") {
-      return {
-        text: "Материал клиента",
-        color: "text-slate-500",
-        icon: <User className="h-3 w-3" />,
-      };
-    }
-
-    // For purchase modes - informative only
-    if (supplyMode === "purchase_local") {
-      return {
-        text: "Будет закуплено локально",
-        color: "text-blue-600",
-        icon: <ShoppingCart className="h-3 w-3" />,
-      };
-    }
-
-    if (supplyMode === "purchase_import") {
-      return {
-        text: "Будет заказано",
-        color: "text-blue-600",
-        icon: <Globe className="h-3 w-3" />,
-      };
-    }
-
-    // For in_stock - check availability
-    if (supplyMode === "in_stock") {
-      if (requiredMeters === 0) {
-        return {
-          text: `В наличии: ${available.toFixed(1)} м`,
-          color: "text-slate-500",
-          icon: <Info className="h-3 w-3" />,
-        };
-      }
-
-      if (available >= requiredMeters) {
-        return {
-          text: `В наличии: ${available.toFixed(1)} м`,
-          color: "text-green-600",
-          icon: <CheckCircle2 className="h-3 w-3" />,
-        };
-      } else {
-        return {
-          text: `Недостаточно: доступно ${available.toFixed(1)} м`,
-          color: "text-amber-600",
-          icon: <AlertCircle className="h-3 w-3" />,
-        };
-      }
-    }
-
-    return { text: "", color: "", icon: null };
-  };
-
-  const curtainAvailability = getAvailabilityStatus(
-    curtainFabric,
-    item.curtain_fabric_meters,
-    item.curtain_supply_mode
-  );
-
-  const tulleAvailability = getAvailabilityStatus(
-    tulleFabric,
-    item.tulle_fabric_meters,
-    item.tulle_supply_mode
-  );
+  const { lineTotal } = calculateLineTotal(item, fabrics);
 
   return (
     <div className="bg-[var(--card-sheber)] border border-[var(--border-sheber)] rounded-[var(--r)] p-4 space-y-4 shadow-[var(--sh)]">
@@ -125,7 +43,7 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
             <Label className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Ширина (см)</Label>
             <Input
               type="number"
-              value={item.width_cm || ""}
+              value={item.width_cm ?? ""}
               onChange={(e) => onUpdate({ width_cm: parseInt(e.target.value) || 0 })}
               placeholder="0"
               className="h-8 text-sm bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)] focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
@@ -135,7 +53,7 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
             <Label className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Высота (см)</Label>
             <Input
               type="number"
-              value={item.height_cm || ""}
+              value={item.height_cm ?? ""}
               onChange={(e) => onUpdate({ height_cm: parseInt(e.target.value) || 0 })}
               placeholder="0"
               className="h-8 text-sm bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)] focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
@@ -174,29 +92,12 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
             <Input
               type="number"
               step="0.1"
-              value={item.curtain_fabric_meters || ""}
+              value={item.curtain_fabric_meters ?? ""}
               onChange={(e) => onUpdate({ curtain_fabric_meters: parseFloat(e.target.value) || 0 })}
               placeholder="метры"
-              className="h-7 text-sm w-24 bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)]"
+              className="h-7 text-sm w-full bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)]"
             />
-            {curtainFabric && (
-              <span className="text-xs text-[var(--t2)]">{formatCurrency(fabricCost)}</span>
-            )}
           </div>
-          <Select
-            value={item.curtain_supply_mode || 'in_stock'}
-            onValueChange={(value: EstimateSupplyMode) => onUpdate({ curtain_supply_mode: value })}
-          >
-            <SelectTrigger className="h-7 text-xs bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-[var(--card-sheber)] border-[var(--border-sheber)]">
-              <SelectItem value="in_stock" className="text-[var(--t1)]"><span className="flex items-center gap-2"><Package className="h-3 w-3 text-[var(--ok)]"/>На складе</span></SelectItem>
-              <SelectItem value="purchase_local" className="text-[var(--t1)]"><span className="flex items-center gap-2"><ShoppingCart className="h-3 w-3 text-[var(--a)]"/>Закупить локально</span></SelectItem>
-              <SelectItem value="purchase_import" className="text-[var(--t1)]"><span className="flex items-center gap-2"><Globe className="h-3 w-3 text-[var(--pur)]"/>Закупить импорт</span></SelectItem>
-              <SelectItem value="client_supplied" className="text-[var(--t1)]"><span className="flex items-center gap-2"><User className="h-3 w-3 text-[var(--t3)]"/>Клиентский</span></SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         {/* Tulle Fabric */}
@@ -213,29 +114,12 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
             <Input
               type="number"
               step="0.1"
-              value={item.tulle_fabric_meters || ""}
+              value={item.tulle_fabric_meters ?? ""}
               onChange={(e) => onUpdate({ tulle_fabric_meters: parseFloat(e.target.value) || 0 })}
               placeholder="метры"
-              className="h-7 text-sm w-24 bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)]"
+              className="h-7 text-sm w-full bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)]"
             />
-            {tulleFabric && (
-              <span className="text-xs text-[var(--t2)]">{formatCurrency(tulleCost)}</span>
-            )}
           </div>
-          <Select
-            value={item.tulle_supply_mode || 'in_stock'}
-            onValueChange={(value: EstimateSupplyMode) => onUpdate({ tulle_supply_mode: value })}
-          >
-            <SelectTrigger className="h-7 text-xs bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-[var(--card-sheber)] border-[var(--border-sheber)]">
-              <SelectItem value="in_stock" className="text-[var(--t1)]"><span className="flex items-center gap-2"><Package className="h-3 w-3 text-[var(--ok)]"/>На складе</span></SelectItem>
-              <SelectItem value="purchase_local" className="text-[var(--t1)]"><span className="flex items-center gap-2"><ShoppingCart className="h-3 w-3 text-[var(--a)]"/>Закупить локально</span></SelectItem>
-              <SelectItem value="purchase_import" className="text-[var(--t1)]"><span className="flex items-center gap-2"><Globe className="h-3 w-3 text-[var(--pur)]"/>Закупить импорт</span></SelectItem>
-              <SelectItem value="client_supplied" className="text-[var(--t1)]"><span className="flex items-center gap-2"><User className="h-3 w-3 text-[var(--t3)]"/>Клиентский</span></SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
 
@@ -243,35 +127,49 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
       <div className="p-3 bg-[var(--bg)] rounded-[var(--r)] border border-[var(--borderl)] space-y-3">
         <div className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Пошив, монтаж, доп. услуги</div>
 
-        {/* Row 1: Sewing, Cornice, Installation */}
+        {/* Row 1: Sewing, Cornice (3 cols) */}
         <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1">
             <Label className="text-xs text-[var(--t3)]">Пошив (₸)</Label>
             <Input
               type="number"
-              value={item.sewing_cost || ""}
+              value={item.sewing_cost ?? ""}
               onChange={(e) => onUpdate({ sewing_cost: parseFloat(e.target.value) || 0 })}
               placeholder="0"
               className="h-7 text-sm bg-[var(--card-sheber)] border-[var(--border-sheber)] text-[var(--t1)]"
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-[var(--t3)]">Карниз: длина (м)</Label>
+            <Label className="text-xs text-[var(--t3)]">Длина карниза (м)</Label>
             <Input
               type="number"
               step="0.1"
-              value={item.cornice_length_m || ""}
-              onChange={(e) => onUpdate({ cornice_length_m: parseFloat(e.target.value) || 0 })}
+              value={item.cornice_length_m ?? ""}
+              onChange={(e) => {
+                const length = parseFloat(e.target.value) || 0;
+                const pricePerMeter = item.cornice_price_per_meter || 0;
+                onUpdate({
+                  cornice_length_m: length,
+                  cornice_cost: Math.round(length * pricePerMeter)
+                });
+              }}
               placeholder="м"
               className="h-7 text-sm bg-[var(--card-sheber)] border-[var(--border-sheber)] text-[var(--t1)]"
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-[var(--t3)]">Карниз: стоимость (₸)</Label>
+            <Label className="text-xs text-[var(--t3)]">Цена за метр (₸/м)</Label>
             <Input
               type="number"
-              value={item.cornice_cost || ""}
-              onChange={(e) => onUpdate({ cornice_cost: parseFloat(e.target.value) || 0 })}
+              value={item.cornice_price_per_meter ?? ""}
+              onChange={(e) => {
+                const pricePerMeter = parseFloat(e.target.value) || 0;
+                const length = item.cornice_length_m || 0;
+                onUpdate({
+                  cornice_price_per_meter: pricePerMeter,
+                  cornice_cost: Math.round(length * pricePerMeter)
+                });
+              }}
               placeholder="0"
               className="h-7 text-sm bg-[var(--card-sheber)] border-[var(--border-sheber)] text-[var(--t1)]"
             />
@@ -284,7 +182,7 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
             <Label className="text-xs text-[var(--t3)]">Монтаж (₸)</Label>
             <Input
               type="number"
-              value={item.installation_price || ""}
+              value={item.installation_price ?? ""}
               onChange={(e) => onUpdate({ installation_price: parseFloat(e.target.value) || 0 })}
               placeholder="0"
               className="h-7 text-sm bg-[var(--card-sheber)] border-[var(--border-sheber)] text-[var(--t1)]"
@@ -294,7 +192,7 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
             <Label className="text-xs text-[var(--t3)]">Аксессуары (₸)</Label>
             <Input
               type="number"
-              value={item.accessories_cost || ""}
+              value={item.accessories_cost ?? ""}
               onChange={(e) => onUpdate({ accessories_cost: parseFloat(e.target.value) || 0 })}
               placeholder="0"
               className="h-7 text-sm bg-[var(--card-sheber)] border-[var(--border-sheber)] text-[var(--t1)]"
@@ -304,7 +202,7 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
             <Label className="text-xs text-[var(--t3)]">Доп. услуги (₸)</Label>
             <Input
               type="number"
-              value={item.additional_services_total || ""}
+              value={item.additional_services_total ?? ""}
               onChange={(e) => onUpdate({ additional_services_total: parseFloat(e.target.value) || 0 })}
               placeholder="0"
               className="h-7 text-sm bg-[var(--card-sheber)] border-[var(--border-sheber)] text-[var(--t1)]"
@@ -317,7 +215,7 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
           <div className="space-y-1">
             <Label className="text-xs text-[var(--t3)]">Тип пошива</Label>
             <Select
-              value={item.sewing_type || 'standard'}
+              value={item.sewing_type ?? 'standard'}
               onValueChange={(value) => onUpdate({ sewing_type: value })}
             >
               <SelectTrigger className="h-7 text-xs bg-[var(--card-sheber)] border-[var(--border-sheber)] text-[var(--t1)]">
@@ -333,7 +231,7 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
           <div className="space-y-1">
             <Label className="text-xs text-[var(--t3)]">Сложность</Label>
             <Select
-              value={item.complexity || 'medium'}
+              value={item.complexity ?? 'medium'}
               onValueChange={(value) => onUpdate({ complexity: value })}
             >
               <SelectTrigger className="h-7 text-xs bg-[var(--card-sheber)] border-[var(--border-sheber)] text-[var(--t1)]">
@@ -351,7 +249,7 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
             <Label className="text-xs text-[var(--t3)]">Кол-во складок</Label>
             <Input
               type="number"
-              value={item.folds_count || ""}
+              value={item.folds_count ?? ""}
               onChange={(e) => onUpdate({ folds_count: parseInt(e.target.value) || 0 })}
               placeholder="0"
               className="h-7 text-sm bg-[var(--card-sheber)] border-[var(--border-sheber)] text-[var(--t1)]"
@@ -359,19 +257,6 @@ export function EstimateItemRow({ item, fabrics, onUpdate, onDelete }: EstimateI
           </div>
         </div>
 
-        {/* Cost Breakdown */}
-        <div className="pt-2 border-t border-[var(--borderl)]">
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-            <span className="text-[var(--t3)]">Ткань: <span className="text-[var(--t1)]">{formatCurrency(fabricCost)}</span></span>
-            <span className="text-[var(--t3)]">Тюль: <span className="text-[var(--t1)]">{formatCurrency(tulleCost)}</span></span>
-            <span className="text-[var(--t3)]">Пошив: <span className="text-[var(--t1)]">{formatCurrency(sewingCost)}</span></span>
-            <span className="text-[var(--t3)]">Карниз: <span className="text-[var(--t1)]">{formatCurrency(corniceCost)}</span></span>
-            <span className="text-[var(--t3)]">Монтаж: <span className="text-[var(--t1)]">{formatCurrency(installationPrice)}</span></span>
-            <span className="text-[var(--t3)]">Аксессуары: <span className="text-[var(--t1)]">{formatCurrency(accessoriesCost)}</span></span>
-            <span className="text-[var(--t3)]">Доп. услуги: <span className="text-[var(--t1)]">{formatCurrency(additionalServicesTotal)}</span></span>
-            <span className="font-semibold text-[var(--a)] ml-auto">Итого: {formatCurrency(lineTotal)}</span>
-          </div>
-        </div>
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
