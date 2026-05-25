@@ -344,11 +344,10 @@ function MeasurementCard({ measurement, orders, onDelete }: MeasurementCardProps
               variant="ghost" 
               size="icon" 
               className="h-8 w-8 text-[var(--t3)] hover:text-[var(--a)] hover:bg-[var(--al)]" 
-              asChild
+              disabled
+              title="Редактирование замера будет добавлено позже"
             >
-              <Link href={`/measurements/${measurement.id}`}>
-                <Pencil className="h-4 w-4" />
-              </Link>
+              <Pencil className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
@@ -426,7 +425,7 @@ function MeasurementCard({ measurement, orders, onDelete }: MeasurementCardProps
                 <span className="text-[var(--t3)]">— {order.customer_name}</span>
               </>
             ) : (
-              <span className="text-[var(--t3)]">Неизвестно</span>
+              <span className="text-[var(--t3)]">Заказ не выбран</span>
             )}
           </div>
           <div className="flex gap-3">

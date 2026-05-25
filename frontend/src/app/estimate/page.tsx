@@ -73,10 +73,6 @@ function EstimateContent() {
   // Read customer and order from query params (order context for direct order flow)
   const customerFromQuery = searchParams.get("customer");
   const orderFromQuery = searchParams.get("order");
-  
-  // DEBUG: Log order context
-  console.log("[DEBUG] estimate/page.tsx - URL:", window.location.href);
-  console.log("[DEBUG] orderFromQuery:", orderFromQuery);
 
   // Draft state (localStorage-backed)
   const { project, setProject, resetDraft } = useEstimateDraft();
@@ -201,7 +197,6 @@ function EstimateContent() {
           rooms: rooms,
         }));
         setIsPrefilled(true);
-        console.log(`[ESTIMATE] Prefilled ${rooms.length} rooms from ${measurements.length} measurements`);
       }
     }
   }, [orderFromQuery, orderData, isPrefilled, project.rooms.length, measurementsToEstimateRooms, setProject]);
@@ -362,14 +357,8 @@ function EstimateContent() {
         ...(orderFromQuery && { order: orderFromQuery }),
       };
       
-      // DEBUG: Log quoteData before sending
-      console.log("[DEBUG] quoteData:", JSON.stringify(quoteData, null, 2));
-      console.log("[DEBUG] order in quoteData:", 'order' in quoteData ? quoteData.order : 'NOT INCLUDED');
-      
       const quote = await createQuote.mutateAsync(quoteData);
       setSavedQuote(quote);
-      
-      console.log(`КП ${quote.quote_number} создано с ${quoteItems.length} позициями`);
       
       // Clear local draft after successful save
       resetDraft();
@@ -634,7 +623,7 @@ function EstimateContent() {
                     <Label className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Клиент</Label>
                     {orderFromQuery && (
                       <span className="text-xs text-[var(--t3)]">
-                        Привязка к заказу: Заказ №{orderFromQuery}
+                        Привязка к заказу: {orderData?.order_number || "Заказ загружается"}
                       </span>
                     )}
                   </div>
