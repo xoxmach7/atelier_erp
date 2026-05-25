@@ -87,12 +87,15 @@ export interface CustomerDetailsDTO {
 
 /**
  * Order item from OrderSerializer items
- * Matches backend OrderItem model
+ * Matches backend OrderItem model with room/window context
  */
 export interface OrderItemDTO {
   id: string;
   item_type: string;
   notes: string;
+  // Room/window context for production clarity
+  room_name?: string;
+  window_name?: string;
   fabric?: string | null;  // May be UUID or object reference
   fabric_name?: string | null;  // Human-readable fabric name
   cornice?: string | null;
@@ -255,19 +258,36 @@ export type EstimateSupplyMode = 'in_stock' | 'purchase_local' | 'purchase_impor
 
 /**
  * Estimate item - single window/position in a room
- * NOTE: MVP uses manual meters input, no complex formula yet
+ * Phase 2: One EstimateItem = One QuoteItem with full component support
  */
 export interface EstimateItem {
   id: string;
-  name: string; // e.g., "Window 1", "Door curtain"
+  // Room context (passed from parent room)
+  window_name: string; // e.g., "Окно 1", "Дверь", "Балкон"
+  // Dimensions
   width_cm: number;
   height_cm: number;
+  // Main fabric (curtain / портьера)
   curtain_fabric_id: string | null;
   curtain_fabric_meters: number;
-  curtain_supply_mode: EstimateSupplyMode; // How curtain fabric is sourced
+  curtain_supply_mode: EstimateSupplyMode;
+  // Tulle fabric (тюль) - now part of same QuoteItem
   tulle_fabric_id: string | null;
   tulle_fabric_meters: number;
-  tulle_supply_mode: EstimateSupplyMode; // How tulle fabric is sourced
+  tulle_supply_mode: EstimateSupplyMode;
+  // Sewing
+  folds_count: number;
+  sewing_type: string; // "standard" | "european" | "simple"
+  complexity: string; // "simple" | "medium" | "complex" | "premium"
+  sewing_cost: number;
+  // Cornice
+  cornice_length_m: number;
+  cornice_price_per_meter: number;  // Frontend-only for calculation
+  cornice_cost: number;  // Computed: length × price_per_meter
+  // Additional costs
+  installation_price: number;
+  accessories_cost: number;
+  additional_services_total: number;
 }
 
 /**
@@ -390,6 +410,7 @@ export interface ExecutionCustomerDTO {
 
 /**
  * Designer/Measurer measurement from execution endpoint
+ * Phase 3: Includes curtain and tulle fabrics with meters
  */
 export interface DesignerMeasurementDTO {
   id: string;
@@ -398,14 +419,17 @@ export interface DesignerMeasurementDTO {
   width_cm: number;
   height_cm: number;
   mounting_type?: string;
-  // Extended fields (may come from backend in future)
+  // Extended fields
   depth_cm?: number | null;
-  window_type?: string;
-  has_radiator?: boolean;
-  has_slope?: boolean;
-  obstacles?: string;
+  // Phase 3: Curtain and tulle fabrics with meters
+  curtain_fabric?: string | null;
+  curtain_fabric_name?: string | null;
+  curtain_meters?: number;
+  tulle_fabric?: string | null;
+  tulle_fabric_name?: string | null;
+  tulle_meters?: number;
+  // Legacy fields
   selected_fabric?: string | null;
-  selected_cornice_type?: string;
   notes?: string;
 }
 
@@ -414,8 +438,11 @@ export interface DesignerMeasurementDTO {
  */
 export interface SelectedMaterialDTO {
   room?: string | null;
-  fabric?: string | null;
+  // Phase 3: Curtain and tulle fabrics with meters
+  fabric?: string | null;  // Main curtain fabric
   fabric_meters?: number | string | null;
+  tulle_fabric?: string | null;
+  tulle_meters?: number | string | null;
   sewing_type?: string | null;
   supply_mode?: string | null;
 }

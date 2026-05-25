@@ -162,34 +162,84 @@ class OrderService:
         """
         Create order from approved quote.
         This is the standard flow for converting a quote to an order.
+
+        P0: Each QuoteItem becomes 1 or 2 OrderItems:
+        - Main fabric item (always if fabric exists), total_price = fabric_cost
+        - Tulle fabric item (separate if tulle_fabric exists), total_price = tulle_cost
+        Room/window context is preserved for production clarity.
+
+        TODO Sprint 2+: Later split sewing/cornice/installation into separate
+        execution/service items. For now, their costs stay in QuoteItem line_total
+        and are not distributed to fabric/tulle OrderItems.
         """
         try:
-            quote = Quote.objects.select_related('customer').get(
+            quote = Quote.objects.select_related('customer').prefetch_related('items').get(
                 pk=quote_id,
                 status=Quote.Status.APPROVED
             )
         except Quote.DoesNotExist:
             raise OrderValidationError(f"Quote {quote_id} not found or not approved")
-        
-        # Copy items from quote
+
+        # Build items from quote items
+        # Each quote_item can produce multiple order_items (fabric + tulle)
         items = []
         for quote_item in quote.items.all():
-            items.append({
-                'item_type': 'fabric' if quote_item.fabric else 'cornice' if quote_item.cornice else 'service',
-                'fabric_id': quote_item.fabric_id,
-                'cornice_id': quote_item.cornice_id,
-                'quantity': quote_item.fabric_meters if quote_item.fabric else 1,
-                'unit_price': quote_item.fabric.price_per_meter if quote_item.fabric else Decimal('0'),
-                'total_price': quote_item.line_total,
-                'sewing_type': quote_item.sewing_type,
+            base_context = {
+                'room_name': quote_item.room_name,
+                'window_name': quote_item.window_name,
                 'window_width_cm': quote_item.window_width_cm,
                 'window_height_cm': quote_item.window_height_cm,
                 'folds_count': quote_item.folds_count,
-            })
-        
+                'sewing_type': quote_item.sewing_type,
+            }
+
+            # 1. Main fabric item (curtain / портьера)
+            # P0: total_price = fabric_cost (no artificial split of sewing/etc.)
+            if quote_item.fabric:
+                items.append({
+                    'item_type': 'fabric',
+                    'fabric_id': quote_item.fabric_id,
+                    'quantity': quote_item.fabric_meters,
+                    'unit_price': quote_item.fabric.price_per_meter if quote_item.fabric else Decimal('0'),
+                    'total_price': quote_item.fabric_cost,  # P0: exact fabric cost, no split
+                    **base_context,
+                    'notes': f"Основная ткань для {quote_item.window_name or 'окна'}",
+                })
+
+            # 2. Tulle fabric item (тюль) - separate OrderItem if exists
+            # P0: total_price = tulle_cost (no artificial split of sewing/etc.)
+            if quote_item.tulle_fabric:
+                items.append({
+                    'item_type': 'fabric',
+                    'fabric_id': quote_item.tulle_fabric_id,
+                    'quantity': quote_item.tulle_meters,
+                    'unit_price': quote_item.tulle_fabric.price_per_meter if quote_item.tulle_fabric else Decimal('0'),
+                    'total_price': quote_item.tulle_cost,  # P0: exact tulle cost, no split
+                    **base_context,
+                    'notes': f"Тюль для {quote_item.window_name or 'окна'}",
+                })
+
+            # 3. Cornice-only item (if no fabric but cornice exists)
+            if quote_item.cornice and not quote_item.fabric:
+                items.append({
+                    'item_type': 'cornice',
+                    'cornice_id': quote_item.cornice_id,
+                    'quantity': 1,
+                    'unit_price': quote_item.cornice_cost,
+                    'total_price': quote_item.cornice_cost,
+                    **base_context,
+                    'notes': f"Карниз для {quote_item.window_name or 'окна'}",
+                })
+
+            # TODO Sprint 2+: Create separate OrderItems for:
+            # - Sewing service (when sewing workflow is implemented)
+            # - Installation service (when installation workflow is implemented)
+            # - Additional services
+            # For now, these costs stay in Quote financial totals.
+
         # Use quote customer and default address
         customer_id = quote.customer_id
-        
+
         return self.create_order(
             customer_id=customer_id,
             order_number=order_number,
@@ -997,7 +1047,7 @@ class OrderService:
         }
     
     def _parse_item_data(self, item_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Parse order item data"""
+        """Parse order item data with room/window context"""
         return {
             'item_type': item_data.get('item_type', 'fabric'),
             'fabric_id': item_data.get('fabric_id'),
@@ -1006,6 +1056,9 @@ class OrderService:
             'quantity': item_data.get('quantity', Decimal('0')),
             'unit_price': item_data.get('unit_price', Decimal('0')),
             'total_price': item_data.get('total_price', Decimal('0')),
+            # Room/window context from QuoteItem
+            'room_name': item_data.get('room_name', ''),
+            'window_name': item_data.get('window_name', ''),
             'sewing_type': item_data.get('sewing_type', ''),
             'window_width_cm': item_data.get('window_width_cm'),
             'window_height_cm': item_data.get('window_height_cm'),

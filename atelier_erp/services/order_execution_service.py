@@ -196,16 +196,27 @@ class OrderExecutionService:
                 'width_cm': m.width_cm,
                 'height_cm': m.height_cm,
                 'mounting_type': m.mounting_type,
+                # Phase 3: Curtain and tulle fabrics with meters
+                'curtain_fabric': str(m.curtain_fabric.id) if m.curtain_fabric else None,
+                'curtain_fabric_name': m.curtain_fabric.name if m.curtain_fabric else None,
+                'curtain_meters': float(m.curtain_meters) if m.curtain_meters else 0,
+                'tulle_fabric': str(m.tulle_fabric.id) if m.tulle_fabric else None,
+                'tulle_fabric_name': m.tulle_fabric.name if m.tulle_fabric else None,
+                'tulle_meters': float(m.tulle_meters) if m.tulle_meters else 0,
+                'notes': m.notes,
             })
-        
+
         # Selected materials from quote items if available
         selected_materials = []
         if order.quote:
             for qi in order.quote.items.all():
                 material = {
                     'room': qi.room_name if hasattr(qi, 'room_name') else None,
+                    # Phase 3: Include both curtain and tulle fabrics
                     'fabric': qi.fabric.name if qi.fabric else None,
                     'fabric_meters': qi.fabric_meters if hasattr(qi, 'fabric_meters') else None,
+                    'tulle_fabric': qi.tulle_fabric.name if qi.tulle_fabric else None,
+                    'tulle_meters': float(qi.tulle_meters) if qi.tulle_meters else None,
                     'sewing_type': qi.sewing_type,
                 }
                 selected_materials.append(material)

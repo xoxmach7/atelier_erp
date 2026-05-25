@@ -18,11 +18,22 @@ export function generateId(): string {
 }
 
 export interface LineTotalResult {
-  curtainCost: number;
+  fabricCost: number;
   tulleCost: number;
-  total: number;
+  sewingCost: number;
+  corniceCost: number;
+  installationPrice: number;
+  accessoriesCost: number;
+  additionalServicesTotal: number;
+  lineTotal: number;
 }
 
+/**
+ * Calculate line total for an EstimateItem
+ * Phase 2: Matches backend formula
+ * line_total = fabric_cost + tulle_cost + sewing_cost + cornice_cost
+ *              + installation_price + accessories_cost + additional_services_total
+ */
 export function calculateLineTotal(
   item: EstimateItem,
   fabrics: FabricDTO[]
@@ -30,17 +41,40 @@ export function calculateLineTotal(
   const curtainFabric = fabrics.find((f) => f.id === item.curtain_fabric_id);
   const tulleFabric = fabrics.find((f) => f.id === item.tulle_fabric_id);
 
-  const curtainCost = curtainFabric
+  // Calculate fabric costs
+  const fabricCost = curtainFabric
     ? parseFloat(curtainFabric.price_per_meter) * item.curtain_fabric_meters
     : 0;
   const tulleCost = tulleFabric
     ? parseFloat(tulleFabric.price_per_meter) * item.tulle_fabric_meters
     : 0;
 
+  // Other costs come directly from item (user input or calculated)
+  const sewingCost = item.sewing_cost || 0;
+  const corniceCost = item.cornice_cost || 0;
+  const installationPrice = item.installation_price || 0;
+  const accessoriesCost = item.accessories_cost || 0;
+  const additionalServicesTotal = item.additional_services_total || 0;
+
+  // Total matches backend line_total formula
+  const lineTotal =
+    fabricCost +
+    tulleCost +
+    sewingCost +
+    corniceCost +
+    installationPrice +
+    accessoriesCost +
+    additionalServicesTotal;
+
   return {
-    curtainCost,
+    fabricCost,
     tulleCost,
-    total: curtainCost + tulleCost,
+    sewingCost,
+    corniceCost,
+    installationPrice,
+    accessoriesCost,
+    additionalServicesTotal,
+    lineTotal,
   };
 }
 
@@ -57,8 +91,8 @@ export function calculateRoomTotal(
   let itemCount = room.items.length;
 
   room.items.forEach((item) => {
-    const { total } = calculateLineTotal(item, fabrics);
-    roomTotal += total;
+    const { lineTotal } = calculateLineTotal(item, fabrics);
+    roomTotal += lineTotal;
   });
 
   return { roomTotal, itemCount };
@@ -75,6 +109,11 @@ export interface FabricRequirement {
 export interface EstimateSummaryResult {
   totalCurtainCost: number;
   totalTulleCost: number;
+  totalSewingCost: number;
+  totalCorniceCost: number;
+  totalInstallationCost: number;
+  totalAccessoriesCost: number;
+  totalAdditionalServicesCost: number;
   totalCost: number;
   itemCount: number;
   warnings: string[];
@@ -87,6 +126,11 @@ export function calculateEstimateSummary(
 ): EstimateSummaryResult {
   let totalCurtainCost = 0;
   let totalTulleCost = 0;
+  let totalSewingCost = 0;
+  let totalCorniceCost = 0;
+  let totalInstallationCost = 0;
+  let totalAccessoriesCost = 0;
+  let totalAdditionalServicesCost = 0;
   let itemCount = 0;
   const warnings: string[] = [];
   const fabricRequirements: Record<string, FabricRequirement> = {};
@@ -95,6 +139,7 @@ export function calculateEstimateSummary(
     room.items.forEach((item) => {
       itemCount++;
 
+      // Fabrics
       if (item.curtain_fabric_id) {
         const fabric = fabrics.find((f) => f.id === item.curtain_fabric_id);
         if (fabric) {
@@ -132,6 +177,13 @@ export function calculateEstimateSummary(
           fabricRequirements[fabric.id].required += item.tulle_fabric_meters;
         }
       }
+
+      // Other costs
+      totalSewingCost += item.sewing_cost || 0;
+      totalCorniceCost += item.cornice_cost || 0;
+      totalInstallationCost += item.installation_price || 0;
+      totalAccessoriesCost += item.accessories_cost || 0;
+      totalAdditionalServicesCost += item.additional_services_total || 0;
     });
   });
 
@@ -139,15 +191,29 @@ export function calculateEstimateSummary(
   Object.entries(fabricRequirements).forEach(([, req]) => {
     if (req.required > req.available) {
       warnings.push(
-        `${req.name}: need ${formatMeters(req.required)}, have ${formatMeters(req.available)}`
+        `${req.name}: требуется ${formatMeters(req.required)}, доступно ${formatMeters(req.available)}`
       );
     }
   });
 
+  const totalCost =
+    totalCurtainCost +
+    totalTulleCost +
+    totalSewingCost +
+    totalCorniceCost +
+    totalInstallationCost +
+    totalAccessoriesCost +
+    totalAdditionalServicesCost;
+
   return {
     totalCurtainCost,
     totalTulleCost,
-    totalCost: totalCurtainCost + totalTulleCost,
+    totalSewingCost,
+    totalCorniceCost,
+    totalInstallationCost,
+    totalAccessoriesCost,
+    totalAdditionalServicesCost,
+    totalCost,
     itemCount,
     warnings,
     fabricRequirements,

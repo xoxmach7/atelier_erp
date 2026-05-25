@@ -81,6 +81,33 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Sheber Design Tokens */
+  --a: #0EA5E9;
+  --ad: #0284C7;
+  --al: #E0F2FE;
+  --am: #BAE6FD;
+  --bg: #F0F4F8;
+  --card-sheber: #FFFFFF;
+  --border-sheber: #E2E8F0;
+  --borderl: #F1F5F9;
+  --t1: #0F172A;
+  --t2: #475569;
+  --t3: #94A3B8;
+  --r: 10px;
+  --rl: 14px;
+  --sh: 0 1px 3px rgba(15,23,42,.07), 0 1px 2px rgba(15,23,42,.04);
+  --input-bg: #F8FAFC;
+
+  /* Status Colors */
+  --ok: #16A34A;
+  --ok-bg: #DCFCE7;
+  --warn: #D97706;
+  --warn-bg: #FEF3C7;
+  --err: #DC2626;
+  --err-bg: #FEE2E2;
+  --pur: #7C3AED;
+  --pur-bg: #EDE9FE;
 }
 
 .dark {

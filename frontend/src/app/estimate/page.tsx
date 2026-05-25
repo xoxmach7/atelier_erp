@@ -9,7 +9,6 @@ import { LoadingState } from "@/components/shared/loading-state";
 import {
   ContextualNavigation,
   WorkflowNavPatterns,
-  DraftStatusCard,
   ErrorState,
   ResetConfirmationDialog,
   ResetDialogPresets,
@@ -21,7 +20,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useFabrics } from "@/hooks/useFabrics";
 import { useCustomers } from "@/hooks/useCustomers";
-import { useTasks } from "@/hooks/useTasks";
+import { useCreateCustomer } from "@/hooks/useCustomers";
+import { useOrder } from "@/hooks/useOrders";
 import { useEstimateDraft } from "./hooks/useEstimateDraft";
 import { useCreateQuote, type CreateQuoteInput } from "@/hooks/useQuotes";
 import {
@@ -34,11 +34,10 @@ import {
 import {
   RoomSection,
   SummaryPanel,
-  InventoryStatusCard,
 } from "./components";
 import { generateId } from "./utils/estimateHelpers";
-import type { EstimateRoom, EstimateItem, QuoteDTO } from "@/types";
-import { Plus, Ruler, ArrowLeft, Calculator, Save, CheckCircle, Eye } from "lucide-react";
+import type { EstimateRoom, EstimateItem, QuoteDTO, MeasurementDTO, OrderDetailDTO } from "@/types";
+import { Plus, Ruler, ArrowLeft, Calculator, Save, CheckCircle, Eye, FileSpreadsheet, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
 /**
@@ -68,9 +67,8 @@ function EstimateContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: customersData, isLoading: isLoadingCustomers } = useCustomers();
-  const { data: tasksData, isLoading: isLoadingTasks } = useTasks();
   const customers = customersData?.results || [];
-  const tasks = tasksData?.results || [];
+  const createCustomer = useCreateCustomer();
 
   // Read customer and order from query params (order context for direct order flow)
   const customerFromQuery = searchParams.get("customer");
@@ -88,14 +86,25 @@ function EstimateContent() {
   const [savedQuote, setSavedQuote] = useState<QuoteDTO | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(customerFromQuery || "");
-  const [selectedTaskId, setSelectedTaskId] = useState<string>("");
+  
+  // New customer form state
+  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+  const [customerError, setCustomerError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  
+  // Load order data if opened from order context
+  const { data: orderData, isLoading: isLoadingOrder } = useOrder(orderFromQuery);
+  const [isPrefilled, setIsPrefilled] = useState(false);
   
   // Mutations
   const createQuote = useCreateQuote();
   
   // Derived state
   const isPersisted = !!savedQuote;
-  // MVP: Task is optional - allow Client -> Quote flow directly
+  // MVP: Only client is required - task is optional
   const canSave = project.rooms.length > 0 && 
                   project.rooms.some(r => r.items.length > 0) &&
                   selectedCustomerId;
@@ -124,21 +133,109 @@ function EstimateContent() {
     }));
   };
 
+  /**
+   * Helper: Map MeasurementDTO to EstimateItem
+   */
+  const measurementToEstimateItem = useCallback((measurement: MeasurementDTO): EstimateItem => {
+    return {
+      id: generateId(),
+      window_name: measurement.window_name || "Окно",
+      width_cm: measurement.width_cm || 0,
+      height_cm: measurement.height_cm || 0,
+      // Main fabric (curtain)
+      curtain_fabric_id: measurement.curtain_fabric || null,
+      curtain_fabric_meters: measurement.curtain_meters || 0,
+      curtain_supply_mode: 'in_stock',
+      // Tulle fabric
+      tulle_fabric_id: measurement.tulle_fabric || null,
+      tulle_fabric_meters: measurement.tulle_meters || 0,
+      tulle_supply_mode: 'in_stock',
+      // Sewing - empty, user fills in
+      folds_count: 0,
+      sewing_type: 'standard',
+      complexity: 'medium',
+      sewing_cost: 0,
+      // Cornice - empty, user fills in
+      cornice_length_m: 0,
+      cornice_price_per_meter: 0,
+      cornice_cost: 0,
+      // Additional costs - empty, user fills in
+      installation_price: 0,
+      accessories_cost: 0,
+      additional_services_total: 0,
+    };
+  }, []);
+
+  /**
+   * Helper: Group measurements by room and create EstimateRooms
+   */
+  const measurementsToEstimateRooms = useCallback((measurements: MeasurementDTO[]): EstimateRoom[] => {
+    // Group by room_name
+    const grouped = measurements.reduce((acc, measurement) => {
+      const roomName = measurement.room_name || "Без комнаты";
+      if (!acc[roomName]) {
+        acc[roomName] = [];
+      }
+      acc[roomName].push(measurementToEstimateItem(measurement));
+      return acc;
+    }, {} as Record<string, EstimateItem[]>);
+
+    // Create rooms from grouped items
+    return Object.entries(grouped).map(([roomName, items], index) => ({
+      id: generateId(),
+      name: roomName,
+      items: items,
+    }));
+  }, [measurementToEstimateItem]);
+
+  /**
+   * Prefill estimate from order measurements when order data loads
+   */
+  useEffect(() => {
+    if (orderFromQuery && orderData && !isPrefilled && project.rooms.length === 0) {
+      const measurements = orderData.measurements || [];
+      if (measurements.length > 0) {
+        const rooms = measurementsToEstimateRooms(measurements);
+        setProject((prev) => ({
+          ...prev,
+          rooms: rooms,
+        }));
+        setIsPrefilled(true);
+        console.log(`[ESTIMATE] Prefilled ${rooms.length} rooms from ${measurements.length} measurements`);
+      }
+    }
+  }, [orderFromQuery, orderData, isPrefilled, project.rooms.length, measurementsToEstimateRooms, setProject]);
+
   const addItemToRoom = (roomId: string) => {
     const room = project.rooms.find((r) => r.id === roomId);
     if (!room) return;
 
     const newItem: EstimateItem = {
       id: generateId(),
-      name: `Позиция ${room.items.length + 1}`,
+      window_name: `Позиция ${room.items.length + 1}`,
       width_cm: 0,
       height_cm: 0,
+      // Main fabric
       curtain_fabric_id: null,
       curtain_fabric_meters: 0,
       curtain_supply_mode: 'in_stock',
+      // Tulle fabric
       tulle_fabric_id: null,
       tulle_fabric_meters: 0,
       tulle_supply_mode: 'in_stock',
+      // Sewing
+      folds_count: 0,
+      sewing_type: 'standard',
+      complexity: 'medium',
+      sewing_cost: 0,
+      // Cornice
+      cornice_length_m: 0,
+      cornice_price_per_meter: 0,
+      cornice_cost: 0,
+      // Additional costs
+      installation_price: 0,
+      accessories_cost: 0,
+      additional_services_total: 0,
     };
 
     setProject((prev) => ({
@@ -185,61 +282,61 @@ function EstimateContent() {
       let subtotal = 0;
       const quoteItems: CreateQuoteInput["items"] = [];
       
-      // Map draft rooms/items to QuoteItems
+      // Phase 2: One EstimateItem = One QuoteItem
       project.rooms.forEach((room) => {
         room.items.forEach((item) => {
           const curtainFabric = fabrics.find((f) => f.id === item.curtain_fabric_id);
           const tulleFabric = fabrics.find((f) => f.id === item.tulle_fabric_id);
-          
-          // Calculate costs
-          const fabricCost = curtainFabric 
-            ? parseFloat(curtainFabric.price_per_meter) * item.curtain_fabric_meters 
+
+          // Calculate fabric costs
+          const fabricCost = curtainFabric
+            ? parseFloat(curtainFabric.price_per_meter) * item.curtain_fabric_meters
             : 0;
-          const tulleCost = tulleFabric 
-            ? parseFloat(tulleFabric.price_per_meter) * item.tulle_fabric_meters 
+          const tulleCost = tulleFabric
+            ? parseFloat(tulleFabric.price_per_meter) * item.tulle_fabric_meters
             : 0;
-          
-          // Create QuoteItem for curtain (if fabric selected)
-          if (item.curtain_fabric_id && item.curtain_fabric_meters > 0) {
-            quoteItems.push({
-              room_name: room.name,
-              window_width_cm: item.width_cm,
-              window_height_cm: item.height_cm,
-              folds_count: 0,
-              fabric: item.curtain_fabric_id,
-              fabric_meters: item.curtain_fabric_meters,
-              fabric_cost: fabricCost,
-              supply_mode: item.curtain_supply_mode || 'in_stock',
-              sewing_type: "standard",
-              complexity: "medium",
-              sewing_cost: 0,
-              accessories_cost: 0,
-              cornice: null,
-              cornice_cost: 0,
-            });
-            subtotal += fabricCost;
-          }
-          
-          // Create QuoteItem for tulle (if fabric selected) - separate line item
-          if (item.tulle_fabric_id && item.tulle_fabric_meters > 0) {
-            quoteItems.push({
-              room_name: `${room.name} (Tulle)`,
-              window_width_cm: item.width_cm,
-              window_height_cm: item.height_cm,
-              folds_count: 0,
-              fabric: item.tulle_fabric_id,
-              fabric_meters: item.tulle_fabric_meters,
-              fabric_cost: tulleCost,
-              supply_mode: item.tulle_supply_mode || 'in_stock',
-              sewing_type: "standard",
-              complexity: "medium",
-              sewing_cost: 0,
-              accessories_cost: 0,
-              cornice: null,
-              cornice_cost: 0,
-            });
-            subtotal += tulleCost;
-          }
+
+          // Calculate line_total (matches backend formula)
+          const lineTotal =
+            fabricCost +
+            tulleCost +
+            (item.sewing_cost || 0) +
+            (item.cornice_cost || 0) +
+            (item.installation_price || 0) +
+            (item.accessories_cost || 0) +
+            (item.additional_services_total || 0);
+
+          // Create single QuoteItem with all components
+          quoteItems.push({
+            room_name: room.name,
+            window_name: item.window_name,
+            window_width_cm: item.width_cm,
+            window_height_cm: item.height_cm,
+            folds_count: item.folds_count || 0,
+            // Main fabric
+            fabric: item.curtain_fabric_id || null,
+            fabric_meters: item.curtain_fabric_meters || 0,
+            fabric_cost: fabricCost,
+            // Tulle fabric (now part of same QuoteItem)
+            tulle_fabric: item.tulle_fabric_id || null,
+            tulle_meters: item.tulle_fabric_meters || 0,
+            tulle_cost: tulleCost,
+            // Supply mode (use curtain supply mode as primary)
+            supply_mode: item.curtain_supply_mode || 'in_stock',
+            // Sewing
+            sewing_type: item.sewing_type || 'standard',
+            complexity: item.complexity || 'medium',
+            sewing_cost: item.sewing_cost || 0,
+            // Cornice
+            cornice_length_m: item.cornice_length_m || 0,
+            cornice_cost: item.cornice_cost || 0,
+            // Installation and additional services
+            installation_price: item.installation_price || 0,
+            accessories_cost: item.accessories_cost || 0,
+            additional_services_total: item.additional_services_total || 0,
+          });
+
+          subtotal += lineTotal;
         });
       });
       
@@ -261,7 +358,6 @@ function EstimateContent() {
         items: quoteItems,
         // Only include task if selected (Client -> Task -> Quote flow)
         // Otherwise allow direct Client -> Quote flow (MVP)
-        ...(selectedTaskId && { task: selectedTaskId }),
         // Link to existing order when creating from order context
         ...(orderFromQuery && { order: orderFromQuery }),
       };
@@ -321,7 +417,11 @@ function EstimateContent() {
     );
   }
 
-  // Empty estimate state
+  // Check if we have measurements from order
+  const hasOrderMeasurements = orderFromQuery && orderData && (orderData.measurements?.length || 0) > 0;
+  const measurementsCount = orderData?.measurements?.length || 0;
+
+  // Empty estimate state - show different message if order has measurements
   if (project.rooms.length === 0) {
     return (
       <>
@@ -333,18 +433,82 @@ function EstimateContent() {
         </PageHeader>
 
         <ContextualNavigation links={WorkflowNavPatterns.estimate()} />
-        <DraftStatusCard draftType="estimate" hasContent={false} />
 
         <div className="mt-6">
-          <EmptyState
-            title="Начните строить смету"
-            description="Добавляйте комнаты и позиции для расчета стоимости тканей. Выбирайте ткани из склада с проверкой наличия."
-            icon={<Ruler className="h-6 w-6 text-slate-600" />}
-            action={{
-              label: "Добавить первую комнату",
-              onClick: addRoom,
-            }}
-          />
+          {hasOrderMeasurements ? (
+            // Show measurement-based empty state
+            <Card className="bg-amber-50 border-amber-200">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                    <FileSpreadsheet className="h-6 w-6 text-amber-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-amber-900 mb-1">
+                      КП из замеров
+                    </h3>
+                    <p className="text-amber-700 mb-3">
+                      В заказе есть {measurementsCount} замеров. Позиции будут автоматически созданы из замеров при открытии конструктора.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button onClick={addRoom} variant="default" className="bg-amber-600 hover:bg-amber-700">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Добавить комнату
+                      </Button>
+                      <Button variant="outline" asChild>
+                        <Link href={`/orders/${orderFromQuery}`}>
+                          <ArrowLeft className="mr-2 h-4 w-4" />
+                          Вернуться к заказу
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : orderFromQuery && !hasOrderMeasurements ? (
+            // Show warning if order has no measurements
+            <Card className="bg-slate-50 border-slate-200">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                    <AlertCircle className="h-6 w-6 text-slate-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-slate-900 mb-1">
+                      В заказе нет замеров
+                    </h3>
+                    <p className="text-slate-600 mb-3">
+                      Сначала добавьте замеры или создайте позицию вручную.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button onClick={addRoom} variant="outline">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Добавить позицию вручную
+                      </Button>
+                      <Button variant="outline" asChild>
+                        <Link href={`/measurements?order=${orderFromQuery}`}>
+                          <Ruler className="mr-2 h-4 w-4" />
+                          Добавить замеры
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            // Default empty state
+            <EmptyState
+              title="Начните строить смету"
+              description="Добавляйте комнаты и позиции для расчета стоимости тканей. Выбирайте ткани из склада с проверкой наличия."
+              icon={<Ruler className="h-6 w-6 text-slate-600" />}
+              action={{
+                label: "Добавить первую комнату",
+                onClick: addRoom,
+              }}
+            />
+          )}
         </div>
       </>
     );
@@ -430,66 +594,203 @@ function EstimateContent() {
 
       <ContextualNavigation links={WorkflowNavPatterns.estimate()} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main working area */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="bg-slate-50 border-dashed">
-            <CardContent className="p-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Выберите задачу *</Label>
-                  <Select 
-                    value={selectedTaskId} 
-                    onValueChange={setSelectedTaskId}
-                    disabled={isPersisted}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Выберите задачу..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tasks.length === 0 && (
-                        <SelectItem value="__none__" disabled>Нет доступных задач</SelectItem>
-                      )}
-                      {tasks.map((task) => (
-                        <SelectItem key={task.id} value={task.id}>
-                          {task.task_number} - {task.client_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+      {/* Measurement-based quote banner */}
+      {isPrefilled && hasOrderMeasurements && (
+        <Card className="bg-blue-50 border-blue-200 mb-5">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <FileSpreadsheet className="h-5 w-5 text-blue-600" />
                 </div>
-                <div className="space-y-2">
-                  <Label>Выберите клиента *</Label>
-                  <Select 
-                    value={selectedCustomerId} 
-                    onValueChange={setSelectedCustomerId}
-                    disabled={isPersisted}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Выберите клиента..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers.length === 0 && (
-                        <SelectItem value="__none__" disabled>Нет доступных клиентов</SelectItem>
-                      )}
-                      {customers.map((customer) => (
-                        <SelectItem key={customer.id} value={customer.id}>
-                          {customer.full_name} {customer.phone && `(${customer.phone})`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div>
+                  <h3 className="font-semibold text-blue-900">КП из замеров</h3>
+                  <p className="text-sm text-blue-700">
+                    Загружено: {measurementsCount} позиций из замеров заказа
+                    {orderData?.order_number && ` ${orderData.order_number}`}
+                  </p>
                 </div>
               </div>
-              {!isPersisted && (!selectedTaskId || !selectedCustomerId) && (
-                <p className="text-xs text-amber-600 mt-2">
-                  * Обязательно для сохранения КП
-                </p>
+              <Button variant="outline" size="sm" asChild className="border-blue-300 text-blue-700 hover:bg-blue-100">
+                <Link href={`/orders/${orderFromQuery}`}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  К заказу
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Main working area */}
+        <div className="lg:col-span-2 space-y-5">
+          {/* Client Selection Card - Simplified UX */}
+          <Card className="bg-[var(--card-sheber)] border-[var(--border-sheber)] shadow-[var(--sh)] rounded-[var(--rl)]">
+            <CardContent className="p-4">
+              {!showNewCustomerForm ? (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <Label className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Клиент</Label>
+                    {orderFromQuery && (
+                      <span className="text-xs text-[var(--t3)]">
+                        Привязка к заказу: Заказ №{orderFromQuery}
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <Select
+                        value={selectedCustomerId}
+                        onValueChange={setSelectedCustomerId}
+                        disabled={isPersisted}
+                      >
+                        <SelectTrigger className="bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)] focus:ring-[var(--a)]/20 focus:border-[var(--a)] h-9 text-sm">
+                          <SelectValue placeholder="Выберите клиента..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[var(--card-sheber)] border-[var(--border-sheber)]">
+                          {customers.length === 0 && (
+                            <SelectItem value="__none__" disabled>Нет клиентов</SelectItem>
+                          )}
+                          {customers.map((customer) => (
+                            <SelectItem key={customer.id} value={customer.id} className="text-[var(--t1)] focus:bg-[var(--bg)]">
+                              {customer.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {!isPersisted && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowNewCustomerForm(true)}
+                        className="border-[var(--border-sheber)] text-[var(--a)] hover:bg-[var(--al)] whitespace-nowrap"
+                      >
+                        <Plus className="mr-1 h-4 w-4" />
+                        Новый клиент
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {selectedCustomerId && (
+                    <div className="mt-2 text-sm text-[var(--t2)]">
+                      {customers.find(c => c.id === selectedCustomerId)?.phone}
+                    </div>
+                  )}
+                  
+                  {!isPersisted && !selectedCustomerId && (
+                    <p className="text-xs text-[var(--warn)] mt-2 flex items-center gap-1">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--warn)]"></span>
+                      Выберите клиента для сохранения КП
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <Label className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Новый клиент</Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowNewCustomerForm(false)}
+                      className="text-[var(--t3)] h-auto py-1"
+                    >
+                      Отмена
+                    </Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-[var(--t3)]">ФИО / Название</Label>
+                      <Input
+                        value={newCustomerName}
+                        onChange={(e) => setNewCustomerName(e.target.value)}
+                        placeholder="Иванов Иван"
+                        className="h-8 text-sm bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-[var(--t3)]">Телефон</Label>
+                      <Input
+                        value={newCustomerPhone}
+                        onChange={(e) => {
+                          setNewCustomerPhone(e.target.value);
+                          setPhoneError(null); // Clear error on change
+                        }}
+                        placeholder="+7 700 111 22 33"
+                        className={`h-8 text-sm bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)] ${phoneError ? 'border-[var(--err)]' : ''}`}
+                      />
+                      {phoneError && (
+                        <div className="text-xs text-[var(--err)] mt-1">
+                          {phoneError}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {customerError && (
+                    <div className="text-xs text-[var(--err)] mt-2">
+                      {customerError}
+                    </div>
+                  )}
+
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      if (!newCustomerName.trim()) return;
+                      
+                      // Normalize phone: remove all non-digit characters
+                      const normalizedPhone = newCustomerPhone.replace(/\D/g, "");
+                      
+                      // Validate phone: must be 10-20 digits
+                      if (normalizedPhone.length > 0 && (normalizedPhone.length < 10 || normalizedPhone.length > 20)) {
+                        setPhoneError("Телефон должен содержать 10–20 цифр");
+                        return;
+                      }
+                      
+                      setIsCreatingCustomer(true);
+                      setCustomerError(null);
+                      setPhoneError(null);
+                      
+                      try {
+                        const newCustomer = await createCustomer.mutateAsync({
+                          full_name: newCustomerName.trim(),
+                          phone: normalizedPhone || "",
+                        });
+                        setSelectedCustomerId(newCustomer.id);
+                        setShowNewCustomerForm(false);
+                        setNewCustomerName("");
+                        setNewCustomerPhone("");
+                      } catch (err: any) {
+                        console.error("Failed to create customer:", err);
+                        const errorMsg = err?.response?.data?.phone?.[0]
+                          || err?.response?.data?.detail
+                          || err?.message
+                          || "Не удалось создать клиента";
+                        // Check if it's a phone validation error from backend
+                        if (err?.response?.data?.phone) {
+                          setPhoneError(errorMsg);
+                        } else {
+                          setCustomerError(errorMsg);
+                        }
+                      } finally {
+                        setIsCreatingCustomer(false);
+                      }
+                    }}
+                    disabled={!newCustomerName.trim() || isCreatingCustomer}
+                    className="mt-3 bg-[var(--a)] hover:bg-[var(--ad)] text-white"
+                  >
+                    {isCreatingCustomer ? "Создание..." : "Добавить клиента"}
+                  </Button>
+                </>
               )}
             </CardContent>
           </Card>
 
-          <div className="space-y-6">
+          {/* Room Sections */}
+          <div className="space-y-5">
             {project.rooms.map((room) => (
               <RoomSection
                 key={room.id}
@@ -505,15 +806,24 @@ function EstimateContent() {
           </div>
         </div>
 
-        {/* Summary panel */}
+        {/* Summary panel - Simplified */}
         <div className="lg:col-span-1 space-y-4">
-          <DraftStatusCard draftType="estimate" hasContent={true} />
+          {!isPersisted && (
+            <Button
+              onClick={saveToQuote}
+              disabled={!canSave || isSaving}
+              className="w-full bg-[var(--a)] hover:bg-[var(--ad)] text-white h-12 text-base"
+            >
+              <Save className="mr-2 h-5 w-5" />
+              {isSaving ? "Сохранение..." : "Сохранить КП"}
+            </Button>
+          )}
           <SummaryPanel
             rooms={project.rooms}
             fabrics={fabrics}
             onReset={() => setShowResetDialog(true)}
+            isPersisted={isPersisted}
           />
-          <InventoryStatusCard fabricsCount={fabrics.length} />
         </div>
       </div>
 

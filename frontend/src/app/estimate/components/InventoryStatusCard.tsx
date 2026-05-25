@@ -9,17 +9,17 @@ interface InventoryStatusCardProps {
 
 export function InventoryStatusCard({ fabricsCount }: InventoryStatusCardProps) {
   return (
-    <Card className="mt-4">
+    <Card className="mt-4 bg-[var(--card-sheber)] border-[var(--border-sheber)]">
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm flex items-center gap-2">
-          <Package className="h-4 w-4" />
-          Inventory Status
+        <CardTitle className="text-sm flex items-center gap-2 text-[var(--t1)]">
+          <Package className="h-4 w-4 text-[var(--ok)]" />
+          Ткани загружены
         </CardTitle>
       </CardHeader>
-      <CardContent className="text-sm text-slate-600">
-        <p>{fabricsCount} fabrics loaded from inventory</p>
-        <p className="text-xs text-slate-400 mt-1">
-          Prices and availability are up-to-date with current stock.
+      <CardContent className="text-sm text-[var(--t2)]">
+        <p>{fabricsCount} тканей доступно</p>
+        <p className="text-xs text-[var(--t3)] mt-1">
+          Цены и наличие актуальны
         </p>
       </CardContent>
     </Card>

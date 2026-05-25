@@ -86,14 +86,15 @@ class ServiceSerializer(serializers.ModelSerializer):
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    """Order item serializer"""
+    """Order item serializer with room/window context"""
     fabric_details = FabricListSerializer(source='fabric', read_only=True)
     cornice_details = CorniceSerializer(source='cornice', read_only=True)
-    
+
     class Meta:
         model = OrderItem
         fields = [
             'id', 'item_type', 'notes',
+            'room_name', 'window_name',
             'fabric', 'fabric_details',
             'cornice', 'cornice_details',
             'service', 'unit_price', 'quantity', 'total_price',
@@ -104,11 +105,12 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
 
 class OrderItemCreateSerializer(serializers.ModelSerializer):
-    """Order item create serializer"""
+    """Order item create serializer with room/window context"""
     class Meta:
         model = OrderItem
         fields = [
             'item_type', 'notes',
+            'room_name', 'window_name',
             'fabric', 'cornice',
             'service', 'unit_price', 'quantity',
             'sewing_type', 'window_width_cm', 'window_height_cm', 'folds_count'
@@ -258,26 +260,35 @@ class TaskSerializer(serializers.ModelSerializer):
 
 
 class QuoteItemSerializer(serializers.ModelSerializer):
-    """Quote item serializer"""
+    """Quote item serializer with full component breakdown"""
     fabric_details = FabricListSerializer(source='fabric', read_only=True)
+    tulle_fabric_details = FabricListSerializer(source='tulle_fabric', read_only=True)
     cornice_details = CorniceSerializer(source='cornice', read_only=True)
 
     class Meta:
         model = QuoteItem
         fields = [
-            'id', 'quote', 'room_name',
+            'id', 'quote', 'room_name', 'window_name',
             'window_width_cm', 'window_height_cm', 'folds_count',
-            'fabric', 'fabric_details', 'fabric_meters', 'fabric_cost', 'supply_mode',
+            # Main fabric
+            'fabric', 'fabric_details', 'fabric_meters', 'fabric_cost',
+            # Tulle fabric
+            'tulle_fabric', 'tulle_fabric_details', 'tulle_meters', 'tulle_cost',
+            'supply_mode',
+            # Sewing
             'sewing_type', 'complexity', 'sewing_cost',
-            'accessories_cost',
-            'cornice', 'cornice_details', 'cornice_cost',
+            # Cornice
+            'cornice', 'cornice_details', 'cornice_length_m', 'cornice_cost',
+            # Installation and additional services
+            'installation_price', 'accessories_cost', 'additional_services_total',
+            # Total
             'line_total', 'created_at'
         ]
         read_only_fields = ['line_total', 'created_at']
 
 
 class QuoteItemCreateSerializer(serializers.ModelSerializer):
-    """Quote item create/update serializer"""
+    """Quote item create/update serializer with full component support"""
     line_total = serializers.DecimalField(
         max_digits=12,
         decimal_places=2,
@@ -288,14 +299,36 @@ class QuoteItemCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = QuoteItem
         fields = [
-            'id', 'room_name',
+            'id', 'room_name', 'window_name',
             'window_width_cm', 'window_height_cm', 'folds_count',
-            'fabric', 'fabric_meters', 'fabric_cost', 'supply_mode',
+            # Main fabric
+            'fabric', 'fabric_meters', 'fabric_cost',
+            # Tulle fabric
+            'tulle_fabric', 'tulle_meters', 'tulle_cost',
+            'supply_mode',
+            # Sewing
             'sewing_type', 'complexity', 'sewing_cost',
-            'accessories_cost',
-            'cornice', 'cornice_cost',
+            # Cornice
+            'cornice', 'cornice_length_m', 'cornice_cost',
+            # Installation and additional services
+            'installation_price', 'accessories_cost', 'additional_services_total',
+            # Total
             'line_total'
         ]
+
+    def validate(self, data):
+        """Calculate line_total if not provided, ensuring all components are included"""
+        if not data.get('line_total'):
+            data['line_total'] = (
+                Decimal(data.get('fabric_cost', 0) or 0) +
+                Decimal(data.get('tulle_cost', 0) or 0) +
+                Decimal(data.get('sewing_cost', 0) or 0) +
+                Decimal(data.get('cornice_cost', 0) or 0) +
+                Decimal(data.get('accessories_cost', 0) or 0) +
+                Decimal(data.get('installation_price', 0) or 0) +
+                Decimal(data.get('additional_services_total', 0) or 0)
+            )
+        return data
 
 
 class QuoteListSerializer(serializers.ModelSerializer):
@@ -418,14 +451,23 @@ class QuoteCreateSerializer(serializers.ModelSerializer):
         computed_subtotal = Decimal('0')
         
         for item_data in items_data:
-            # Compute line_total from cost fields if not provided
+            # Compute line_total from all cost fields if not provided
+            # P0: Ensure all components are included in calculation
             if not item_data.get('line_total'):
-                fabric_cost = item_data.get('fabric_cost', Decimal('0')) or Decimal('0')
-                sewing_cost = item_data.get('sewing_cost', Decimal('0')) or Decimal('0')
-                accessories_cost = item_data.get('accessories_cost', Decimal('0')) or Decimal('0')
-                cornice_cost = item_data.get('cornice_cost', Decimal('0')) or Decimal('0')
-                item_data['line_total'] = fabric_cost + sewing_cost + accessories_cost + cornice_cost
-            
+                fabric_cost = Decimal(item_data.get('fabric_cost', 0) or 0)
+                tulle_cost = Decimal(item_data.get('tulle_cost', 0) or 0)
+                sewing_cost = Decimal(item_data.get('sewing_cost', 0) or 0)
+                accessories_cost = Decimal(item_data.get('accessories_cost', 0) or 0)
+                cornice_cost = Decimal(item_data.get('cornice_cost', 0) or 0)
+                installation_price = Decimal(item_data.get('installation_price', 0) or 0)
+                additional_services = Decimal(item_data.get('additional_services_total', 0) or 0)
+
+                item_data['line_total'] = (
+                    fabric_cost + tulle_cost + sewing_cost +
+                    accessories_cost + cornice_cost +
+                    installation_price + additional_services
+                )
+
             computed_subtotal += item_data.get('line_total', Decimal('0')) or Decimal('0')
             QuoteItem.objects.create(quote=quote, **item_data)
         
@@ -528,9 +570,17 @@ class ActivityLogSerializer(serializers.ModelSerializer):
 
 
 class MeasurementSerializer(serializers.ModelSerializer):
-    """Measurement serializer for CRUD operations"""
+    """Measurement serializer for CRUD operations
+    Phase 3: Supports curtain_fabric + tulle_fabric with meters
+    Measurement = what selected and how much needed (no prices)
+    """
+    # Legacy fabric fields
     selected_fabric_details = FabricListSerializer(source='selected_fabric', read_only=True)
     measured_by_name = serializers.CharField(source='measured_by.get_full_name', read_only=True, allow_null=True)
+
+    # Phase 3: Curtain and tulle fabrics with meters
+    curtain_fabric_details = FabricListSerializer(source='curtain_fabric', read_only=True)
+    tulle_fabric_details = FabricListSerializer(source='tulle_fabric', read_only=True)
 
     class Meta:
         model = Measurement
@@ -539,20 +589,35 @@ class MeasurementSerializer(serializers.ModelSerializer):
             'width_cm', 'height_cm', 'depth_cm', 'ceiling_height_cm',
             'mounting_type', 'window_type', 'has_radiator', 'has_slope',
             'obstacles', 'selected_fabric', 'selected_fabric_details',
-            'selected_cornice_type', 'notes',
+            'selected_cornice_type',
+            # Phase 3: Curtain and tulle fabrics
+            'curtain_fabric', 'curtain_fabric_details', 'curtain_meters',
+            'tulle_fabric', 'tulle_fabric_details', 'tulle_meters',
+            'notes',
             'measured_by', 'measured_by_name', 'measured_at'
         ]
         read_only_fields = ['measured_at']
 
 
 class MeasurementListSerializer(serializers.ModelSerializer):
-    """Minimal measurement serializer for list views"""
+    """Minimal measurement serializer for list views
+    Phase 3: Includes curtain and tulle fabric references
+    """
     selected_fabric_hanger = serializers.CharField(source='selected_fabric.hanger_number', read_only=True, allow_null=True)
+    # Phase 3: Curtain and tulle fabric hangers for list view
+    curtain_fabric_hanger = serializers.CharField(source='curtain_fabric.hanger_number', read_only=True, allow_null=True)
+    curtain_fabric_name = serializers.CharField(source='curtain_fabric.name', read_only=True, allow_null=True)
+    tulle_fabric_hanger = serializers.CharField(source='tulle_fabric.hanger_number', read_only=True, allow_null=True)
+    tulle_fabric_name = serializers.CharField(source='tulle_fabric.name', read_only=True, allow_null=True)
 
     class Meta:
         model = Measurement
         fields = [
             'id', 'order', 'room_name', 'window_name',
             'width_cm', 'height_cm', 'mounting_type',
-            'selected_fabric_hanger', 'measured_at'
+            'selected_fabric_hanger',
+            # Phase 3: Curtain and tulle fabrics
+            'curtain_fabric_hanger', 'curtain_fabric_name', 'curtain_meters',
+            'tulle_fabric_hanger', 'tulle_fabric_name', 'tulle_meters',
+            'measured_at'
         ]

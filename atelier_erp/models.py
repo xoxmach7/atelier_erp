@@ -514,13 +514,13 @@ class Order(UUIDModel, AuditedModel):
 
 
 class OrderItem(UUIDModel):
-    """Line item within Order"""
-    
+    """Line item within Order - represents task for production/installation"""
+
     class ItemType(models.TextChoices):
         FABRIC = 'fabric', _('Fabric')
         CORNICE = 'cornice', _('Cornice')
         SERVICE = 'service', _('Service')
-    
+
     order = models.ForeignKey(
         Order,
         on_delete=models.CASCADE,
@@ -528,7 +528,11 @@ class OrderItem(UUIDModel):
         db_index=True
     )
     item_type = models.CharField(max_length=20, choices=ItemType.choices, db_index=True)
-    
+
+    # Room/window context for production and installation
+    room_name = models.CharField(max_length=100, blank=True, default="")
+    window_name = models.CharField(max_length=100, blank=True, default="")
+
     # Polymorphic references (only one populated based on item_type)
     fabric = models.ForeignKey(
         Fabric,
@@ -551,18 +555,18 @@ class OrderItem(UUIDModel):
         blank=True,
         related_name='order_items'
     )
-    
+
     # Pricing (snapshot at order creation)
     quantity = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0'))])
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0'))])
     total_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0'))])
-    
+
     # Fabric-specific fields
     sewing_type = models.CharField(max_length=100, blank=True, db_index=True)
     window_width_cm = models.PositiveIntegerField(null=True, blank=True)
     window_height_cm = models.PositiveIntegerField(null=True, blank=True)
     folds_count = models.PositiveIntegerField(null=True, blank=True)
-    
+
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
@@ -837,6 +841,7 @@ class Measurement(UUIDModel):
     obstacles = models.TextField(blank=True)
     
     # Selected materials (pre-order phase)
+    # LEGACY: selected_fabric is legacy; use curtain_fabric for new measurement flow
     selected_fabric = models.ForeignKey(
         Fabric,
         on_delete=models.SET_NULL,
@@ -845,7 +850,27 @@ class Measurement(UUIDModel):
         related_name='measurement_selections'
     )
     selected_cornice_type = models.CharField(max_length=100, blank=True)
-    
+
+    # Phase 3: Separate curtain and tulle fabrics with meters
+    # Measurement = what selected and how much needed (no prices)
+    curtain_fabric = models.ForeignKey(
+        Fabric,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='curtain_measurements'
+    )
+    curtain_meters = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('0'))
+
+    tulle_fabric = models.ForeignKey(
+        Fabric,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tulle_measurements'
+    )
+    tulle_meters = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('0'))
+
     notes = models.TextField(blank=True)
     measured_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     measured_at = models.DateTimeField(auto_now_add=True, db_index=True)
@@ -1131,32 +1156,45 @@ class Quote(UUIDModel, AuditedModel):
 
 
 class QuoteItem(UUIDModel):
-    """Line item in quote"""
-    
+    """Line item in quote - represents one window/opening with all components"""
+
     quote = models.ForeignKey(
         Quote,
         on_delete=models.CASCADE,
         related_name='items',
         db_index=True
     )
-    
+
     room_name = models.CharField(max_length=100)
-    
+    window_name = models.CharField(max_length=100, blank=True, default="")
+
     # Measurements snapshot
     window_width_cm = models.PositiveIntegerField()
     window_height_cm = models.PositiveIntegerField()
     folds_count = models.PositiveIntegerField(default=0)
-    
-    # Materials
+
+    # Main fabric (curtain / портьера)
     fabric = models.ForeignKey(
         Fabric,
         on_delete=models.PROTECT,
         null=True,
-        blank=True
+        blank=True,
+        related_name='quote_items_fabric'
     )
-    fabric_meters = models.DecimalField(max_digits=10, decimal_places=2)
-    fabric_cost = models.DecimalField(max_digits=12, decimal_places=2)
-    
+    fabric_meters = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
+    fabric_cost = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
+
+    # Tulle fabric (тюль) - P0: prevent data loss
+    tulle_fabric = models.ForeignKey(
+        Fabric,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='quote_items_tulle'
+    )
+    tulle_meters = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('0'))
+    tulle_cost = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
+
     # Material supply mode - how this fabric will be sourced
     supply_mode = models.CharField(
         max_length=20,
@@ -1165,27 +1203,32 @@ class QuoteItem(UUIDModel):
         db_index=True,
         help_text='How the fabric/material will be supplied for this item'
     )
-    
+
     # Sewing
     sewing_type = models.CharField(max_length=100, blank=True)
     complexity = models.CharField(max_length=20, blank=True)  # simple, medium, complex, premium
-    sewing_cost = models.DecimalField(max_digits=12, decimal_places=2)
-    
-    # Accessories
-    accessories_cost = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
-    
-    # Cornice
+    sewing_cost = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
+
+    # Cornice / Curtain rod
     cornice = models.ForeignKey(
         Cornice,
         on_delete=models.PROTECT,
         null=True,
         blank=True
     )
+    cornice_length_m = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('0'))
     cornice_cost = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
-    
-    # Total for line
+
+    # Installation - P1: separate field for clarity
+    installation_price = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
+
+    # Accessories and additional services
+    accessories_cost = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
+    additional_services_total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
+
+    # Total for line - computed from all components
     line_total = models.DecimalField(max_digits=12, decimal_places=2)
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:

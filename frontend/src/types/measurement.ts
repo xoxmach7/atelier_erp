@@ -66,9 +66,9 @@ export interface MeasurementSummary {
 }
 
 /**
- * Backend Measurement DTO (for future API integration)
+ * Backend Measurement DTO
+ * Phase 3: Measurement = what selected and how much needed (no prices)
  * Based on backend Measurement model fields.
- * NOTE: Not used in MVP - here for reference when API is ready.
  */
 export interface MeasurementDTO {
   id: string;
@@ -84,8 +84,35 @@ export interface MeasurementDTO {
   has_radiator: boolean;
   has_slope: boolean;
   obstacles: string;
+  // Legacy fabric field (for compatibility)
   selected_fabric: string | null; // Fabric ID
+  selected_fabric_details?: {
+    id: string;
+    hanger_number: string;
+    name: string;
+    price_per_meter: number;
+  };
   selected_cornice_type: string;
+  // Phase 3: Curtain and tulle fabrics with meters
+  curtain_fabric: string | null; // Fabric ID
+  curtain_fabric_details?: {
+    id: string;
+    hanger_number: string;
+    name: string;
+  };
+  curtain_fabric_hanger?: string; // For list view
+  curtain_fabric_name?: string;   // For list view
+  curtain_meters: number;
+  // Phase 3: Tulle fabric with meters
+  tulle_fabric: string | null; // Fabric ID
+  tulle_fabric_details?: {
+    id: string;
+    hanger_number: string;
+    name: string;
+  };
+  tulle_fabric_hanger?: string;   // For list view
+  tulle_fabric_name?: string;     // For list view
+  tulle_meters: number;
   notes: string;
   measured_by: string | null; // User ID
   measured_by_name: string | null; // Display name from backend

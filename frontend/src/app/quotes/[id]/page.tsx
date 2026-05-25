@@ -361,25 +361,42 @@ function QuoteDetailContent() {
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-medium">
-                          {index + 1}. {item.room_name}
+                          {index + 1}. {item.room_name} — {item.window_name || 'Позиция'}
                         </span>
                         <span className="font-semibold">
                           {formatCurrency(item.line_total)}
                         </span>
                       </div>
                       <div className="text-sm text-slate-500 grid grid-cols-2 gap-2">
-                        <span>Width: {item.window_width_cm} cm</span>
-                        <span>Height: {item.window_height_cm} cm</span>
+                        <span>Ширина: {item.window_width_cm} см</span>
+                        <span>Высота: {item.window_height_cm} см</span>
                         {item.fabric_details && (
-                          <span>
-                            Fabric: {item.fabric_details.name}
+                          <span className="col-span-2">
+                            Портьера: {item.fabric_details.name} ({item.fabric_meters}м × {formatCurrency(item.fabric_details.price_per_meter)}/м = {formatCurrency(item.fabric_cost)})
+                          </span>
+                        )}
+                        {item.tulle_fabric_details && (
+                          <span className="col-span-2">
+                            Тюль: {item.tulle_fabric_details.name} ({item.tulle_meters}м × {formatCurrency(item.tulle_fabric_details.price_per_meter)}/м = {formatCurrency(item.tulle_cost)})
                           </span>
                         )}
                         {item.cornice_details && (
-                          <span>
-                            Cornice: {item.cornice_details.name}
+                          <span className="col-span-2">
+                            Карниз: {item.cornice_details.name} ({item.cornice_length_m}м = {formatCurrency(item.cornice_cost)})
                           </span>
                         )}
+                        {/* Cost breakdown */}
+                        <div className="col-span-2 mt-1 pt-1 border-t text-xs">
+                          <div className="flex flex-wrap gap-x-3">
+                            {item.fabric_cost > 0 && <span>Ткань: {formatCurrency(item.fabric_cost)}</span>}
+                            {item.tulle_cost > 0 && <span>Тюль: {formatCurrency(item.tulle_cost)}</span>}
+                            {item.sewing_cost > 0 && <span>Пошив: {formatCurrency(item.sewing_cost)}</span>}
+                            {item.cornice_cost > 0 && <span>Карниз: {formatCurrency(item.cornice_cost)}</span>}
+                            {item.installation_price > 0 && <span>Монтаж: {formatCurrency(item.installation_price)}</span>}
+                            {item.accessories_cost > 0 && <span>Аксессуары: {formatCurrency(item.accessories_cost)}</span>}
+                            {item.additional_services_total > 0 && <span>Доп. услуги: {formatCurrency(item.additional_services_total)}</span>}
+                          </div>
+                        </div>
                         {item.supply_mode && (
                           <div className="col-span-2 flex items-center gap-1 mt-1">
                             <span className="text-xs">Поставка:</span>
