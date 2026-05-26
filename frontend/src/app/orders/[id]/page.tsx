@@ -59,7 +59,6 @@ import {
   Camera,
   Scissors,
   AlertCircle,
-  ChevronRight,
   Info,
   Sparkles,
   Settings,
@@ -68,8 +67,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 function formatCurrency(value: string | null): string {
-  if (!value) return "₸ 0";
-  return `₸ ${parseFloat(value).toLocaleString()}`;
+  const amount = Number.parseFloat(value || "0");
+  return new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency: "KZT",
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(amount) ? amount : 0);
 }
 
 function formatDate(value: string | null): string {
@@ -575,9 +578,10 @@ function MeasurementsSection({ orderId, measurements }: { orderId: string; measu
 /**
  * Payments Section - Shows related payments for this order
  */
-function PaymentsSection({ orderId, payments, totalPaid, balanceDue, orderStatus }: { 
+function PaymentsSection({ orderId, payments, totalAmount, totalPaid, balanceDue, orderStatus }: {
   orderId: string; 
   payments: PaymentDTO[];
+  totalAmount: string;
   totalPaid: string;
   balanceDue: string;
   orderStatus: string;
@@ -620,7 +624,11 @@ function PaymentsSection({ orderId, payments, totalPaid, balanceDue, orderStatus
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Payment Summary - Shows paid amount and remaining balance */}
-        <div className="grid grid-cols-2 gap-4 text-sm">
+        <div className="grid grid-cols-3 gap-3 text-sm">
+          <div>
+            <div className="text-slate-500">Итого</div>
+            <div className="font-semibold">{formatCurrency(totalAmount)}</div>
+          </div>
           <div>
             <div className="text-slate-500">Оплачено</div>
             <div className="font-semibold text-green-600">{formatCurrency(totalPaid)}</div>
@@ -800,8 +808,8 @@ function RelatedQuotesSection({ order }: { order: OrderDetailDTO }) {
         <div className="text-sm text-slate-600">
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-medium mr-2">
             Прямой заказ
-          </span>
-          Этот заказ создан без КП. Это валидный рабочий процесс — можно добавлять позиции, замеры и принимать оплату напрямую.
+          </span>{" "}
+          Создайте КП, если нужен расчёт с позициями и ценами для клиента.
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleCreateQuote} className="flex-1">
@@ -826,16 +834,8 @@ function OrderExecutionPanel({
   order: OrderDetailDTO;
   execution?: OrderExecutionDTO;
 }) {
-  const materialReadinessLabels: Record<string, { text: string; color: string; bg: string }> = {
-    not_ready: { text: 'Не обеспечен', color: 'text-red-600', bg: 'bg-red-50' },
-    partially_ready: { text: 'Частично обеспечен', color: 'text-amber-600', bg: 'bg-amber-50' },
-    ready: { text: 'Обеспечен материалами', color: 'text-green-600', bg: 'bg-green-50' },
-  };
-
   // Use backend data if available, otherwise fallback to order data
   const statusLabel = execution?.status_label || order.status;
-  const materialReadiness = execution?.material_readiness || order.material_readiness;
-  const materialReadinessLabel = execution?.material_readiness_label || materialReadinessLabels[materialReadiness]?.text || 'Не обеспечен';
   const productionStageLabel = execution?.production_stage_label || 'Не начато';
   const handoverStageLabel = execution?.handover_stage_label || 'Не требуется';
   const paymentStateLabel = execution?.payment_state_label || 'Не оплачен';
@@ -843,22 +843,15 @@ function OrderExecutionPanel({
   // Next step from backend or fallback
   const nextStep = execution?.next_step;
 
-  const materialStatus = materialReadinessLabels[materialReadiness] || materialReadinessLabels.not_ready;
-
   return (
-    <Card className="border-l-4 border-l-blue-500">
+    <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Info className="h-4 w-4" />
-            Выполнение заказа
-          </CardTitle>
-          <div className={`px-2 py-1 rounded text-xs font-medium ${materialStatus.bg} ${materialStatus.color}`}>
-            {materialReadinessLabel}
-          </div>
-        </div>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Info className="h-4 w-4" />
+          Состояние исполнения
+        </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {/* Status Overview */}
         <div className="space-y-2">
           <div className="flex justify-between items-center">
@@ -884,19 +877,6 @@ function OrderExecutionPanel({
           <div className="pt-2 border-t">
             <h4 className="font-medium text-slate-900 mb-1">Следующий шаг</h4>
             <p className="text-sm text-slate-600">{nextStep.description}</p>
-            {nextStep.recommended_actions.length > 0 && (
-              <div className="mt-2">
-                <p className="text-xs font-medium text-slate-500 mb-1">Рекомендуемые действия:</p>
-                <ul className="space-y-1">
-                  {nextStep.recommended_actions.map((action, i) => (
-                    <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
-                      <ChevronRight className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
-                      {action}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
         )}
 
@@ -1358,6 +1338,7 @@ function WarehouseMaterialsSection({
   ];
 
   const currentReadiness = readinessOptions.find(r => r.value === materialReadiness) || readinessOptions[0];
+  const hasMaterialData = materialRequirements.length > 0 || Boolean(quoteMaterials?.length) || Boolean(hasOrderItems);
 
   const supplyModeLabels: Record<string, string> = {
     client_supplied: "Закупает клиент",
@@ -1397,14 +1378,16 @@ function WarehouseMaterialsSection({
             <Package className="h-4 w-4" />
             Материалы / Склад
           </CardTitle>
-          <div className="flex items-center gap-2">
-            <span className={`text-xs px-2 py-1 rounded-full ${currentReadiness.bg} ${currentReadiness.color}`}>
-              {materialReadinessLabel}
-            </span>
-            <Button variant="outline" size="sm" onClick={() => setIsModalOpen(true)}>
-              Изменить
-            </Button>
-          </div>
+          {hasMaterialData && (
+            <div className="flex items-center gap-2">
+              <span className={`text-xs px-2 py-1 rounded-full ${currentReadiness.bg} ${currentReadiness.color}`}>
+                {materialReadinessLabel}
+              </span>
+              <Button variant="outline" size="sm" onClick={() => setIsModalOpen(true)}>
+                Изменить
+              </Button>
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1416,19 +1399,23 @@ function WarehouseMaterialsSection({
         )}
 
         {/* Material Readiness Summary */}
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-600">Всего тканей:</span>
-          <span className="font-medium">{totalFabricsRequired}</span>
-        </div>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-600">Не хватает на складе:</span>
-          <span className={`font-medium ${missingMaterialsCount > 0 ? 'text-red-600' : 'text-green-600'}`}>
-            {missingMaterialsCount}
-          </span>
-        </div>
+        {hasMaterialData && (
+          <>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-600">Всего тканей:</span>
+              <span className="font-medium">{totalFabricsRequired}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-600">Не хватает на складе:</span>
+              <span className={`font-medium ${missingMaterialsCount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {missingMaterialsCount}
+              </span>
+            </div>
+          </>
+        )}
 
         {/* Material Readiness Warnings */}
-        {materialReadiness === 'not_ready' && (
+        {hasMaterialData && materialReadiness === 'not_ready' && (
           <Alert variant="destructive" className="bg-red-50 border-red-200">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Внимание</AlertTitle>
@@ -1438,7 +1425,7 @@ function WarehouseMaterialsSection({
           </Alert>
         )}
 
-        {materialReadiness === 'partially_ready' && (
+        {hasMaterialData && materialReadiness === 'partially_ready' && (
           <Alert className="bg-yellow-50 border-yellow-200">
             <AlertCircle className="h-4 w-4 text-yellow-600" />
             <AlertTitle>Внимание</AlertTitle>
@@ -1449,7 +1436,7 @@ function WarehouseMaterialsSection({
         )}
 
         {/* Import Warning */}
-        {materialRequirements.some(m => m.supply_mode === 'purchase_import') && (
+        {hasMaterialData && materialRequirements.some(m => m.supply_mode === 'purchase_import') && (
           <Alert className="bg-amber-50 border-amber-200">
             <Info className="h-4 w-4 text-amber-600" />
             <AlertDescription className="text-amber-700">
@@ -1530,8 +1517,8 @@ function WarehouseMaterialsSection({
               </div>
             ) : (
               <EmptyState
-                title="Нет требований к материалам"
-                description="Добавьте позиции в КП для отображения"
+                title="Материалы ещё не рассчитаны"
+                description="Материалы появятся после создания КП или позиций заказа."
                 icon={<Package className="h-6 w-6 text-slate-400" />}
               />
             )}
@@ -2442,7 +2429,7 @@ function ProductionSewingSection({
   // Step 4: Production started → show "Отметить готово"
   const showMarkDone = productionStage !== 'done' && productionStage !== 'not_started';
   
-  const isMaterialNotReady = materialReadiness === 'not_ready';
+  const isMaterialNotReady = hasItems && materialReadiness === 'not_ready';
   const isDone = productionStage === 'done';
 
   const handleGenerate = async () => {
@@ -2490,7 +2477,7 @@ function ProductionSewingSection({
           </Alert>
         )}
 
-        {materialReadiness === 'partially_ready' && productionStage === 'not_started' && (
+        {hasItems && materialReadiness === 'partially_ready' && productionStage === 'not_started' && (
           <Alert className="bg-yellow-50 border-yellow-200">
             <AlertCircle className="h-4 w-4 text-yellow-600" />
             <AlertDescription className="text-yellow-700">
@@ -3263,7 +3250,7 @@ export default function OrderDetailPage() {
           <Button variant="outline" asChild>
             <Link href="/orders">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              ← К заказам
+              К заказам
             </Link>
           </Button>
         </PageHeader>
@@ -3440,7 +3427,7 @@ export default function OrderDetailPage() {
           <Button variant="outline" asChild>
             <Link href="/orders">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              ← К заказам
+              К заказам
             </Link>
           </Button>
         </PageHeader>
@@ -3461,7 +3448,7 @@ export default function OrderDetailPage() {
           <Button variant="outline" asChild>
             <Link href="/orders">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              ← К заказам
+              К заказам
             </Link>
           </Button>
         </PageHeader>
@@ -3479,6 +3466,21 @@ export default function OrderDetailPage() {
     );
   }
 
+  const customerData = typeof order.customer === 'object' ? order.customer : null;
+  const customerId = customerData?.id || (typeof order.customer === 'string' ? order.customer : '');
+  const customerName = customerData?.full_name || 'Клиент не указан';
+  const customerPhone = customerData?.phone || 'Телефон не указан';
+  const installationAddress = [
+    order.installation_address_city,
+    order.installation_address_street,
+    order.installation_address_building,
+    order.installation_address_apartment ? `кв. ${order.installation_address_apartment}` : null,
+  ].filter(Boolean).join(', ') || 'Адрес не указан';
+  const hasMeasurements = (order.measurements || []).length > 0;
+  const hasQuotes = Boolean(order.source_quote) || Boolean(order.related_quotes?.length);
+  const hasOrderItems = order.items.length > 0;
+  const isEmptyOrderWorkflow = !hasMeasurements && !hasQuotes && !hasOrderItems;
+
   // Data state
   return (
     <>
@@ -3494,15 +3496,69 @@ export default function OrderDetailPage() {
           </div>
         }
       >
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" asChild>
             <Link href="/orders">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              ← К заказам
+              К заказам
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/measurements?order=${order.id}`}>
+              <Ruler className="mr-2 h-4 w-4" />
+              Замер
+            </Link>
+          </Button>
+          {customerId && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/estimate?customer=${customerId}&order=${order.id}`}>
+                <Calculator className="mr-2 h-4 w-4" />
+                КП
+              </Link>
+            </Button>
+          )}
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/payments?order=${order.id}`}>
+              <CreditCard className="mr-2 h-4 w-4" />
+              Платеж
             </Link>
           </Button>
         </div>
       </PageHeader>
+
+      <Card className="mb-6 border-slate-200 bg-white shadow-sm">
+        <CardContent className="pt-6">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Клиент</div>
+              <div className="mt-1 font-semibold text-slate-900">{customerName}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Телефон</div>
+              <div className="mt-1 text-slate-900">{customerPhone}</div>
+            </div>
+            <div className="sm:col-span-2 xl:col-span-1">
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Адрес</div>
+              <div className="mt-1 text-slate-900">{installationAddress}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Дедлайн</div>
+              <div className="mt-1 text-slate-900">{formatDate(order.planned_completion)}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Следующий шаг</div>
+              <div className="mt-1 text-slate-900">
+                {execution?.next_step?.description || 'Определите следующий этап'}
+              </div>
+            </div>
+          </div>
+          {order.installation_address_notes && (
+            <div className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              {order.installation_address_notes}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Action error */}
       {actionError && (
@@ -3524,8 +3580,31 @@ export default function OrderDetailPage() {
             />
           )}
 
-          {/* Order Execution Panel - Workflow guidance and status controls */}
-          <OrderExecutionPanel order={order} execution={execution} />
+          {isEmptyOrderWorkflow && (
+            <Card className="border-dashed border-slate-300 bg-slate-50/80">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Что сделать дальше</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-2">
+                  {[
+                    'Добавьте замер',
+                    'Создайте КП',
+                    'Примите КП',
+                    'Сформируйте позиции',
+                    'Запустите исполнение',
+                  ].map((step, index) => (
+                    <div key={step} className="flex items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-500">
+                        {index + 1}
+                      </div>
+                      <div className="font-medium text-slate-800">{step}</div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Designer/Measurer Section - Shows measurements and materials */}
           {execution?.role_sections?.designer && (
@@ -3539,6 +3618,9 @@ export default function OrderDetailPage() {
               onMeasurementCreated={refetchExecution}
             />
           )}
+
+          {/* Quote context stays next to measurements, not in a legacy tail */}
+          <RelatedQuotesSection order={order} />
 
           {/* Warehouse Materials Section - Material requirements for warehouse role */}
           {execution?.role_sections?.warehouse && (
@@ -3602,23 +3684,12 @@ export default function OrderDetailPage() {
               completionAct={execution.role_sections.installer.completion_act}
             />
           )}
-
-          {/* Центр действий — контекстная навигация */}
-          <OrderQuickActions
-            orderId={order.id}
-            customerId={typeof order.customer === 'object' ? order.customer.id : order.customer}
-            orderStatus={order.status}
-          />
-
-          {/* Связанные замеры */}
-          <MeasurementsSection orderId={order.id} measurements={order.measurements || []} />
-
-          <OrderNotes notes={order.notes} />
-          <OrderMetadata order={order} />
         </div>
 
         {/* Right column - Sidebar info */}
         <div className="space-y-6">
+          <OrderExecutionPanel order={order} execution={execution} />
+
           {/* Source Quote (if created from quote) */}
           <SourceQuoteSection sourceQuote={order.source_quote} />
 
@@ -3629,18 +3700,14 @@ export default function OrderDetailPage() {
           <PaymentsSection
             orderId={order.id}
             payments={order.payments || []}
+            totalAmount={order.total_amount}
             totalPaid={order.paid_amount}
             balanceDue={order.balance_due}
             orderStatus={order.status}
           />
 
-          <CustomerInfo order={order} />
-          <FinancialSummary order={order} />
-          <OrderDates order={order} />
-          <InstallationAddress order={order} />
-
-          {/* Related Quotes - shows source quote link */}
-          <RelatedQuotesSection order={order} />
+          <OrderNotes notes={order.notes} />
+          <OrderMetadata order={order} />
         </div>
       </div>
 
