@@ -742,7 +742,9 @@ function RelatedQuotesSection({ order }: { order: OrderDetailDTO }) {
   const allRelatedQuotes = [
     ...(order.source_quote ? [order.source_quote] : []),
     ...(order.related_quotes || [])
-  ];
+  ].filter((quote, index, quotes) => (
+    quotes.findIndex((item) => item.id === quote.id) === index
+  ));
   
   // Extract customer ID correctly whether customer is object or string
   const customerId = typeof order.customer === 'object' ? order.customer.id : order.customer;
