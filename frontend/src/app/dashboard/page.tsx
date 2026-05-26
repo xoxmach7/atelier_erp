@@ -87,7 +87,7 @@ function DashboardContent() {
     <>
       <PageHeader
         title="Рабочий стол"
-        description="Owner overview: реальные данные из заказов, без тестовых чисел"
+        description="Обзор владельца: реальные данные из заказов, без тестовых чисел"
       >
         <Button asChild>
           <Link href="/orders/new">Новый заказ</Link>

@@ -755,7 +755,6 @@ function RelatedQuotesSection({ order }: { order: OrderDetailDTO }) {
       return;
     }
     const url = `/estimate?customer=${customerId}&order=${orderId}`;
-    console.log("[NAVIGATE] To:", url);
     router.push(url);
   };
 
@@ -3359,7 +3358,7 @@ export default function OrderDetailPage() {
           });
           break;
         default:
-          console.log('Unknown action:', action);
+          break;
       }
       await refetchExecution();
     } catch (err) {

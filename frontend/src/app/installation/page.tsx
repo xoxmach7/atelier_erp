@@ -54,7 +54,7 @@ function InstallationContent() {
     <>
       <PageHeader
         title="Установка / выдача"
-        description="MVP-экран для установщика: без лишних финансов"
+        description="Очередь передачи: установка, выдача, фотоотчёт и АВР"
       >
         <Button asChild variant="outline">
           <Link href="/orders">

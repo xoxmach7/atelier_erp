@@ -54,7 +54,7 @@ function ProductionContent() {
     <>
       <PageHeader
         title="Производство"
-        description="MVP-экран для швеи: без финансов, с переходом в заказ"
+        description="Очередь пошива: заказы в работе без финансовых деталей"
       >
         <Button asChild variant="outline">
           <Link href="/orders">
