@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { PageHeader } from "@/components/shared/page-header";
@@ -24,6 +24,7 @@ import { useCreateCustomer } from "@/hooks/useCustomers";
 import { useOrder } from "@/hooks/useOrders";
 import { useEstimateDraft } from "./hooks/useEstimateDraft";
 import { useCreateQuote, type CreateQuoteInput } from "@/hooks/useQuotes";
+import { fetchQuoteById, fetchQuotes } from "@/services/http/quotes";
 import {
   Select,
   SelectContent,
@@ -36,7 +37,7 @@ import {
   SummaryPanel,
 } from "./components";
 import { generateId } from "./utils/estimateHelpers";
-import type { EstimateRoom, EstimateItem, QuoteDTO, MeasurementDTO, OrderDetailDTO } from "@/types";
+import type { EstimateRoom, EstimateItem, QuoteDTO, MeasurementDTO } from "@/types";
 import { Plus, Ruler, ArrowLeft, Calculator, Save, CheckCircle, Eye, FileSpreadsheet, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
@@ -66,17 +67,13 @@ function EstimateContent() {
   // Fetch customers and tasks for selection
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: customersData, isLoading: isLoadingCustomers } = useCustomers();
+  const { data: customersData } = useCustomers();
   const customers = customersData?.results || [];
   const createCustomer = useCreateCustomer();
 
   // Read customer and order from query params (order context for direct order flow)
   const customerFromQuery = searchParams.get("customer");
   const orderFromQuery = searchParams.get("order");
-  
-  // DEBUG: Log order context
-  console.log("[DEBUG] estimate/page.tsx - URL:", window.location.href);
-  console.log("[DEBUG] orderFromQuery:", orderFromQuery);
 
   // Draft state (localStorage-backed)
   const { project, setProject, resetDraft } = useEstimateDraft();
@@ -96,11 +93,26 @@ function EstimateContent() {
   const [phoneError, setPhoneError] = useState<string | null>(null);
   
   // Load order data if opened from order context
-  const { data: orderData, isLoading: isLoadingOrder } = useOrder(orderFromQuery);
+  const {
+    data: orderData,
+    isLoading: isLoadingOrder,
+    isError: isOrderError,
+    error: orderError,
+  } = useOrder(orderFromQuery);
   const [isPrefilled, setIsPrefilled] = useState(false);
   
   // Mutations
   const createQuote = useCreateQuote();
+
+  useEffect(() => {
+    if (!orderData || selectedCustomerId) return;
+    const customerId = typeof orderData.customer === "object"
+      ? orderData.customer.id
+      : orderData.customer;
+    if (customerId) {
+      setSelectedCustomerId(customerId);
+    }
+  }, [orderData, selectedCustomerId]);
   
   // Derived state
   const isPersisted = !!savedQuote;
@@ -192,7 +204,7 @@ function EstimateContent() {
    * Prefill estimate from order measurements when order data loads
    */
   useEffect(() => {
-    if (orderFromQuery && orderData && !isPrefilled && project.rooms.length === 0) {
+    if (orderFromQuery && orderData && !isPrefilled) {
       const measurements = orderData.measurements || [];
       if (measurements.length > 0) {
         const rooms = measurementsToEstimateRooms(measurements);
@@ -201,10 +213,9 @@ function EstimateContent() {
           rooms: rooms,
         }));
         setIsPrefilled(true);
-        console.log(`[ESTIMATE] Prefilled ${rooms.length} rooms from ${measurements.length} measurements`);
       }
     }
-  }, [orderFromQuery, orderData, isPrefilled, project.rooms.length, measurementsToEstimateRooms, setProject]);
+  }, [orderFromQuery, orderData, isPrefilled, measurementsToEstimateRooms, setProject]);
 
   const addItemToRoom = (roomId: string) => {
     const room = project.rooms.find((r) => r.id === roomId);
@@ -362,18 +373,22 @@ function EstimateContent() {
         ...(orderFromQuery && { order: orderFromQuery }),
       };
       
-      // DEBUG: Log quoteData before sending
-      console.log("[DEBUG] quoteData:", JSON.stringify(quoteData, null, 2));
-      console.log("[DEBUG] order in quoteData:", 'order' in quoteData ? quoteData.order : 'NOT INCLUDED');
-      
       const quote = await createQuote.mutateAsync(quoteData);
-      setSavedQuote(quote);
-      
-      console.log(`КП ${quote.quote_number} создано с ${quoteItems.length} позициями`);
-      
-      // Clear local draft after successful save
-      resetDraft();
-      
+      let savedQuoteData = quote;
+
+      if (!savedQuoteData.id) {
+        const latestQuotes = await fetchQuotes({
+          customer: selectedCustomerId,
+          ordering: "-created_at",
+          page_size: 1,
+        });
+        const latestQuote = latestQuotes.results[0];
+        if (latestQuote?.id) {
+          savedQuoteData = await fetchQuoteById(latestQuote.id);
+        }
+      }
+
+      setSavedQuote(savedQuoteData);
     } catch (err) {
       console.error("Ошибка сохранения:", err);
       alert(err instanceof Error ? err.message : "Не удалось создать КП");
@@ -412,6 +427,39 @@ function EstimateContent() {
           title="Ошибка загрузки тканей"
           description={error?.message || "Не удалось загрузить склад. Попробуйте позже."}
           context={`Убедитесь, что бэкенд запущен: ${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api"}`}
+        />
+      </>
+    );
+  }
+
+  if (orderFromQuery && isLoadingOrder && project.rooms.length === 0) {
+    return (
+      <>
+        <PageHeader title="Конструктор смет" description="Загрузка заказа и замеров">
+          <Button disabled>
+            <Plus className="mr-2 h-4 w-4" />
+            Добавить комнату
+          </Button>
+        </PageHeader>
+        <LoadingState message="Загрузка заказа для КП..." />
+      </>
+    );
+  }
+
+  if (orderFromQuery && isOrderError) {
+    return (
+      <>
+        <PageHeader title="Конструктор смет" description="Не удалось загрузить заказ">
+          <Button variant="outline" asChild>
+            <Link href="/orders">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              К заказам
+            </Link>
+          </Button>
+        </PageHeader>
+        <ErrorState
+          title="Ошибка загрузки заказа"
+          description={orderError?.message || "Заказ не найден или недоступен"}
         />
       </>
     );
@@ -522,7 +570,7 @@ function EstimateContent() {
   return (
     <>
       <PageHeader
-        title={isPersisted ? `КП ${savedQuote?.quote_number}` : "Конструктор смет"}
+        title={isPersisted ? (savedQuote?.quote_number ? `КП ${savedQuote.quote_number}` : "КП сохранено") : "Конструктор смет"}
         description={
           isPersisted 
             ? `Сохранено на сервере • ${savedQuote?.items?.length || 0} позиций • Итого: ₸ ${savedQuote?.total?.toLocaleString() || 0}`
@@ -622,6 +670,16 @@ function EstimateContent() {
         </Card>
       )}
 
+      {!isPersisted && orderFromQuery && (
+        <Card className="bg-slate-50 border-slate-200 mb-5">
+          <CardContent className="p-4 text-sm text-slate-600">
+            КП создаётся из замеров заказа{orderData?.order_number ? ` ${orderData.order_number}` : ""}.
+            Размеры, ткань, тюль и метры подтягиваются из замеров; цены, пошив, карниз, монтаж и доп. услуги заполняются здесь вручную.
+            Тюль остаётся внутри той же позиции КП.
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Main working area */}
         <div className="lg:col-span-2 space-y-5">
@@ -634,7 +692,7 @@ function EstimateContent() {
                     <Label className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">Клиент</Label>
                     {orderFromQuery && (
                       <span className="text-xs text-[var(--t3)]">
-                        Привязка к заказу: Заказ №{orderFromQuery}
+                        Привязка к заказу: {orderData?.order_number || "Заказ загружается"}
                       </span>
                     )}
                   </div>

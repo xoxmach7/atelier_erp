@@ -10,7 +10,7 @@ from uuid import UUID
 
 from django.utils import timezone
 
-from ..models import Order
+from ..models import Order, OrderCompletionAct
 from ..constants import (
     OrderFSMRules, OrderExecutionGuide,
     MaterialReadiness, ProductionStage, HandoverStage

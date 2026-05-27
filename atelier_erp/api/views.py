@@ -412,12 +412,15 @@ class PaymentViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['order', 'payment_type', 'payment_method']
     ordering_fields = ['created_at', 'amount']
-    
-    def perform_create(self, serializer):
+
+    def create(self, request, *args, **kwargs):
         """Record payment through service"""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
         uow = UnitOfWork()
         payment_service = PaymentService(uow)
-        
+
         try:
             with uow.atomic():
                 payment = payment_service.record_payment(
@@ -425,10 +428,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     amount=serializer.validated_data['amount'],
                     payment_type=serializer.validated_data['payment_type'],
                     payment_method=serializer.validated_data.get('payment_method', 'cash'),
-                    received_by=request.user,
+                    received_by=request.user.id if request.user.is_authenticated else None,
                     notes=serializer.validated_data.get('notes', '')
                 )
-            return Response(PaymentSerializer(payment).data)
+            headers = self.get_success_headers(serializer.data)
+            return Response(PaymentSerializer(payment).data, status=status.HTTP_201_CREATED, headers=headers)
         except InvalidPaymentAmount as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { PageHeader } from "@/components/shared/page-header";
@@ -54,17 +53,21 @@ function formatCurrency(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "—";
   const num = typeof value === "string" ? parseFloat(value) : value;
   if (isNaN(num)) return "—";
-  return `₸ ${num.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  return `₸ ${num.toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 function formatDate(date: string | null | undefined): string {
   if (!date) return "—";
-  return new Date(date).toLocaleDateString("en-US", {
+  return new Date(date).toLocaleDateString("ru-RU", {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
 }
+
+type QuoteListItemDTO = QuoteDTO & {
+  items_count?: number;
+};
 
 export default function QuotesPage() {
   return (
@@ -75,7 +78,6 @@ export default function QuotesPage() {
 }
 
 function QuotesContent() {
-  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("__all__");
   const [customerFilter, setCustomerFilter] = useState<string>("__all__");
@@ -202,7 +204,7 @@ function QuotesContent() {
         />
       ) : (
         <div className="grid gap-4">
-          {quotes.map((quote: QuoteDTO) => (
+          {quotes.map((quote: QuoteListItemDTO) => (
             <QuoteListItem
               key={quote.id}
               quote={quote}
@@ -219,9 +221,13 @@ function QuoteListItem({
   quote,
   onDelete,
 }: {
-  quote: QuoteDTO;
+  quote: QuoteListItemDTO;
   onDelete: (id: string) => void;
 }) {
+  const itemsCount = quote.items_count ?? 0;
+  const displayDate = quote.created_at || quote.valid_until;
+  const displayDateLabel = quote.created_at ? "Создано" : "Действует до";
+
   return (
     <Card className="hover:border-slate-300 transition-colors">
       <CardContent className="p-4">
@@ -245,7 +251,7 @@ function QuoteListItem({
                   Клиент
                 </div>
                 <div className="font-medium truncate">
-                  {quote.customer_name || "—"}
+                  {quote.customer_name || "Клиент не указан"}
                 </div>
               </div>
               <div>
@@ -253,7 +259,7 @@ function QuoteListItem({
                   <FileText className="h-3 w-3" />
                   Позиций
                 </div>
-                <div className="font-medium">{quote.items?.length || 0}</div>
+                <div className="font-medium">{itemsCount}</div>
               </div>
               <div>
                 <div className="text-slate-500">Итого</div>
@@ -262,9 +268,9 @@ function QuoteListItem({
               <div>
                 <div className="text-slate-500 flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
-                  Обновлено
+                  {displayDateLabel}
                 </div>
-                <div className="font-medium">{formatDate(quote.updated_at)}</div>
+                <div className="font-medium">{formatDate(displayDate)}</div>
               </div>
             </div>
 

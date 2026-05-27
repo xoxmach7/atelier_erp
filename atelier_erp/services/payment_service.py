@@ -6,12 +6,12 @@ Handles payment processing, validation, and reconciliation
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional, Dict, Any, List
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from django.utils import timezone
 
 from ..models import Payment, Order
-from ..events import OrderPaymentReceived, DomainEvent
+from ..events import OrderPaymentReceived, DomainEvent, EventMetadata
 from .exceptions import (
     PaymentServiceError, InvalidPaymentAmount, DuplicatePaymentError,
     PaymentNotFoundError
@@ -40,6 +40,7 @@ class PaymentService:
         payment_method: str,
         idempotency_key: Optional[str] = None,
         external_transaction_id: Optional[str] = None,
+        reference_number: Optional[str] = None,
         received_by: Optional[UUID] = None,
         notes: str = ""
     ) -> Payment:
@@ -53,6 +54,7 @@ class PaymentService:
             payment_method: cash/card/transfer/kaspi
             idempotency_key: Key for duplicate detection
             external_transaction_id: From payment gateway
+            reference_number: Legacy duplicate detection key
             received_by: User recording payment
             notes: Additional notes
         
@@ -66,6 +68,9 @@ class PaymentService:
         # Validate amount
         if amount <= 0:
             raise InvalidPaymentAmount("Payment amount must be positive")
+
+        if reference_number and not idempotency_key:
+            idempotency_key = reference_number
         
         # Check idempotency
         if idempotency_key:
@@ -74,6 +79,10 @@ class PaymentService:
             ).first()
             
             if existing:
+                if reference_number:
+                    raise DuplicatePaymentError(
+                        f"Payment with reference {reference_number} already exists"
+                    )
                 # Return existing payment (idempotent)
                 return existing
         
@@ -99,7 +108,7 @@ class PaymentService:
             payment_method=payment_method,
             idempotency_key=idempotency_key or "",
             external_transaction_id=external_transaction_id or "",
-            received_by_id=received_by,
+            created_by_id=received_by,
             received_at=timezone.now(),
             notes=notes
         )
@@ -110,10 +119,18 @@ class PaymentService:
         
         # Emit event
         self.uow.register_event(OrderPaymentReceived(
+            metadata=EventMetadata(
+                event_id=uuid4(),
+                timestamp=timezone.now(),
+                user_id=received_by
+            ),
             order_id=order_id,
+            order_number=order.order_number,
             payment_id=payment.id,
-            amount=str(amount),
+            amount=amount,
             payment_type=payment_type,
+            payment_method=payment_method,
+            received_by=received_by,
             is_fully_paid=order.paid_amount >= order.total_amount
         ))
         

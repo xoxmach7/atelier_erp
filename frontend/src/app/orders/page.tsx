@@ -15,6 +15,18 @@ import type { OrderListItemDTO } from "@/types";
 import { Plus, ClipboardList } from "lucide-react";
 import Link from "next/link";
 
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  new: "Новый",
+  in_work: "В работе",
+  in_production: "В производстве",
+  ready: "Готов",
+  on_installation: "Установка / выдача",
+  waiting_final_payment: "Ожидает финальной оплаты",
+  completed: "Завершён",
+  cancelled: "Отменён",
+  draft: "Черновик",
+};
+
 // Check if order ID is valid (not a placeholder/template value)
 function isValidOrderId(id: string): boolean {
   if (!id) return false;
@@ -23,6 +35,48 @@ function isValidOrderId(id: string): boolean {
   // Block any template pattern like [something]
   if (id.startsWith("[") && id.endsWith("]")) return false;
   return true;
+}
+
+function formatCurrency(value: string | number | null | undefined): string {
+  const num = typeof value === "string" ? parseFloat(value) : value;
+  if (num === null || num === undefined || Number.isNaN(num)) return "₸ 0";
+  return `₸ ${num.toLocaleString("ru-RU", { maximumFractionDigits: 0 })}`;
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString("ru-RU");
+}
+
+function getPaymentSignal(order: OrderListItemDTO): { label: string; className: string } {
+  const balance = parseFloat(order.balance_due || "0");
+  const paid = parseFloat(order.paid_amount || "0");
+
+  if (balance <= 0) {
+    return { label: "Оплачено", className: "text-green-600" };
+  }
+
+  if (paid > 0) {
+    return { label: `Остаток ${formatCurrency(balance)}`, className: "text-amber-600" };
+  }
+
+  return { label: "Оплата ожидается", className: "text-slate-600" };
+}
+
+function getNextAction(order: OrderListItemDTO): string {
+  const balance = parseFloat(order.balance_due || "0");
+  const status = order.status as string;
+
+  if (status === "new") return "Добавить замер или КП";
+  if (status === "in_work") return "Проверить материалы";
+  if (status === "in_production") return "Контроль производства";
+  if (status === "ready") return "Запланировать выдачу";
+  if (status === "on_installation") return "Фотоотчёт и АВР";
+  if (status === "draft") return "Уточнить заказ";
+  if (status === "waiting_final_payment" || balance > 0) return "Получить финальную оплату";
+  if (status === "completed") return "Закрыт";
+  if (status === "cancelled") return "Отменён";
+  return "Открыть заказ";
 }
 
 function OrdersContent() {
@@ -132,9 +186,10 @@ function OrdersContent() {
                 <tr>
                   <th className="px-4 py-3 text-left font-medium text-slate-700">Заказ №</th>
                   <th className="px-4 py-3 text-left font-medium text-slate-700">Клиент</th>
-                  <th className="px-4 py-3 text-left font-medium text-slate-700">Статус</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Этап</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Оплата</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-700">Следующее действие</th>
                   <th className="px-4 py-3 text-right font-medium text-slate-700">Сумма</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-700">Баланс</th>
                   <th className="px-4 py-3 text-left font-medium text-slate-700">Создан</th>
                 </tr>
               </thead>
@@ -142,6 +197,7 @@ function OrdersContent() {
                 {orders.map((order) => {
                   const isValidId = isValidOrderId(order.id);
                   const displayNumber = order.order_number?.trim() || `Order ${order.id.slice(0, 8)}`;
+                  const paymentSignal = getPaymentSignal(order);
                   return (
                     <tr key={order.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 font-medium">
@@ -156,22 +212,30 @@ function OrdersContent() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <div>{order.customer_name}</div>
-                        <div className="text-xs text-slate-500">{order.customer_phone}</div>
+                        <div>{order.customer_name || "Клиент не указан"}</div>
+                        <div className="text-xs text-slate-500">{order.customer_phone || "Телефон не указан"}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={order.status} />
+                        <div className="space-y-1">
+                          <StatusBadge status={order.status} />
+                          <div className="text-xs text-slate-500">
+                            {ORDER_STATUS_LABELS[order.status] || order.status}
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        ₸ {(order.total_amount ? parseFloat(order.total_amount).toLocaleString() : "0")}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={(order.balance_due && parseFloat(order.balance_due) > 0) ? "text-amber-600" : "text-green-600"}>
-                          ₸ {(order.balance_due ? parseFloat(order.balance_due).toLocaleString() : "0")}
+                      <td className="px-4 py-3">
+                        <span className={paymentSignal.className}>
+                          {paymentSignal.label}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-slate-700">
+                        {getNextAction(order)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {formatCurrency(order.total_amount)}
+                      </td>
                       <td className="px-4 py-3 text-slate-500">
-                        {new Date(order.created_at).toLocaleDateString()}
+                        {formatDate(order.created_at)}
                       </td>
                     </tr>
                   );

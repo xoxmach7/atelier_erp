@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -20,21 +19,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useQuote, useUpdateQuote, useDeleteQuote, useConvertQuoteToOrder } from "@/hooks/useQuotes";
-import { useCustomers } from "@/hooks/useCustomers";
-import type { QuoteDTO, QuoteItemDTO, QuoteStatus } from "@/types";
+import type { QuoteItemDTO, QuoteStatus } from "@/types";
 import {
   Calculator,
   ArrowLeft,
-  ArrowRight,
   Edit2,
   Save,
   X,
   Trash2,
   User,
-  FileText,
   Package,
-  Calendar,
-  CheckCircle,
   CheckCircle2,
   AlertCircle,
   Plus,
@@ -62,16 +56,181 @@ function formatCurrency(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "—";
   const num = typeof value === "string" ? parseFloat(value) : value;
   if (isNaN(num)) return "—";
-  return `₸ ${num.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  return `₸ ${num.toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 function formatDate(date: string | null | undefined): string {
   if (!date) return "—";
-  return new Date(date).toLocaleDateString("en-US", {
+  return new Date(date).toLocaleDateString("ru-RU", {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
+}
+
+function toNumber(value: string | number | null | undefined): number {
+  if (value === null || value === undefined) return 0;
+  const num = typeof value === "string" ? parseFloat(value) : value;
+  return Number.isFinite(num) ? num : 0;
+}
+
+function isPositive(value: string | number | null | undefined): boolean {
+  return toNumber(value) > 0;
+}
+
+function hasText(value: string | null | undefined): boolean {
+  return !!value?.trim();
+}
+
+function formatMeters(value: string | number | null | undefined): string | null {
+  const num = toNumber(value);
+  if (num <= 0) return null;
+  return `${num.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} м`;
+}
+
+function formatCentimeters(value: string | number | null | undefined): string | null {
+  const num = toNumber(value);
+  if (num <= 0) return null;
+  return `${num.toLocaleString("ru-RU", { maximumFractionDigits: 0 })} см`;
+}
+
+function getFabricName(item: QuoteItemDTO): string {
+  return item.fabric_details?.name || "Ткань выбрана";
+}
+
+function getTulleName(item: QuoteItemDTO): string {
+  return item.tulle_fabric_details?.name || "Тюль выбран";
+}
+
+function hasFabric(item: QuoteItemDTO): boolean {
+  return !!item.fabric_details || !!item.fabric || isPositive(item.fabric_meters) || isPositive(item.fabric_cost);
+}
+
+function hasTulle(item: QuoteItemDTO): boolean {
+  return !!item.tulle_fabric_details || !!item.tulle_fabric || isPositive(item.tulle_meters) || isPositive(item.tulle_cost);
+}
+
+function hasCornice(item: QuoteItemDTO): boolean {
+  return !!item.cornice_details || !!item.cornice || isPositive(item.cornice_length_m) || isPositive(item.cornice_cost);
+}
+
+function SupplyModeBadge({ mode }: { mode: QuoteItemDTO["supply_mode"] }) {
+  const config = {
+    in_stock: { label: "На складе", Icon: Package },
+    purchase_local: { label: "Закупить локально", Icon: ShoppingCart },
+    purchase_import: { label: "Закупить импорт", Icon: Globe },
+    client_supplied: { label: "Клиентский", Icon: User },
+  }[mode];
+
+  if (!config) return null;
+  const { label, Icon } = config;
+
+  return (
+    <Badge variant="outline" className="text-xs font-normal">
+      <Icon className="mr-1 h-3 w-3" />
+      {label}
+    </Badge>
+  );
+}
+
+function DetailRow({
+  label,
+  children,
+  strong = false,
+}: {
+  label: string;
+  children: ReactNode;
+  strong?: boolean;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-2 border-b border-slate-100 last:border-0">
+      <span className="text-slate-500">{label}</span>
+      <span className={`text-right ${strong ? "font-semibold text-slate-900" : "text-slate-700"}`}>
+        {children}
+      </span>
+    </div>
+  );
+}
+
+function QuoteItemCard({ item, index }: { item: QuoteItemDTO; index: number }) {
+  const roomName = hasText(item.room_name) ? item.room_name : null;
+  const windowName = hasText(item.window_name) ? item.window_name : null;
+  const width = formatCentimeters(item.window_width_cm);
+  const height = formatCentimeters(item.window_height_cm);
+  const dimensions = width && height ? `${width} × ${height}` : width || height;
+  const fabricMeters = formatMeters(item.fabric_meters);
+  const tulleMeters = formatMeters(item.tulle_meters);
+  const corniceLength = formatMeters(item.cornice_length_m);
+
+  return (
+    <div className="border border-slate-200 rounded-lg p-4 space-y-4 bg-white">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="font-medium text-slate-900">
+            {index + 1}. {roomName || windowName || "Позиция КП"}
+          </div>
+          {(roomName || windowName) && (
+            <div className="mt-1 text-sm text-slate-500">
+              {[roomName && `Комната: ${roomName}`, windowName && `Окно / изделие: ${windowName}`]
+                .filter(Boolean)
+                .join(" · ")}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2 sm:justify-end">
+          {item.supply_mode && <SupplyModeBadge mode={item.supply_mode} />}
+          <span className="font-semibold text-slate-900">
+            {formatCurrency(item.line_total)}
+          </span>
+        </div>
+      </div>
+
+      <div className="text-sm">
+        {roomName && <DetailRow label="Комната">{roomName}</DetailRow>}
+        {windowName && <DetailRow label="Окно / изделие">{windowName}</DetailRow>}
+        {dimensions && <DetailRow label="Размеры">{dimensions}</DetailRow>}
+        {hasFabric(item) && (
+          <DetailRow label="Ткань штор">
+            <span className="block">{getFabricName(item)}</span>
+            <span className="block text-xs text-slate-500">
+              {[fabricMeters, formatCurrency(item.fabric_cost)].filter(Boolean).join(" · ")}
+            </span>
+          </DetailRow>
+        )}
+        {hasTulle(item) && (
+          <DetailRow label="Тюль">
+            <span className="block">{getTulleName(item)}</span>
+            <span className="block text-xs text-slate-500">
+              {[tulleMeters, formatCurrency(item.tulle_cost)].filter(Boolean).join(" · ")}
+            </span>
+          </DetailRow>
+        )}
+        {isPositive(item.sewing_cost) && (
+          <DetailRow label="Пошив">{formatCurrency(item.sewing_cost)}</DetailRow>
+        )}
+        {hasCornice(item) && (
+          <DetailRow label="Карниз">
+            <span className="block">{item.cornice_details?.name || "Карниз выбран"}</span>
+            <span className="block text-xs text-slate-500">
+              {[corniceLength, formatCurrency(item.cornice_cost)].filter(Boolean).join(" · ")}
+            </span>
+          </DetailRow>
+        )}
+        {isPositive(item.installation_price) && (
+          <DetailRow label="Монтаж">{formatCurrency(item.installation_price)}</DetailRow>
+        )}
+        {isPositive(item.accessories_cost) && (
+          <DetailRow label="Аксессуары">{formatCurrency(item.accessories_cost)}</DetailRow>
+        )}
+        {isPositive(item.additional_services_total) && (
+          <DetailRow label="Доп. услуги">{formatCurrency(item.additional_services_total)}</DetailRow>
+        )}
+        <DetailRow label="Итого по позиции" strong>
+          {formatCurrency(item.line_total)}
+        </DetailRow>
+      </div>
+    </div>
+  );
 }
 
 export default function QuoteDetailPage() {
@@ -97,12 +256,9 @@ function QuoteDetailContent() {
     error,
   } = useQuote(quoteId);
 
-  const { data: customersData } = useCustomers();
   const updateQuote = useUpdateQuote();
   const deleteQuote = useDeleteQuote();
   const convertToOrder = useConvertQuoteToOrder();
-
-  const customers = customersData?.results || [];
 
   if (isLoading) {
     return <LoadingState message="Загрузка КП..." />;
@@ -181,6 +337,28 @@ function QuoteDetailContent() {
   const hasConvertedOrder = !!quote?.converted_order;
   // Check if quote is approved (backend requires approved status for conversion)
   const isApprovedQuote = quote?.status === "approved";
+  const quoteItems = quote.items || [];
+  const customerName = quote.customer_name?.trim() || "Клиент не указан";
+  const totals = quoteItems.reduce(
+    (acc, item) => ({
+      fabric: acc.fabric + toNumber(item.fabric_cost),
+      tulle: acc.tulle + toNumber(item.tulle_cost),
+      sewing: acc.sewing + toNumber(item.sewing_cost),
+      cornice: acc.cornice + toNumber(item.cornice_cost),
+      installation: acc.installation + toNumber(item.installation_price),
+      accessories: acc.accessories + toNumber(item.accessories_cost),
+      additionalServices: acc.additionalServices + toNumber(item.additional_services_total),
+    }),
+    {
+      fabric: 0,
+      tulle: 0,
+      sewing: 0,
+      cornice: 0,
+      installation: 0,
+      accessories: 0,
+      additionalServices: 0,
+    }
+  );
 
   return (
     <div className="space-y-6">
@@ -221,7 +399,7 @@ function QuoteDetailContent() {
               {quote.status === "draft" && (
                 <Button variant="outline" size="sm" onClick={handleEdit}>
                   <Edit2 className="mr-2 h-4 w-4" />
-                  Редактировать
+                  Изменить статус
                 </Button>
               )}
               {hasConvertedOrder ? (
@@ -272,7 +450,7 @@ function QuoteDetailContent() {
           <Button variant="outline" size="sm" asChild>
             <Link href="/quotes">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              ← К КП
+              К списку КП
             </Link>
           </Button>
         </div>
@@ -281,146 +459,51 @@ function QuoteDetailContent() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main content */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Quote Info */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                Информация о КП
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {isEditing ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">
-                      Статус
-                    </label>
-                    <Select
-                      value={editedStatus}
-                      onValueChange={setEditedStatus}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="draft">Черновик</SelectItem>
-                        <SelectItem value="sent">Отправлено</SelectItem>
-                        <SelectItem value="approved">Принято</SelectItem>
-                        <SelectItem value="rejected">Отклонено</SelectItem>
-                        <SelectItem value="expired">Просрочено</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-slate-500">Номер КП</span>
-                    <span className="font-medium">{quote.quote_number}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-slate-500">Статус</span>
-                    <Badge
-                      className={
-                        STATUS_COLORS[quote.status] ||
-                        "bg-slate-100 text-slate-700"
-                      }
-                    >
-                      {STATUS_LABELS[quote.status] || quote.status}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-slate-500">Действует до</span>
-                    <span>{formatDate(quote.valid_until)}</span>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {isEditing && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Изменить статус КП</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <label className="text-sm font-medium mb-1 block">
+                  Статус
+                </label>
+                <Select value={editedStatus} onValueChange={setEditedStatus}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Черновик</SelectItem>
+                    <SelectItem value="sent">Отправлено</SelectItem>
+                    <SelectItem value="approved">Принято</SelectItem>
+                    <SelectItem value="rejected">Отклонено</SelectItem>
+                    <SelectItem value="expired">Просрочено</SelectItem>
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Quote Items */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Package className="h-4 w-4" />
-                Позиции КП ({quote.items?.length || 0})
+                Позиции КП ({quoteItems.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {quote.items?.length === 0 ? (
+              {quoteItems.length === 0 ? (
                 <div className="text-sm text-slate-500 text-center py-4">
                   Нет позиций в этом КП
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {quote.items?.map((item: QuoteItemDTO, index: number) => (
-                    <div
-                      key={item.id}
-                      className="border rounded-lg p-3 space-y-2"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">
-                          {index + 1}. {item.room_name} — {item.window_name || 'Позиция'}
-                        </span>
-                        <span className="font-semibold">
-                          {formatCurrency(item.line_total)}
-                        </span>
-                      </div>
-                      <div className="text-sm text-slate-500 grid grid-cols-2 gap-2">
-                        <span>Ширина: {item.window_width_cm} см</span>
-                        <span>Высота: {item.window_height_cm} см</span>
-                        {item.fabric_details && (
-                          <span className="col-span-2">
-                            Портьера: {item.fabric_details.name} ({item.fabric_meters}м × {formatCurrency(item.fabric_details.price_per_meter)}/м = {formatCurrency(item.fabric_cost)})
-                          </span>
-                        )}
-                        {item.tulle_fabric_details && (
-                          <span className="col-span-2">
-                            Тюль: {item.tulle_fabric_details.name} ({item.tulle_meters}м × {formatCurrency(item.tulle_fabric_details.price_per_meter)}/м = {formatCurrency(item.tulle_cost)})
-                          </span>
-                        )}
-                        {item.cornice_details && (
-                          <span className="col-span-2">
-                            Карниз: {item.cornice_details.name} ({item.cornice_length_m}м = {formatCurrency(item.cornice_cost)})
-                          </span>
-                        )}
-                        {/* Cost breakdown */}
-                        <div className="col-span-2 mt-1 pt-1 border-t text-xs">
-                          <div className="flex flex-wrap gap-x-3">
-                            {item.fabric_cost > 0 && <span>Ткань: {formatCurrency(item.fabric_cost)}</span>}
-                            {item.tulle_cost > 0 && <span>Тюль: {formatCurrency(item.tulle_cost)}</span>}
-                            {item.sewing_cost > 0 && <span>Пошив: {formatCurrency(item.sewing_cost)}</span>}
-                            {item.cornice_cost > 0 && <span>Карниз: {formatCurrency(item.cornice_cost)}</span>}
-                            {item.installation_price > 0 && <span>Монтаж: {formatCurrency(item.installation_price)}</span>}
-                            {item.accessories_cost > 0 && <span>Аксессуары: {formatCurrency(item.accessories_cost)}</span>}
-                            {item.additional_services_total > 0 && <span>Доп. услуги: {formatCurrency(item.additional_services_total)}</span>}
-                          </div>
-                        </div>
-                        {item.supply_mode && (
-                          <div className="col-span-2 flex items-center gap-1 mt-1">
-                            <span className="text-xs">Поставка:</span>
-                            <Badge variant="outline" className="text-xs">
-                              {item.supply_mode === 'in_stock' && <Package className="h-3 w-3 mr-1" />}
-                              {item.supply_mode === 'purchase_local' && <ShoppingCart className="h-3 w-3 mr-1" />}
-                              {item.supply_mode === 'purchase_import' && <Globe className="h-3 w-3 mr-1" />}
-                              {item.supply_mode === 'client_supplied' && <User className="h-3 w-3 mr-1" />}
-                              {item.supply_mode === 'in_stock' && 'На складе'}
-                              {item.supply_mode === 'purchase_local' && 'Закупить локально'}
-                              {item.supply_mode === 'purchase_import' && 'Закупить импорт'}
-                              {item.supply_mode === 'client_supplied' && 'Клиентский'}
-                            </Badge>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                  {quoteItems.map((item: QuoteItemDTO, index: number) => (
+                    <QuoteItemCard key={item.id} item={item} index={index} />
                   ))}
                 </div>
               )}
-              <div className="mt-4 pt-3 border-t text-sm text-slate-500">
-                <AlertCircle className="h-4 w-4 inline mr-1" />
-                Редактирование позиций ограничено в этой версии. Для изменения создайте новую смету.
-              </div>
             </CardContent>
           </Card>
         </div>
@@ -438,7 +521,10 @@ function QuoteDetailContent() {
             <CardContent>
               <div className="space-y-2">
                 <div className="font-medium">
-                  {quote.customer_name || quote.customer}
+                  {customerName}
+                </div>
+                <div className="text-sm text-slate-500">
+                  Действует до: {formatDate(quote.valid_until)}
                 </div>
               </div>
             </CardContent>
@@ -454,7 +540,40 @@ function QuoteDetailContent() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Подытог</span>
+                <span className="text-slate-500">Ткань штор</span>
+                <span>{formatCurrency(totals.fabric)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Тюль</span>
+                <span>{formatCurrency(totals.tulle)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Пошив</span>
+                <span>{formatCurrency(totals.sewing)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Карнизы</span>
+                <span>{formatCurrency(totals.cornice)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Монтаж</span>
+                <span>{formatCurrency(totals.installation)}</span>
+              </div>
+              {totals.accessories > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Аксессуары</span>
+                  <span>{formatCurrency(totals.accessories)}</span>
+                </div>
+              )}
+              {totals.additionalServices > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Доп. услуги</span>
+                  <span>{formatCurrency(totals.additionalServices)}</span>
+                </div>
+              )}
+              <Separator />
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Подытог КП</span>
                 <span>{formatCurrency(quote.subtotal)}</span>
               </div>
               {quote.discount_amount && quote.discount_amount > 0 && (
@@ -485,30 +604,6 @@ function QuoteDetailContent() {
             </CardContent>
           </Card>
 
-          {/* Metadata */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Метаданные
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Создано</span>
-                <span>{formatDate(quote.created_at)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Обновлено</span>
-                <span>{formatDate(quote.updated_at)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Кем</span>
-                <span>{quote.created_by}</span>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Conversion Status */}
           {hasConvertedOrder && (
             <Card className="bg-green-50 border-green-200">
@@ -532,22 +627,6 @@ function QuoteDetailContent() {
             </Card>
           )}
 
-          {/* Honest Limitation */}
-          <Card className="bg-slate-50 border-slate-200">
-            <CardContent className="pt-4">
-              <div className="flex items-start gap-2 text-sm text-slate-600">
-                <CheckCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-medium mb-1">Ограничения КП</p>
-                  <ul className="space-y-1 text-xs">
-                    <li>• Один КП → один заказ (дубликаты запрещены)</li>
-                    <li>• Редактирование позиций требует создания новой сметы</li>
-                    <li>• Статусы меняются только вручную</li>
-                  </ul>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>

@@ -3,7 +3,7 @@
  * Handles all HTTP operations for payments
  */
 
-import { get } from "./client";
+import { get, post } from "./client";
 import type { PaymentDTO } from "@/types";
 
 interface PaymentsListResponse {
@@ -23,6 +23,14 @@ interface PaymentsFilter extends Record<string, string | number | boolean | unde
 
 const PAYMENTS_ENDPOINT = "/payments/";
 
+export interface CreatePaymentInput {
+  order: string;
+  amount: string;
+  payment_type: "prepayment" | "final" | "additional";
+  payment_method: "cash" | "card" | "transfer" | "kaspi";
+  notes?: string;
+}
+
 /**
  * Fetch paginated list of payments
  */
@@ -37,4 +45,11 @@ export async function fetchPayments(filters?: PaymentsFilter): Promise<PaymentsL
  */
 export async function fetchPaymentById(id: string): Promise<PaymentDTO> {
   return get<PaymentDTO>(`${PAYMENTS_ENDPOINT}/${id}/`);
+}
+
+/**
+ * Create payment through the existing backend payment endpoint.
+ */
+export async function createPayment(data: CreatePaymentInput): Promise<PaymentDTO> {
+  return post<PaymentDTO>(PAYMENTS_ENDPOINT, data);
 }

@@ -21,13 +21,6 @@ import { useCreateOrder } from "@/hooks/useOrders";
 import { useCustomers, useCreateCustomer } from "@/hooks/useCustomers";
 import { ArrowLeft, Loader2, User, MapPin, Calendar, FileText, Plus, X } from "lucide-react";
 
-const PRIORITY_OPTIONS = [
-  { value: "low", label: "Низкий" },
-  { value: "normal", label: "Нормальный" },
-  { value: "high", label: "Высокий" },
-  { value: "urgent", label: "Срочный" },
-];
-
 // Wrapper component with Suspense
 export default function NewOrderPage() {
   return (
@@ -143,9 +136,7 @@ function NewOrderContent() {
     }
   };
 
-  // Determine the creation mode
   const isDirectCreation = !prefillSource;
-  const creationMode = isDirectCreation ? "direct" : "from-source";
 
   return (
     <>
@@ -160,7 +151,7 @@ function NewOrderContent() {
         <Button asChild variant="outline">
           <Link href="/orders">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            ← К заказам
+            К заказам
           </Link>
         </Button>
       </PageHeader>
@@ -176,7 +167,7 @@ function NewOrderContent() {
               <h3 className="font-medium text-slate-900">Прямое создание заказа</h3>
               <p className="text-sm text-slate-600 mt-1">
                 Вы создаете заказ без предварительного КП. Это полностью валидный рабочий процесс. 
-                После создания можно добавить замеры, позиции заказа и принимать оплату.
+                После создания заказ попадёт в статус «Новый», затем можно добавить замеры, КП и принимать оплату.
               </p>
             </div>
           </div>
