@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
-import { PageHeader, EmptyState, LoadingState, ErrorState, WorkflowInfoCard } from "@/components/shared";
+import { EmptyState, ErrorState, LoadingState } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useFabrics } from "@/hooks/useFabrics";
 import type { FabricDTO } from "@/types";
-import { Calculator, Package, Plus } from "lucide-react";
+import { AlertTriangle, Calculator, Check, Package, Search } from "lucide-react";
 
 function toNumber(value: string | number | null | undefined): number {
   const num = typeof value === "string" ? Number.parseFloat(value) : value;
@@ -41,24 +41,71 @@ function safeColor(value: string | null | undefined): string {
   return palette[value.toLowerCase()] || "#CBD5E1";
 }
 
-function StockBadge({ fabric }: { fabric: FabricDTO }) {
+function fabricTitle(fabric: FabricDTO): string {
+  return fabric.name?.trim() || fabric.hanger_number?.trim() || "Ткань без названия";
+}
+
+function stockState(fabric: FabricDTO): { label: string; tone: "red" | "yellow" | "green" } {
   const available = toNumber(fabric.available_meters);
   const stock = toNumber(fabric.stock_meters);
   const ratio = stock > 0 ? available / stock : 0;
 
-  if (available <= 0) {
-    return <Badge className="bg-red-100 text-red-700">Нет в наличии</Badge>;
-  }
-
-  if (available < 10 || ratio < 0.3) {
-    return <Badge className="bg-amber-100 text-amber-700">Низкий запас</Badge>;
-  }
-
-  return <Badge className="bg-green-100 text-green-700">В наличии</Badge>;
+  if (available <= 0) return { label: "Нужно закупить", tone: "red" };
+  if (available < 10 || ratio < 0.3) return { label: "Проверить", tone: "yellow" };
+  return { label: "Готово", tone: "green" };
 }
 
-function fabricTitle(fabric: FabricDTO): string {
-  return fabric.name?.trim() || fabric.hanger_number?.trim() || "Ткань без названия";
+function stateDot(tone: "red" | "yellow" | "green") {
+  if (tone === "red") return "bg-red-500";
+  if (tone === "yellow") return "bg-yellow-300";
+  return "bg-green-500";
+}
+
+function StockIcon({ tone }: { tone: "red" | "yellow" | "green" }) {
+  if (tone === "green") {
+    return (
+      <span className="flex h-6 w-6 items-center justify-center rounded-md bg-green-500 text-white">
+        <Check className="h-4 w-4" />
+      </span>
+    );
+  }
+  return <AlertTriangle className={tone === "red" ? "h-6 w-6 text-red-500" : "h-6 w-6 text-amber-500"} />;
+}
+
+function FabricRow({ fabric }: { fabric: FabricDTO }) {
+  const state = stockState(fabric);
+
+  return (
+    <div className="border-t border-white bg-neutral-100 px-5 py-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-block h-4 w-4 shrink-0 rounded-full border border-neutral-300"
+              style={{ backgroundColor: safeColor(fabric.color) }}
+            />
+            <div className="truncate text-sm font-semibold text-neutral-900">{fabricTitle(fabric)}</div>
+          </div>
+          <div className="mt-1 text-sm text-neutral-700">
+            Остаток: {formatMeters(fabric.stock_meters)} · Резерв: {formatMeters(fabric.reserved_meters)}
+          </div>
+          <div className="mt-0.5 text-sm text-neutral-700">
+            Доступно: {formatMeters(fabric.available_meters)} · {formatCurrency(fabric.price_per_meter)} / м
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Badge className={state.tone === "green" ? "bg-green-100 text-green-700" : state.tone === "yellow" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}>
+              {state.label}
+            </Badge>
+            {fabric.hanger_number ? <span className="text-xs text-neutral-500">Вешалка {fabric.hanger_number}</span> : null}
+          </div>
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <span className={`h-5 w-5 rounded-full ${stateDot(state.tone)}`} />
+          <StockIcon tone={state.tone} />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function InventoryContent() {
@@ -66,113 +113,77 @@ function InventoryContent() {
   const fabrics: FabricDTO[] = data?.results || [];
 
   if (isLoading) {
-    return (
-      <>
-        <PageHeader title="Склад" description="Ткани, остатки и доступность материалов" />
-        <LoadingState message="Загрузка склада..." />
-      </>
-    );
+    return <LoadingState message="Загрузка склада..." />;
   }
 
   if (isError) {
     return (
-      <>
-        <PageHeader title="Склад" description="Ткани, остатки и доступность материалов" />
-        <ErrorState
-          title="Ошибка загрузки склада"
-          description={error?.message || "Проверьте API склада и попробуйте позже."}
-        />
-      </>
+      <ErrorState
+        title="Ошибка загрузки склада"
+        description={error?.message || "Проверьте API склада и попробуйте позже."}
+      />
     );
   }
 
   return (
-    <>
-      <PageHeader
-        title="Склад"
-        description={`${data?.count || 0} тканей в справочнике`}
-      >
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/estimate">
-              <Calculator className="mr-2 h-4 w-4" />
-              К смете
-            </Link>
-          </Button>
-          <Button disabled>
-            <Plus className="mr-2 h-4 w-4" />
-            Добавить ткань
-          </Button>
-        </div>
-      </PageHeader>
-
-      <div className="mb-6">
-        <WorkflowInfoCard
-          title="Готовность материалов"
-          description="Склад влияет на material_readiness заказа: материалы должны быть обеспечены перед запуском пошива. Сложная агрегация по заказам требует отдельного backend endpoint."
-          icon={<Package className="mt-0.5 h-5 w-5 shrink-0 text-sky-600" />}
-        />
-      </div>
-
-      {fabrics.length === 0 ? (
-        <EmptyState
-          title="На складе пока нет тканей"
-          description="Когда ткани появятся в API, они будут отображены с остатками, резервом и ценой за метр."
-          icon={<Package className="h-6 w-6 text-slate-600" />}
-        />
-      ) : (
-        <Card className="border-slate-200 bg-white shadow-sm">
+    <div className="min-h-[calc(100vh-2rem)] bg-neutral-100 px-4 py-6 sm:px-6">
+      <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[380px_1fr]">
+        <Card className="overflow-hidden rounded-[2px] border-0 bg-white shadow-sm">
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b bg-slate-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-medium text-slate-700">Ткань</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-700">Цвет</th>
-                    <th className="px-4 py-3 text-right font-medium text-slate-700">Запас</th>
-                    <th className="px-4 py-3 text-right font-medium text-slate-700">Резерв</th>
-                    <th className="px-4 py-3 text-right font-medium text-slate-700">Доступно</th>
-                    <th className="px-4 py-3 text-right font-medium text-slate-700">Цена / м</th>
-                    <th className="px-4 py-3 text-center font-medium text-slate-700">Статус</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {fabrics.map((fabric) => (
-                    <tr key={fabric.id} className={!fabric.is_active ? "opacity-50" : "hover:bg-slate-50"}>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-slate-900">{fabricTitle(fabric)}</div>
-                        <div className="text-xs text-slate-500">
-                          {fabric.hanger_number ? `Вешалка ${fabric.hanger_number}` : "Вешалка не указана"}
-                          {fabric.composition ? ` · ${fabric.composition}` : ""}
-                          {fabric.width_cm ? ` · ${fabric.width_cm} см` : ""}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="inline-block h-3 w-3 rounded-full border border-slate-200"
-                            style={{ backgroundColor: safeColor(fabric.color) }}
-                          />
-                          <span>{fabric.color || "Цвет не указан"}</span>
-                          {fabric.pattern && <span className="text-xs text-slate-500">({fabric.pattern})</span>}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right">{formatMeters(fabric.stock_meters)}</td>
-                      <td className="px-4 py-3 text-right text-slate-500">{formatMeters(fabric.reserved_meters)}</td>
-                      <td className="px-4 py-3 text-right font-medium">{formatMeters(fabric.available_meters)}</td>
-                      <td className="px-4 py-3 text-right">{formatCurrency(fabric.price_per_meter)}</td>
-                      <td className="px-4 py-3 text-center">
-                        <StockBadge fabric={fabric} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="px-5 pb-5 pt-10">
+              <div className="mb-6 text-sm text-neutral-500">Выйти</div>
+              <div className="flex items-center justify-between">
+                <h1 className="text-3xl font-medium text-neutral-950">Склад</h1>
+                <div className="flex gap-3">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-md bg-sky-400 text-white">
+                    <Search className="h-4 w-4" />
+                  </span>
+                  <Package className="h-7 w-7 text-sky-400" />
+                </div>
+              </div>
+              <div className="mt-3 text-sm text-neutral-500">{data?.count || 0} тканей в справочнике</div>
+            </div>
+
+            <div className="bg-neutral-100">
+              {fabrics.length > 0 ? (
+                fabrics.map((fabric) => <FabricRow key={fabric.id} fabric={fabric} />)
+              ) : (
+                <div className="px-5 py-10">
+                  <EmptyState
+                    title="На складе пока нет тканей"
+                    description="Когда ткани появятся в API, они будут отображены с остатком, резервом и доступностью."
+                    icon={<Package className="h-6 w-6 text-slate-600" />}
+                  />
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
-      )}
-    </>
+
+        <div className="space-y-4">
+          <Card className="border-0 bg-white shadow-sm">
+            <CardContent className="p-5">
+              <div className="font-medium text-neutral-950">Готовность материалов</div>
+              <div className="mt-2 text-sm text-neutral-500">
+                Склад показывает фактические ткани. Обновление `material_readiness` выполняется в карточке заказа,
+                потому что backend queue по потребностям материалов пока не выделен.
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/orders">Заказы</Link>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/estimate">
+                    <Calculator className="mr-2 h-4 w-4" />
+                    КП
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
   );
 }
 

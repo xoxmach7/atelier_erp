@@ -4,10 +4,10 @@ import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
-import { PageHeader, EmptyState, LoadingState, ErrorState, StatusBadge } from "@/components/shared";
+import { EmptyState, ErrorState, LoadingState, StatusBadge } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -20,7 +20,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useOrders } from "@/hooks/useOrders";
 import { useCreatePayment, usePayments } from "@/hooks/usePayments";
-import type { PaymentDTO } from "@/types";
+import type { OrderListItemDTO, PaymentDTO } from "@/types";
 import {
   ArrowRightLeft,
   Banknote,
@@ -54,7 +54,7 @@ function formatCurrency(value: string | number | null | undefined): string {
 }
 
 function formatDate(value: string | null | undefined): string {
-  if (!value) return "—";
+  if (!value) return "Дата не указана";
   return new Date(value).toLocaleDateString("ru-RU");
 }
 
@@ -65,6 +65,14 @@ function parseMoney(value: string | number | null | undefined): number {
 
 function isInvalidOrderId(orderId: string | null): boolean {
   return !!orderId && (orderId === "[id]" || orderId === "%5Bid%5D" || orderId.includes("["));
+}
+
+function orderNumber(order: OrderListItemDTO): string {
+  return order.order_number?.trim() || "Заказ без номера";
+}
+
+function customerName(order: OrderListItemDTO): string {
+  return order.customer_name?.trim() || "Клиент не указан";
 }
 
 function PaymentMethodIcon({ method }: { method: PaymentMethod }) {
@@ -78,10 +86,73 @@ function PaymentMethodIcon({ method }: { method: PaymentMethod }) {
   return <Icon className="h-4 w-4 text-slate-500" />;
 }
 
-function truncateNotes(notes: string | null, maxLength = 44): string {
+function truncateNotes(notes: string | null, maxLength = 42): string {
   if (!notes) return "—";
   if (notes.length <= maxLength) return notes;
   return `${notes.slice(0, maxLength)}...`;
+}
+
+function paymentDot(order: OrderListItemDTO): string {
+  const balance = parseMoney(order.balance_due);
+  if (balance <= 0) return "bg-green-500";
+  if (order.status === "waiting_final_payment") return "bg-red-500";
+  return "bg-yellow-300";
+}
+
+function FinalPaymentRow({ order }: { order: OrderListItemDTO }) {
+  const balanceDue = parseMoney(order.balance_due);
+  const isPaymentClosed = balanceDue <= 0;
+
+  return (
+    <div className="border-t border-white bg-neutral-100 px-5 py-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold text-neutral-900">
+            {orderNumber(order)} · {customerName(order)}
+          </div>
+          <div className={isPaymentClosed ? "mt-1 text-sm text-green-700" : "mt-1 text-sm text-amber-700"}>
+            {isPaymentClosed ? "Оплата закрыта" : `Остаток: ${formatCurrency(balanceDue)}`}
+          </div>
+          <div className="mt-2">
+            {isPaymentClosed ? (
+              <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Открыть для завершения</Badge>
+            ) : (
+              <StatusBadge status={order.status} />
+            )}
+          </div>
+        </div>
+        <span className={`mt-2 h-6 w-6 shrink-0 rounded-full ${paymentDot(order)}`} />
+      </div>
+      <Button asChild size="sm" className="mt-3 h-9 w-full bg-sky-400 hover:bg-sky-500">
+        <Link href={isPaymentClosed ? `/orders/${order.id}` : `/payments?order=${order.id}`}>
+          {isPaymentClosed ? "Открыть заказ" : "Внести"}
+        </Link>
+      </Button>
+    </div>
+  );
+}
+
+function PaymentListRow({ payment }: { payment: PaymentDTO }) {
+  return (
+    <div className="border-t border-white bg-neutral-100 px-5 py-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <Link href={`/orders/${payment.order}`} className="truncate text-sm font-semibold text-sky-700 hover:underline">
+            {payment.order_number || "Заказ без номера"}
+          </Link>
+          <div className="mt-1 flex items-center gap-2 text-sm text-neutral-700">
+            <PaymentMethodIcon method={payment.payment_method} />
+            {paymentMethodLabels[payment.payment_method] || payment.payment_method}
+          </div>
+          <div className="mt-1 text-sm text-neutral-500">
+            {paymentTypeLabels[payment.payment_type] || payment.payment_type} · {formatDate(payment.received_at)}
+          </div>
+          <div className="mt-1 text-xs text-neutral-500">{truncateNotes(payment.notes)}</div>
+        </div>
+        <div className="text-right text-sm font-semibold text-neutral-950">{formatCurrency(payment.amount)}</div>
+      </div>
+    </div>
+  );
 }
 
 function PaymentsContent() {
@@ -145,23 +216,15 @@ function PaymentsContent() {
   };
 
   if (isLoading) {
-    return (
-      <>
-        <PageHeader title="Платежи" description="Финансовое закрытие заказов" />
-        <LoadingState message="Загрузка платежей..." />
-      </>
-    );
+    return <LoadingState message="Загрузка платежей..." />;
   }
 
   if (isError) {
     return (
-      <>
-        <PageHeader title="Платежи" description="Финансовое закрытие заказов" />
-        <ErrorState
-          title="Ошибка загрузки платежей"
-          description={error?.message || "Проверьте API платежей и попробуйте позже."}
-        />
-      </>
+      <ErrorState
+        title="Ошибка загрузки платежей"
+        description={error?.message || "Проверьте API платежей и попробуйте позже."}
+      />
     );
   }
 
@@ -172,281 +235,201 @@ function PaymentsContent() {
   const totalAmount = payments.reduce((sum, payment) => sum + parseMoney(payment.amount), 0);
 
   return (
-    <>
-      <PageHeader
-        title={orderId && !invalidOrderId ? "Платежи по заказу" : "Платежи"}
-        description={
-          orderId && !invalidOrderId
-            ? `${data?.count || 0} платежей по выбранному заказу`
-            : `${data?.count || 0} платежей записано`
-        }
-      >
-        {orderId && !invalidOrderId ? (
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/orders/${orderId}`}>К заказу</Link>
-          </Button>
-        ) : (
-          <Button disabled>
-            <Plus className="mr-2 h-4 w-4" />
-            Записать платёж
-          </Button>
-        )}
-      </PageHeader>
-
-      {invalidOrderId && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          Некорректный параметр заказа в URL. Ссылка на платежи должна содержать реальный ID заказа.
-        </div>
-      )}
-
-      <Card className="mb-6 border-sky-200 bg-white shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Plus className="h-4 w-4 text-sky-600" />
-            Записать платёж
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {formOrder && (
-            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-              <div className="font-medium text-slate-900">
-                {formOrder.order_number || "Заказ без номера"} · {formOrder.customer_name || "Клиент не указан"}
-              </div>
-              <div className="mt-1 text-slate-600">
-                Итого: {formatCurrency(formOrder.total_amount)} · Оплачено: {formatCurrency(formOrder.paid_amount)} · Остаток: {formatCurrency(formOrder.balance_due)}
-              </div>
-              {remainingAmount <= 0 && formOrder.status !== "completed" && (
-                <div className="mt-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-green-700">
-                  Оплата закрыта. Откройте заказ, чтобы проверить блокировки завершения и закрыть его через экран исполнения заказа.
-                </div>
-              )}
-            </div>
-          )}
-
-          <form onSubmit={handleCreatePayment} className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
-            <div className="space-y-2">
-              <Label>Заказ</Label>
-              {orderId && !invalidOrderId ? (
-                <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                  {formOrder?.order_number || "Заказ выбран"} {formOrder?.customer_name ? `· ${formOrder.customer_name}` : ""}
-                </div>
-              ) : (
-                <Select
-                  value={paymentForm.order}
-                  onValueChange={(value) => setPaymentForm((prev) => ({ ...prev, order: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Выберите заказ" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {orders.map((order) => (
-                      <SelectItem key={order.id} value={order.id}>
-                        {order.order_number || "Заказ без номера"} · {order.customer_name || "Клиент не указан"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="payment-amount">Сумма</Label>
-              <Input
-                id="payment-amount"
-                inputMode="decimal"
-                placeholder={remainingAmount > 0 ? String(Math.round(remainingAmount)) : "0"}
-                value={paymentForm.amount}
-                onChange={(event) => setPaymentForm((prev) => ({ ...prev, amount: event.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Тип</Label>
-              <Select
-                value={paymentForm.payment_type}
-                onValueChange={(value: PaymentType) => setPaymentForm((prev) => ({ ...prev, payment_type: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="prepayment">Предоплата</SelectItem>
-                  <SelectItem value="final">Финальный</SelectItem>
-                  <SelectItem value="additional">Дополнительный</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Способ</Label>
-              <Select
-                value={paymentForm.payment_method}
-                onValueChange={(value: PaymentMethod) => setPaymentForm((prev) => ({ ...prev, payment_method: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Наличные</SelectItem>
-                  <SelectItem value="card">Карта</SelectItem>
-                  <SelectItem value="transfer">Банковский перевод</SelectItem>
-                  <SelectItem value="kaspi">Kaspi</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2 lg:col-span-3">
-              <Label htmlFor="payment-notes">Комментарий</Label>
-              <Textarea
-                id="payment-notes"
-                rows={2}
-                placeholder="Например: финальная оплата после установки"
-                value={paymentForm.notes}
-                onChange={(event) => setPaymentForm((prev) => ({ ...prev, notes: event.target.value }))}
-              />
-            </div>
-
-            <div className="flex items-end">
-              <Button type="submit" className="w-full" disabled={createPayment.isPending || invalidOrderId}>
-                {createPayment.isPending ? "Записываем..." : "Записать платёж"}
-              </Button>
-            </div>
-          </form>
-
-          {formError && (
-            <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              {formError}
-            </div>
-          )}
-          {formSuccess && (
-            <div className="mt-3 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-              <CheckCircle2 className="h-4 w-4" />
-              {formSuccess}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {finalPaymentOrders.length > 0 && (
-        <Card className="mb-6 border-slate-200 bg-white shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Финальное закрытие</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-2">
-            {finalPaymentOrders.slice(0, 4).map((order) => {
-              const balanceDue = parseMoney(order.balance_due);
-              const isPaymentClosed = balanceDue <= 0;
-
-              return (
-                <Link
-                  key={order.id}
-                  href={`/orders/${order.id}`}
-                  className={
-                    isPaymentClosed
-                      ? "rounded-lg border border-green-200 bg-green-50 p-3 text-sm hover:bg-green-100"
-                      : "rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm hover:bg-amber-100"
-                  }
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="font-medium text-slate-900">{order.order_number || "Заказ без номера"}</div>
-                      <div className="text-slate-500">{order.customer_name || "Клиент не указан"}</div>
-                    </div>
-                    {isPaymentClosed ? (
-                      <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Оплата закрыта</Badge>
-                    ) : (
-                      <StatusBadge status={order.status} />
-                    )}
-                  </div>
-                  {isPaymentClosed ? (
-                    <>
-                      <div className="mt-2 text-green-700">
-                        Остаток: {formatCurrency(0)}. Откройте заказ для завершения.
-                      </div>
-                      <div className="mt-2 font-medium text-green-800">Открыть заказ для завершения</div>
-                    </>
-                  ) : (
-                    <div className="mt-2 text-amber-700">Остаток: {formatCurrency(balanceDue)}</div>
-                  )}
-                </Link>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-
-      {payments.length === 0 ? (
-        <EmptyState
-          title="Платежей пока нет"
-          description={
-            orderId && !invalidOrderId
-              ? "По выбранному заказу платежи ещё не записаны."
-              : "Выберите заказ или откройте карточку заказа для просмотра платежей."
-          }
-          icon={<Banknote className="h-6 w-6 text-slate-600" />}
-        />
-      ) : (
-        <Card className="border-slate-200 bg-white shadow-sm">
+    <div className="min-h-[calc(100vh-2rem)] bg-neutral-100 px-4 py-6 sm:px-6">
+      <div className="mx-auto grid max-w-6xl gap-6 xl:grid-cols-[390px_1fr]">
+        <Card className="overflow-hidden rounded-[2px] border-0 bg-white shadow-sm">
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b bg-slate-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-medium text-slate-700">Заказ</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-700">Тип</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-700">Способ</th>
-                    <th className="px-4 py-3 text-right font-medium text-slate-700">Сумма</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-700">Получен</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-700">Кем записан</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-700">Примечания</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {payments.map((payment) => (
-                    <tr key={payment.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/orders/${payment.order}`}
-                          className="font-medium text-sky-700 hover:underline"
-                        >
-                          {payment.order_number || "Заказ без номера"}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge className="bg-sky-100 text-sky-700">
-                          {paymentTypeLabels[payment.payment_type] || payment.payment_type}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <PaymentMethodIcon method={payment.payment_method} />
-                          <span>{paymentMethodLabels[payment.payment_method] || payment.payment_method}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                        {formatCurrency(payment.amount)}
-                      </td>
-                      <td className="px-4 py-3">{formatDate(payment.received_at)}</td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {payment.created_by_name || "Пользователь не указан"}
-                      </td>
-                      <td className="max-w-xs truncate px-4 py-3 text-slate-500" title={payment.notes || undefined}>
-                        {truncateNotes(payment.notes)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="px-5 pb-5 pt-10">
+              <div className="mb-6 text-sm text-neutral-500">
+                {orderId && !invalidOrderId ? <Link href={`/orders/${orderId}`}>К заказу</Link> : "Финансы"}
+              </div>
+              <div className="flex items-center justify-between">
+                <h1 className="text-3xl font-medium text-neutral-950">Платежи</h1>
+                <Wallet className="h-7 w-7 text-sky-400" />
+              </div>
+              <div className="mt-3 text-sm text-neutral-500">
+                {orderId && !invalidOrderId ? `${data?.count || 0} платежей по заказу` : `${data?.count || 0} платежей записано`}
+              </div>
             </div>
 
-            <div className="flex justify-between border-t px-4 py-3 text-sm text-slate-500">
-              <span>Показано {payments.length} из {data?.count || payments.length}</span>
-              <span className="font-medium text-slate-700">Итого: {formatCurrency(totalAmount)}</span>
+            {invalidOrderId && (
+              <div className="mx-5 mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                Некорректный параметр заказа в URL. Ссылка должна содержать реальный ID заказа.
+              </div>
+            )}
+
+            <div className="border-t border-neutral-100 px-5 py-5">
+              <div className="mb-4 flex items-center gap-2 text-base font-semibold text-neutral-950">
+                <Plus className="h-4 w-4 text-sky-500" />
+                Записать платёж
+              </div>
+
+              {formOrder && (
+                <div className="mb-4 rounded-lg bg-neutral-100 p-3 text-sm">
+                  <div className="font-medium text-neutral-900">
+                    {orderNumber(formOrder)} · {customerName(formOrder)}
+                  </div>
+                  <div className="mt-1 text-neutral-600">
+                    Итого: {formatCurrency(formOrder.total_amount)} · Оплачено: {formatCurrency(formOrder.paid_amount)}
+                  </div>
+                  <div className={remainingAmount <= 0 ? "mt-1 text-green-700" : "mt-1 text-amber-700"}>
+                    Остаток: {formatCurrency(formOrder.balance_due)}
+                  </div>
+                  {remainingAmount <= 0 && formOrder.status !== "completed" && (
+                    <div className="mt-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-green-700">
+                      Оплата закрыта. Откройте заказ для проверки готовности к завершению.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <form onSubmit={handleCreatePayment} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Заказ</Label>
+                  {orderId && !invalidOrderId ? (
+                    <div className="rounded-md border bg-neutral-100 px-3 py-2 text-sm text-neutral-700">
+                      {formOrder ? `${orderNumber(formOrder)} · ${customerName(formOrder)}` : "Заказ выбран"}
+                    </div>
+                  ) : (
+                    <Select
+                      value={paymentForm.order}
+                      onValueChange={(value) => setPaymentForm((prev) => ({ ...prev, order: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Выберите заказ" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {orders.map((order) => (
+                          <SelectItem key={order.id} value={order.id}>
+                            {orderNumber(order)} · {customerName(order)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="payment-amount">Сумма</Label>
+                    <Input
+                      id="payment-amount"
+                      inputMode="decimal"
+                      placeholder={remainingAmount > 0 ? String(Math.round(remainingAmount)) : "0"}
+                      value={paymentForm.amount}
+                      onChange={(event) => setPaymentForm((prev) => ({ ...prev, amount: event.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Тип</Label>
+                    <Select
+                      value={paymentForm.payment_type}
+                      onValueChange={(value: PaymentType) => setPaymentForm((prev) => ({ ...prev, payment_type: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="prepayment">Предоплата</SelectItem>
+                        <SelectItem value="final">Финальный</SelectItem>
+                        <SelectItem value="additional">Дополнительный</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Способ</Label>
+                  <Select
+                    value={paymentForm.payment_method}
+                    onValueChange={(value: PaymentMethod) => setPaymentForm((prev) => ({ ...prev, payment_method: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Наличные</SelectItem>
+                      <SelectItem value="card">Карта</SelectItem>
+                      <SelectItem value="transfer">Банковский перевод</SelectItem>
+                      <SelectItem value="kaspi">Kaspi</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="payment-notes">Комментарий</Label>
+                  <Textarea
+                    id="payment-notes"
+                    rows={2}
+                    placeholder="Например: финальная оплата после установки"
+                    value={paymentForm.notes}
+                    onChange={(event) => setPaymentForm((prev) => ({ ...prev, notes: event.target.value }))}
+                  />
+                </div>
+
+                <Button type="submit" className="w-full bg-sky-400 hover:bg-sky-500" disabled={createPayment.isPending || invalidOrderId}>
+                  {createPayment.isPending ? "Записываем..." : "Записать платёж"}
+                </Button>
+              </form>
+
+              {formError && (
+                <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {formError}
+                </div>
+              )}
+              {formSuccess && (
+                <div className="mt-3 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {formSuccess}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
-      )}
-    </>
+
+        <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-1">
+          <Card className="overflow-hidden rounded-[2px] border-0 bg-white shadow-sm">
+            <CardContent className="p-0">
+              <div className="px-5 pb-4 pt-6">
+                <div className="text-xl font-medium text-neutral-950">Финальное закрытие</div>
+                <div className="mt-1 text-sm text-neutral-500">Заказы с остатком или закрытой оплатой</div>
+              </div>
+              <div className="bg-neutral-100">
+                {finalPaymentOrders.length > 0 ? (
+                  finalPaymentOrders.slice(0, 6).map((order) => <FinalPaymentRow key={order.id} order={order} />)
+                ) : (
+                  <div className="px-5 py-10 text-center text-sm text-neutral-500">
+                    Нет заказов, ожидающих финальную оплату.
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden rounded-[2px] border-0 bg-white shadow-sm">
+            <CardContent className="p-0">
+              <div className="px-5 pb-4 pt-6">
+                <div className="text-xl font-medium text-neutral-950">Последние платежи</div>
+                <div className="mt-1 text-sm text-neutral-500">Итого: {formatCurrency(totalAmount)}</div>
+              </div>
+              <div className="bg-neutral-100">
+                {payments.length > 0 ? (
+                  payments.slice(0, 8).map((payment) => <PaymentListRow key={payment.id} payment={payment} />)
+                ) : (
+                  <div className="px-5 py-10">
+                    <EmptyState
+                      title="Платежей пока нет"
+                      description={orderId && !invalidOrderId ? "По выбранному заказу платежи ещё не записаны." : "Выберите заказ или откройте карточку заказа для просмотра платежей."}
+                      icon={<Banknote className="h-6 w-6 text-slate-600" />}
+                    />
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
   );
 }
 
