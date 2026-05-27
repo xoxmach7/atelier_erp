@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
@@ -8,12 +8,23 @@ import { PageHeader, EmptyState, LoadingState, ErrorState, StatusBadge } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useOrders } from "@/hooks/useOrders";
-import { usePayments } from "@/hooks/usePayments";
+import { useCreatePayment, usePayments } from "@/hooks/usePayments";
 import type { PaymentDTO } from "@/types";
 import {
   ArrowRightLeft,
   Banknote,
+  CheckCircle2,
   CreditCard,
   CreditCard as CardIcon,
   Plus,
@@ -78,6 +89,55 @@ function PaymentsContent() {
     order: orderId && !invalidOrderId ? orderId : undefined,
   });
   const { data: ordersData } = useOrders({ pageSize: 100 });
+  const createPayment = useCreatePayment();
+  const orders = ordersData?.results || [];
+  const selectedOrder = orderId && !invalidOrderId
+    ? orders.find((order) => order.id === orderId)
+    : undefined;
+  const defaultOrderForForm = orderId && !invalidOrderId ? orderId : "";
+  const [paymentForm, setPaymentForm] = useState({
+    order: defaultOrderForForm,
+    amount: "",
+    payment_type: "final" as PaymentType,
+    payment_method: "cash" as PaymentMethod,
+    notes: "",
+  });
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
+
+  const formOrder = orders.find((order) => order.id === paymentForm.order) || selectedOrder;
+  const remainingAmount = Number.parseFloat(formOrder?.balance_due || "0");
+
+  const handleCreatePayment = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setFormError(null);
+    setFormSuccess(null);
+
+    const amount = Number.parseFloat(paymentForm.amount.replace(",", "."));
+    if (!paymentForm.order) {
+      setFormError("Выберите заказ для платежа.");
+      return;
+    }
+    if (!paymentForm.amount || Number.isNaN(amount) || amount <= 0) {
+      setFormError("Введите сумму платежа больше 0.");
+      return;
+    }
+
+    try {
+      const payment = await createPayment.mutateAsync({
+        order: paymentForm.order,
+        amount: amount.toFixed(2),
+        payment_type: paymentForm.payment_type,
+        payment_method: paymentForm.payment_method,
+        notes: paymentForm.notes.trim() || undefined,
+      });
+      setPaymentForm((prev) => ({ ...prev, amount: "", notes: "" }));
+      setFormSuccess(`Платёж ${formatCurrency(payment.amount)} записан.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Не удалось записать платёж.";
+      setFormError(message);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -133,6 +193,129 @@ function PaymentsContent() {
           Некорректный параметр заказа в URL. Ссылка на платежи должна содержать реальный ID заказа.
         </div>
       )}
+
+      <Card className="mb-6 border-sky-200 bg-white shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Plus className="h-4 w-4 text-sky-600" />
+            Записать платёж
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {formOrder && (
+            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+              <div className="font-medium text-slate-900">
+                {formOrder.order_number || "Заказ без номера"} · {formOrder.customer_name || "Клиент не указан"}
+              </div>
+              <div className="mt-1 text-slate-600">
+                Итого: {formatCurrency(formOrder.total_amount)} · Оплачено: {formatCurrency(formOrder.paid_amount)} · Остаток: {formatCurrency(formOrder.balance_due)}
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleCreatePayment} className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
+            <div className="space-y-2">
+              <Label>Заказ</Label>
+              {orderId && !invalidOrderId ? (
+                <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                  {formOrder?.order_number || "Заказ выбран"} {formOrder?.customer_name ? `· ${formOrder.customer_name}` : ""}
+                </div>
+              ) : (
+                <Select
+                  value={paymentForm.order}
+                  onValueChange={(value) => setPaymentForm((prev) => ({ ...prev, order: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Выберите заказ" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {orders.map((order) => (
+                      <SelectItem key={order.id} value={order.id}>
+                        {order.order_number || "Заказ без номера"} · {order.customer_name || "Клиент не указан"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="payment-amount">Сумма</Label>
+              <Input
+                id="payment-amount"
+                inputMode="decimal"
+                placeholder={remainingAmount > 0 ? String(Math.round(remainingAmount)) : "0"}
+                value={paymentForm.amount}
+                onChange={(event) => setPaymentForm((prev) => ({ ...prev, amount: event.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Тип</Label>
+              <Select
+                value={paymentForm.payment_type}
+                onValueChange={(value: PaymentType) => setPaymentForm((prev) => ({ ...prev, payment_type: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="prepayment">Предоплата</SelectItem>
+                  <SelectItem value="final">Финальный</SelectItem>
+                  <SelectItem value="additional">Дополнительный</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Способ</Label>
+              <Select
+                value={paymentForm.payment_method}
+                onValueChange={(value: PaymentMethod) => setPaymentForm((prev) => ({ ...prev, payment_method: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Наличные</SelectItem>
+                  <SelectItem value="card">Карта</SelectItem>
+                  <SelectItem value="transfer">Банковский перевод</SelectItem>
+                  <SelectItem value="kaspi">Kaspi</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2 lg:col-span-3">
+              <Label htmlFor="payment-notes">Комментарий</Label>
+              <Textarea
+                id="payment-notes"
+                rows={2}
+                placeholder="Например: финальная оплата после установки"
+                value={paymentForm.notes}
+                onChange={(event) => setPaymentForm((prev) => ({ ...prev, notes: event.target.value }))}
+              />
+            </div>
+
+            <div className="flex items-end">
+              <Button type="submit" className="w-full" disabled={createPayment.isPending || invalidOrderId}>
+                {createPayment.isPending ? "Записываем..." : "Записать платёж"}
+              </Button>
+            </div>
+          </form>
+
+          {formError && (
+            <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {formError}
+            </div>
+          )}
+          {formSuccess && (
+            <div className="mt-3 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+              <CheckCircle2 className="h-4 w-4" />
+              {formSuccess}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {awaitingFinalPayment.length > 0 && (
         <Card className="mb-6 border-amber-200 bg-amber-50/60">

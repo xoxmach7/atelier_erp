@@ -1609,6 +1609,7 @@ function InstallerHandoverSection({
   paymentState,
   warnings,
   orderId,
+  orderStatus,
   onHandoverStageChanged,
   photoReportStatus,
   photoReportCount,
@@ -1643,6 +1644,7 @@ function InstallerHandoverSection({
   paymentState: 'paid' | 'partial' | 'unpaid';
   warnings: WarningDTO[];
   orderId: string;
+  orderStatus: string;
   onHandoverStageChanged: () => void;
   photoReportStatus: PhotoReportStatus;
   photoReportCount: number;
@@ -1671,7 +1673,7 @@ function InstallerHandoverSection({
   const isPending = handoverStage === 'pending';
   const isScheduled = handoverStage === 'scheduled';
   const isInProgress = handoverStage === 'in_progress';
-  const canComplete = isDone && balanceDue <= 0;
+  const canComplete = orderStatus !== 'completed' && isDone && balanceDue <= 0;
 
   const handleSchedule = async () => {
     try {
@@ -3676,6 +3678,7 @@ export default function OrderDetailPage() {
               paymentState={execution.role_sections.installer.payment_state}
               warnings={execution.role_sections.installer.warnings}
               orderId={order.id}
+              orderStatus={order.status}
               onHandoverStageChanged={refetchExecution}
               photoReportStatus={normalizePhotoReportStatus(execution.role_sections.installer.photo_report_status)}
               photoReportCount={execution.role_sections.installer.photo_report_count ?? 0}
@@ -3690,6 +3693,14 @@ export default function OrderDetailPage() {
         {/* Right column - Sidebar info */}
         <div className="space-y-6">
           <OrderExecutionPanel order={order} execution={execution} />
+
+          {execution?.available_actions?.some((action) => action.action === 'transition_to_completed' && !action.disabled_reason) && (
+            <AvailableActionsPanel
+              actions={execution.available_actions.filter((action) => action.action === 'transition_to_completed')}
+              onAction={handleAction}
+              onCancel={() => setCancelModalOpen(true)}
+            />
+          )}
 
           {/* Source Quote (if created from quote) */}
           <SourceQuoteSection sourceQuote={order.source_quote} />

@@ -2,8 +2,9 @@
  * Payments TanStack Query Hooks
  */
 
-import { useQuery } from "@tanstack/react-query";
-import { fetchPayments, fetchPaymentById } from "@/services/http/payments";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createPayment, fetchPayments, fetchPaymentById } from "@/services/http/payments";
+import type { CreatePaymentInput } from "@/services/http/payments";
 import type { PaymentDTO } from "@/types";
 
 interface PaymentsListResponse {
@@ -52,5 +53,22 @@ export function usePayment(paymentId: string | null) {
     queryFn: () => fetchPaymentById(paymentId!),
     enabled: !!paymentId, // Only fetch if paymentId is provided
     staleTime: 60 * 1000, // 1 minute
+  });
+}
+
+/**
+ * Hook for recording a new payment.
+ */
+export function useCreatePayment() {
+  const queryClient = useQueryClient();
+
+  return useMutation<PaymentDTO, Error, CreatePaymentInput>({
+    mutationFn: createPayment,
+    onSuccess: (payment) => {
+      queryClient.invalidateQueries({ queryKey: [PAYMENTS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["orders", "detail", payment.order] });
+      queryClient.invalidateQueries({ queryKey: ["order-execution", payment.order] });
+    },
   });
 }
