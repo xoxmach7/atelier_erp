@@ -19,6 +19,7 @@ import {
   Ruler,
   Scissors,
   ShieldAlert,
+  Sparkles,
   Truck,
   UserCog,
   WalletCards,
@@ -213,6 +214,12 @@ function RoleWorkspacesContent() {
         description="Тестовый режим для проверки Sheber ERP по ролям"
       >
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/product-demo">
+              <Sparkles className="mr-2 h-4 w-4" />
+              Демо-продукт
+            </Link>
+          </Button>
           <Button variant="outline" asChild>
             <Link href="/workflow-map">
               <Map className="mr-2 h-4 w-4" />

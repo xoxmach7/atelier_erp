@@ -15,6 +15,7 @@ import {
   Map,
   PackageCheck,
   Scissors,
+  Sparkles,
   Truck,
   UserCog,
 } from "lucide-react";
@@ -92,6 +93,12 @@ function DashboardContent() {
         description="Обзор владельца: реальные данные из заказов, без тестовых чисел"
       >
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/product-demo">
+              <Sparkles className="mr-2 h-4 w-4" />
+              Демо-продукт
+            </Link>
+          </Button>
           <Button variant="outline" asChild>
             <Link href="/workflow-map">
               <Map className="mr-2 h-4 w-4" />

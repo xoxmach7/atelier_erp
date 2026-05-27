@@ -22,6 +22,7 @@ import {
   Ruler,
   Scissors,
   Shirt,
+  Sparkles,
   Truck,
   UserCog,
   WalletCards,
@@ -210,6 +211,7 @@ const demoStages = [
 ];
 
 const quickLinks = [
+  { title: "Демо-продукт", href: "/product-demo", icon: Sparkles },
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "Рабочие места ролей", href: "/role-workspaces", icon: UserCog },
   { title: "Заказы", href: "/orders", icon: ClipboardList },
