@@ -201,6 +201,7 @@ function ProductDemoContent() {
               <Button asChild><Link href="/dashboard">Начать с Dashboard</Link></Button>
               <Button asChild variant="outline"><Link href="/orders">Все заказы</Link></Button>
               <Button asChild variant="outline"><Link href="/orders/new">Новый заказ</Link></Button>
+              <Button asChild variant="outline"><Link href="/mvp-preview">MVP Preview</Link></Button>
               <Button asChild variant="outline"><Link href="/workflow-map">Карта процесса</Link></Button>
               <Button asChild variant="outline"><Link href="/role-workspaces">Рабочие места ролей</Link></Button>
             </div>

@@ -100,6 +100,9 @@ function DashboardContent() {
             </Link>
           </Button>
           <Button variant="outline" asChild>
+            <Link href="/mvp-preview">MVP Preview</Link>
+          </Button>
+          <Button variant="outline" asChild>
             <Link href="/workflow-map">
               <Map className="mr-2 h-4 w-4" />
               Карта процесса
