@@ -11,6 +11,7 @@ from .constants import SupplyMode, MaterialReadiness, ProductionStage, HandoverS
 from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
 from django.db import models
 from django.db.models import CheckConstraint, Q, UniqueConstraint, Index
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 
@@ -795,6 +796,11 @@ class Payment(UUIDModel, AuditedModel):
     
     received_at = models.DateTimeField(db_index=True)
     notes = models.TextField(blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.received_at is None:
+            self.received_at = timezone.now()
+        super().save(*args, **kwargs)
     
     class Meta:
         db_table = 'payments'
