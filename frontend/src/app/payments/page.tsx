@@ -58,6 +58,11 @@ function formatDate(value: string | null | undefined): string {
   return new Date(value).toLocaleDateString("ru-RU");
 }
 
+function parseMoney(value: string | number | null | undefined): number {
+  const amount = typeof value === "string" ? Number.parseFloat(value) : value;
+  return amount === null || amount === undefined || Number.isNaN(amount) ? 0 : amount;
+}
+
 function isInvalidOrderId(orderId: string | null): boolean {
   return !!orderId && (orderId === "[id]" || orderId === "%5Bid%5D" || orderId.includes("["));
 }
@@ -106,7 +111,7 @@ function PaymentsContent() {
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
   const formOrder = orders.find((order) => order.id === paymentForm.order) || selectedOrder;
-  const remainingAmount = Number.parseFloat(formOrder?.balance_due || "0");
+  const remainingAmount = parseMoney(formOrder?.balance_due);
 
   const handleCreatePayment = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -161,10 +166,10 @@ function PaymentsContent() {
   }
 
   const payments: PaymentDTO[] = data?.results || [];
-  const awaitingFinalPayment = (ordersData?.results || []).filter(
-    (order) => order.status === "waiting_final_payment" || Number.parseFloat(order.balance_due || "0") > 0
+  const finalPaymentOrders = (ordersData?.results || []).filter(
+    (order) => order.status === "waiting_final_payment" || parseMoney(order.balance_due) > 0
   );
-  const totalAmount = payments.reduce((sum, payment) => sum + Number.parseFloat(payment.amount || "0"), 0);
+  const totalAmount = payments.reduce((sum, payment) => sum + parseMoney(payment.amount), 0);
 
   return (
     <>
@@ -210,6 +215,11 @@ function PaymentsContent() {
               <div className="mt-1 text-slate-600">
                 Итого: {formatCurrency(formOrder.total_amount)} · Оплачено: {formatCurrency(formOrder.paid_amount)} · Остаток: {formatCurrency(formOrder.balance_due)}
               </div>
+              {remainingAmount <= 0 && formOrder.status !== "completed" && (
+                <div className="mt-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-green-700">
+                  Оплата закрыта. Откройте заказ, чтобы проверить блокировки завершения и закрыть его через экран исполнения заказа.
+                </div>
+              )}
             </div>
           )}
 
@@ -317,28 +327,50 @@ function PaymentsContent() {
         </CardContent>
       </Card>
 
-      {awaitingFinalPayment.length > 0 && (
-        <Card className="mb-6 border-amber-200 bg-amber-50/60">
+      {finalPaymentOrders.length > 0 && (
+        <Card className="mb-6 border-slate-200 bg-white shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Ожидают финальную оплату</CardTitle>
+            <CardTitle className="text-base">Финальное закрытие</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-2">
-            {awaitingFinalPayment.slice(0, 4).map((order) => (
-              <Link
-                key={order.id}
-                href={`/orders/${order.id}`}
-                className="rounded-lg border border-amber-200 bg-white p-3 text-sm hover:bg-amber-50"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="font-medium text-slate-900">{order.order_number || "Заказ без номера"}</div>
-                    <div className="text-slate-500">{order.customer_name || "Клиент не указан"}</div>
+            {finalPaymentOrders.slice(0, 4).map((order) => {
+              const balanceDue = parseMoney(order.balance_due);
+              const isPaymentClosed = balanceDue <= 0;
+
+              return (
+                <Link
+                  key={order.id}
+                  href={`/orders/${order.id}`}
+                  className={
+                    isPaymentClosed
+                      ? "rounded-lg border border-green-200 bg-green-50 p-3 text-sm hover:bg-green-100"
+                      : "rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm hover:bg-amber-100"
+                  }
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-slate-900">{order.order_number || "Заказ без номера"}</div>
+                      <div className="text-slate-500">{order.customer_name || "Клиент не указан"}</div>
+                    </div>
+                    {isPaymentClosed ? (
+                      <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Оплата закрыта</Badge>
+                    ) : (
+                      <StatusBadge status={order.status} />
+                    )}
                   </div>
-                  <StatusBadge status={order.status} />
-                </div>
-                <div className="mt-2 text-amber-700">Остаток: {formatCurrency(order.balance_due)}</div>
-              </Link>
-            ))}
+                  {isPaymentClosed ? (
+                    <>
+                      <div className="mt-2 text-green-700">
+                        Остаток: {formatCurrency(0)}. Откройте заказ для завершения.
+                      </div>
+                      <div className="mt-2 font-medium text-green-800">Открыть заказ для завершения</div>
+                    </>
+                  ) : (
+                    <div className="mt-2 text-amber-700">Остаток: {formatCurrency(balanceDue)}</div>
+                  )}
+                </Link>
+              );
+            })}
           </CardContent>
         </Card>
       )}
