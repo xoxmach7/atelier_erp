@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   ClipboardList,
   CreditCard,
+  Map,
   PackageCheck,
   Scissors,
   Truck,
@@ -89,9 +90,17 @@ function DashboardContent() {
         title="Рабочий стол"
         description="Обзор владельца: реальные данные из заказов, без тестовых чисел"
       >
-        <Button asChild>
-          <Link href="/orders/new">Новый заказ</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/workflow-map">
+              <Map className="mr-2 h-4 w-4" />
+              Карта процесса
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/orders/new">Новый заказ</Link>
+          </Button>
+        </div>
       </PageHeader>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
