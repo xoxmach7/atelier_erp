@@ -75,6 +75,11 @@ function formatCurrency(value: string | null): string {
   }).format(Number.isFinite(amount) ? amount : 0);
 }
 
+function parseAmount(value: string | number | null | undefined): number {
+  const amount = typeof value === "string" ? Number.parseFloat(value) : value;
+  return amount === null || amount === undefined || Number.isNaN(amount) ? 0 : amount;
+}
+
 function formatDate(value: string | null): string {
   if (!value) return "—";
   return new Date(value).toLocaleDateString("ru-RU");
@@ -925,6 +930,141 @@ function WarningsSection({ warnings, blockers }: { warnings: WarningDTO[]; block
   );
 }
 
+function CompletionReadinessPanel({
+  order,
+  execution,
+  onComplete,
+}: {
+  order: OrderDetailDTO;
+  execution?: OrderExecutionDTO;
+  onComplete: (action: AvailableActionDTO) => void;
+}) {
+  if (!execution) return null;
+
+  const installer = execution.role_sections?.installer;
+  const blockers = execution.blocking_reasons || [];
+  const completionAction = execution.available_actions?.find(
+    (action) =>
+      ['transition_to_completed', 'complete', 'completed'].includes(action.action) &&
+      !action.disabled_reason
+  );
+  const isCompleted = order.status === 'completed' || execution.status === 'completed';
+  const handoverDone = execution.handover_stage === 'done' || installer?.handover_stage === 'done';
+  const photoStatus = normalizePhotoReportStatus(installer?.photo_report_status);
+  const photoReportAdded = photoStatus === 'uploaded' || (installer?.photo_report_count ?? 0) > 0;
+  const actStatus = installer?.completion_act_status;
+  const actCreated = actStatus === 'draft' || actStatus === 'signed' || !!installer?.completion_act;
+  const signedActUploaded = actStatus === 'signed' || !!installer?.completion_act?.signed_file_url;
+  const paymentClosed = execution.payment_state === 'paid' || parseAmount(execution.balance_due) <= 0;
+  const canComplete = !!completionAction && blockers.length === 0 && !isCompleted;
+
+  const checklist = [
+    {
+      label: 'Установка / выдача завершена',
+      done: handoverDone,
+      hint: handoverDone
+        ? installer?.handover_stage_label || 'Этап передачи закрыт.'
+        : 'Отметьте установку / выдачу как выполненную.',
+    },
+    {
+      label: 'Фотоотчёт добавлен',
+      done: photoReportAdded,
+      hint: photoReportAdded
+        ? `Фото: ${installer?.photo_report_count ?? 1}`
+        : photoStatus === 'not_available'
+          ? 'Фотоотчёт доступен после установки / выдачи.'
+          : 'Загрузите фотоотчёт исполнения.',
+    },
+    {
+      label: 'АВР создан',
+      done: actCreated,
+      hint: actCreated
+        ? installer?.completion_act?.act_number || 'Акт создан.'
+        : actStatus === 'not_available'
+          ? 'АВР доступен после установки / выдачи.'
+          : 'Создайте акт выполненных работ.',
+    },
+    {
+      label: 'Подписанный АВР загружен',
+      done: signedActUploaded,
+      hint: signedActUploaded
+        ? 'Подписанный файл прикреплён.'
+        : 'Загрузите подписанный АВР.',
+    },
+    {
+      label: 'Финальная оплата закрыта',
+      done: paymentClosed,
+      hint: paymentClosed
+        ? 'Остаток: 0.'
+        : `Остаток: ${formatCurrency(execution.balance_due)}.`,
+    },
+  ];
+
+  return (
+    <Card className={isCompleted ? 'border-green-200 bg-green-50/60' : undefined}>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <CheckCheck className="h-4 w-4" />
+          Готовность к завершению
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isCompleted ? (
+          <Alert className="border-green-200 bg-green-50">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-700">
+              Заказ успешно завершён. Новые действия завершения не требуются.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <>
+            <div className="space-y-2">
+              {checklist.map((item) => (
+                <div key={item.label} className="flex gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm">
+                  <span className={item.done ? 'text-green-600' : 'text-amber-600'}>
+                    {item.done ? '✅' : '⚠️'}
+                  </span>
+                  <div>
+                    <div className="font-medium text-slate-900">{item.label}</div>
+                    <div className="text-xs text-slate-500">{item.hint}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {blockers.length > 0 && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Завершение пока недоступно</AlertTitle>
+                <AlertDescription>
+                  <ul className="mt-1 list-disc pl-4">
+                    {blockers.map((blocker, index) => (
+                      <li key={`${blocker.type}-${index}`}>{blocker.message}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {canComplete ? (
+              <Button className="w-full bg-green-600 hover:bg-green-700" onClick={() => onComplete(completionAction)}>
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Завершить заказ
+              </Button>
+            ) : (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                {blockers.length > 0
+                  ? 'Сначала устраните блокировки завершения.'
+                  : 'Кнопка завершения появится, когда система разрешит действие завершения заказа.'}
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 /**
  * Available Actions Panel - Shows action buttons from backend
  */
@@ -1673,7 +1813,7 @@ function InstallerHandoverSection({
   const isPending = handoverStage === 'pending';
   const isScheduled = handoverStage === 'scheduled';
   const isInProgress = handoverStage === 'in_progress';
-  const canComplete = orderStatus !== 'completed' && isDone && balanceDue <= 0;
+  const isCompletedOrder = orderStatus === 'completed';
 
   const handleSchedule = async () => {
     try {
@@ -1928,7 +2068,7 @@ function InstallerHandoverSection({
           )}
 
           {/* Upload UI - only when handover is done */}
-          {photoReportStatus !== 'not_available' && (
+          {photoReportStatus !== 'not_available' && !isCompletedOrder && (
             <div className="space-y-2">
               <input
                 id="photo-report-file"
@@ -2060,7 +2200,7 @@ function InstallerHandoverSection({
           )}
 
           {/* Create Act Button */}
-          {completionActStatus === 'not_created' && completionActAvailable && (
+          {completionActStatus === 'not_created' && completionActAvailable && !isCompletedOrder && (
             <Button
               onClick={async () => {
                 try {
@@ -2091,7 +2231,7 @@ function InstallerHandoverSection({
           )}
 
           {/* Upload Signed Act */}
-          {completionActAvailable && completionActStatus !== 'not_available' && (
+          {completionActAvailable && completionActStatus !== 'not_available' && !isCompletedOrder && (
             <div className="space-y-2">
               <input
                 id="act-file"
@@ -2165,7 +2305,7 @@ function InstallerHandoverSection({
 
         {/* Action Buttons */}
         <div className="space-y-2 pt-2">
-          {!isDone && itemsCount > 0 && (
+          {!isDone && itemsCount > 0 && !isCompletedOrder && (
             <>
               {isPending && (
                 <Button onClick={handleSchedule} disabled={changeStageMutation.isPending} className="w-full">
@@ -2220,14 +2360,6 @@ function InstallerHandoverSection({
             </Alert>
           )}
 
-          {canComplete && (
-            <Alert className="bg-blue-50 border-blue-200">
-              <CheckCircle className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="text-blue-700">
-                Заказ можно завершить — все работы выполнены и оплата получена.
-              </AlertDescription>
-            </Alert>
-          )}
         </div>
       </CardContent>
     </Card>
@@ -3694,13 +3826,11 @@ export default function OrderDetailPage() {
         <div className="space-y-6">
           <OrderExecutionPanel order={order} execution={execution} />
 
-          {execution?.available_actions?.some((action) => action.action === 'transition_to_completed' && !action.disabled_reason) && (
-            <AvailableActionsPanel
-              actions={execution.available_actions.filter((action) => action.action === 'transition_to_completed')}
-              onAction={handleAction}
-              onCancel={() => setCancelModalOpen(true)}
-            />
-          )}
+          <CompletionReadinessPanel
+            order={order}
+            execution={execution}
+            onComplete={handleAction}
+          />
 
           {/* Source Quote (if created from quote) */}
           <SourceQuoteSection sourceQuote={order.source_quote} />
