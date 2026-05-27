@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from atelier_erp.constants import HandoverStage, MaterialReadiness, ProductionStage, SupplyMode
@@ -72,32 +73,47 @@ class Command(BaseCommand):
             self.stdout.write(f"- {key}: {order.order_number} | {order.customer.full_name} | {order.status}")
 
     def reset_demo(self):
-        year = timezone.now().year
-        demo_order_numbers = [f"О-{year}-{number}" for number in DEMO_ORDER_SEQUENCE]
-        demo_quote_numbers = [f"КП-{year}-{number}" for number in DEMO_ORDER_SEQUENCE]
+        with transaction.atomic():
+            year = timezone.now().year
+            demo_order_numbers = [f"О-{year}-{number}" for number in DEMO_ORDER_SEQUENCE]
+            # КП-<year>-910 is a legacy demo quote number from an earlier seed iteration.
+            demo_quote_numbers = [f"КП-{year}-{number}" for number in range(901, 911)]
 
-        demo_orders = Order.objects.filter(
-            order_number__in=demo_order_numbers,
-            notes__startswith=DEMO,
-        )
-        demo_order_ids = list(demo_orders.values_list("id", flat=True))
+            demo_customers = Customer.objects.filter(
+                phone__in=DEMO_CUSTOMER_PHONES,
+                full_name__startswith=DEMO,
+            )
+            demo_customer_ids = list(demo_customers.values_list("id", flat=True))
 
-        PhotoReport.objects.filter(order_id__in=demo_order_ids).delete()
-        OrderCompletionAct.objects.filter(order_id__in=demo_order_ids).delete()
-        ProductionAssignment.objects.filter(order_id__in=demo_order_ids).delete()
-        Payment.objects.filter(order_id__in=demo_order_ids).delete()
-        Measurement.objects.filter(order_id__in=demo_order_ids).delete()
-        OrderItem.objects.filter(order_id__in=demo_order_ids).delete()
-        QuoteItem.objects.filter(quote__quote_number__in=demo_quote_numbers).delete()
-        Quote.objects.filter(quote_number__in=demo_quote_numbers).delete()
-        demo_orders.delete()
+            demo_orders = Order.objects.filter(
+                order_number__in=demo_order_numbers,
+                notes__startswith=DEMO,
+            )
+            demo_order_ids = list(demo_orders.values_list("id", flat=True))
 
-        Fabric.objects.filter(hanger_number__in=DEMO_FABRIC_HANGERS, name__startswith=DEMO).delete()
-        Cornice.objects.filter(sku=DEMO_CORNICE_SKU, name__startswith=DEMO).delete()
-        Customer.objects.filter(phone__in=DEMO_CUSTOMER_PHONES, full_name__startswith=DEMO).delete()
+            demo_quotes = Quote.objects.filter(
+                Q(order_id__in=demo_order_ids)
+                | Q(customer_id__in=demo_customer_ids, quote_number__in=demo_quote_numbers)
+            )
+            demo_quote_ids = list(demo_quotes.values_list("id", flat=True))
 
-        User = get_user_model()
-        User.objects.filter(username=DEMO_SEAMSTRESS_USERNAME).delete()
+            PhotoReport.objects.filter(order_id__in=demo_order_ids).delete()
+            OrderCompletionAct.objects.filter(order_id__in=demo_order_ids).delete()
+            ProductionAssignment.objects.filter(order_id__in=demo_order_ids).delete()
+            Payment.objects.filter(order_id__in=demo_order_ids).delete()
+            OrderItem.objects.filter(order_id__in=demo_order_ids).delete()
+            Measurement.objects.filter(order_id__in=demo_order_ids).delete()
+            QuoteItem.objects.filter(quote_id__in=demo_quote_ids).delete()
+            demo_orders.update(quote=None)
+            demo_quotes.delete()
+            demo_orders.delete()
+
+            Fabric.objects.filter(hanger_number__in=DEMO_FABRIC_HANGERS, name__startswith=DEMO).delete()
+            Cornice.objects.filter(sku=DEMO_CORNICE_SKU, name__startswith=DEMO).delete()
+            demo_customers.delete()
+
+            User = get_user_model()
+            User.objects.filter(username=DEMO_SEAMSTRESS_USERNAME).delete()
 
         self.stdout.write(self.style.WARNING("Existing demo workflow data removed."))
 
