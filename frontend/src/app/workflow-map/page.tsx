@@ -211,6 +211,7 @@ const demoStages = [
 
 const quickLinks = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Рабочие места ролей", href: "/role-workspaces", icon: UserCog },
   { title: "Заказы", href: "/orders", icon: ClipboardList },
   { title: "Новый заказ", href: "/orders/new", icon: PackageCheck },
   { title: "Замеры", href: "/measurements", icon: Ruler },

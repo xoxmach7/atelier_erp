@@ -16,6 +16,7 @@ import {
   PackageCheck,
   Scissors,
   Truck,
+  UserCog,
 } from "lucide-react";
 
 function isOverdue(order: OrderListItemDTO): boolean {
@@ -95,6 +96,12 @@ function DashboardContent() {
             <Link href="/workflow-map">
               <Map className="mr-2 h-4 w-4" />
               Карта процесса
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/role-workspaces">
+              <UserCog className="mr-2 h-4 w-4" />
+              Рабочие места ролей
             </Link>
           </Button>
           <Button asChild>
