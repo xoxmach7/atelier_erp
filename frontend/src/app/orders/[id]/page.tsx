@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, type ReactNode } from "react";
 import {
   PageHeader,
   EmptyState,
@@ -66,6 +66,17 @@ import {
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
+type OrderRoleView = "admin" | "designer" | "warehouse" | "production" | "installation" | "finance";
+
+const ORDER_ROLE_VIEWS: Array<{ value: OrderRoleView; label: string; helper: string }> = [
+  { value: "admin", label: "Админ", helper: "Полный заказ" },
+  { value: "designer", label: "Дизайнер", helper: "Замеры и КП" },
+  { value: "warehouse", label: "Склад", helper: "Материалы" },
+  { value: "production", label: "Пошив", helper: "Изделия" },
+  { value: "installation", label: "Установка", helper: "Фото и АВР" },
+  { value: "finance", label: "Финансы", helper: "Оплата" },
+];
+
 function formatCurrency(value: string | null): string {
   const amount = Number.parseFloat(value || "0");
   return new Intl.NumberFormat("ru-RU", {
@@ -78,6 +89,33 @@ function formatCurrency(value: string | null): string {
 function parseAmount(value: string | number | null | undefined): number {
   const amount = typeof value === "string" ? Number.parseFloat(value) : value;
   return amount === null || amount === undefined || Number.isNaN(amount) ? 0 : amount;
+}
+
+function isOrderPaymentClosed(order: OrderDetailDTO, execution?: OrderExecutionDTO): boolean {
+  const total = parseAmount(order.total_amount);
+  const paid = parseAmount(order.paid_amount);
+  const balance = parseAmount(order.balance_due);
+  const executionBalance = execution ? parseAmount(execution.balance_due) : balance;
+  return execution?.payment_state === "paid" || executionBalance <= 0 || balance <= 0 || (total > 0 && paid >= total);
+}
+
+function getDisplayPaymentLabel(order: OrderDetailDTO, execution?: OrderExecutionDTO): string {
+  if (isOrderPaymentClosed(order, execution)) return "Оплачено полностью";
+  return execution?.payment_state_label || "Не оплачен";
+}
+
+function getDisplayStageLabel(order: OrderDetailDTO, execution?: OrderExecutionDTO): string {
+  if (order.status === "waiting_final_payment" && isOrderPaymentClosed(order, execution)) {
+    return "Оплата закрыта";
+  }
+  return execution?.status_label || order.status;
+}
+
+function getDisplayNextStep(order: OrderDetailDTO, execution?: OrderExecutionDTO): string {
+  if (order.status === "waiting_final_payment" && isOrderPaymentClosed(order, execution)) {
+    return "Проверить готовность и завершить заказ";
+  }
+  return execution?.next_step?.description || "Определите следующий этап заказа";
 }
 
 function formatDate(value: string | null): string {
@@ -841,13 +879,14 @@ function OrderExecutionPanel({
   execution?: OrderExecutionDTO;
 }) {
   // Use backend data if available, otherwise fallback to order data
-  const statusLabel = execution?.status_label || order.status;
+  const statusLabel = getDisplayStageLabel(order, execution);
   const productionStageLabel = execution?.production_stage_label || 'Не начато';
   const handoverStageLabel = execution?.handover_stage_label || 'Не требуется';
-  const paymentStateLabel = execution?.payment_state_label || 'Не оплачен';
+  const paymentStateLabel = getDisplayPaymentLabel(order, execution);
 
   // Next step from backend or fallback
   const nextStep = execution?.next_step;
+  const displayNextStep = getDisplayNextStep(order, execution);
 
   return (
     <Card>
@@ -879,10 +918,10 @@ function OrderExecutionPanel({
         </div>
 
         {/* Next Step - from backend */}
-        {nextStep && (
+        {(nextStep || displayNextStep) && (
           <div className="pt-2 border-t">
             <h4 className="font-medium text-slate-900 mb-1">Следующий шаг</h4>
-            <p className="text-sm text-slate-600">{nextStep.description}</p>
+            <p className="text-sm text-slate-600">{displayNextStep}</p>
           </div>
         )}
 
@@ -3363,8 +3402,440 @@ function ProductionStageModal({
   );
 }
 
+function OrderRoleViewSwitcher({ orderId, currentView }: { orderId: string; currentView: OrderRoleView }) {
+  return (
+    <Card className="mb-6 border-slate-200 bg-white shadow-sm">
+      <CardContent className="pt-4">
+        <div className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-500">Режим просмотра заказа</div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {ORDER_ROLE_VIEWS.map((view) => (
+            <Button
+              key={view.value}
+              asChild
+              size="sm"
+              variant={currentView === view.value ? "default" : "outline"}
+              className="shrink-0"
+            >
+              <Link href={`/orders/${orderId}${view.value === "admin" ? "" : `?view=${view.value}`}`}>
+                <span className="font-medium">{view.label}</span>
+                <span className="ml-2 hidden text-xs opacity-70 sm:inline">{view.helper}</span>
+              </Link>
+            </Button>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RoleFallback({ text }: { text: string }) {
+  return (
+    <Card className="border-dashed border-slate-300 bg-slate-50/80">
+      <CardContent className="p-6 text-sm text-slate-600">{text}</CardContent>
+    </Card>
+  );
+}
+
+function RoleWorkspaceCard({
+  title,
+  description,
+  icon,
+  accentClass,
+  actions,
+  summary,
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: ReactNode;
+  accentClass: string;
+  actions?: ReactNode;
+  summary?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+      <Card className="overflow-hidden border-slate-200 bg-white shadow-sm">
+        <CardHeader className={`${accentClass} border-b border-slate-200`}>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/80 text-slate-800 shadow-sm">
+                {icon}
+              </div>
+              <div>
+                <CardTitle className="text-xl">{title}</CardTitle>
+                <p className="mt-1 max-w-2xl text-sm text-slate-600">{description}</p>
+              </div>
+            </div>
+            {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5 p-4 sm:p-5">
+          {children}
+        </CardContent>
+      </Card>
+
+      <div className="space-y-4">
+        {summary}
+      </div>
+    </div>
+  );
+}
+
+function DesignerOrderView({
+  order,
+  execution,
+  customerId,
+  refetchExecution,
+}: {
+  order: OrderDetailDTO;
+  execution?: OrderExecutionDTO;
+  customerId: string;
+  refetchExecution: () => Promise<unknown>;
+}) {
+  const designer = execution?.role_sections?.designer;
+
+  return (
+    <RoleWorkspaceCard
+      title="Заказ для дизайнера / замера"
+      description="Здесь фиксируются размеры, ткань, тюль и метраж. Стоимость считается в КП."
+      icon={<Ruler className="h-5 w-5 text-sky-700" />}
+      accentClass="bg-sky-50"
+      actions={
+        <>
+          <Button asChild>
+            <Link href={`/measurements?order=${order.id}`}>
+              <Ruler className="mr-2 h-4 w-4" />
+              Добавить замер
+            </Link>
+          </Button>
+          {customerId && (
+            <Button asChild variant="outline">
+              <Link href={`/estimate?customer=${customerId}&order=${order.id}`}>
+                <Calculator className="mr-2 h-4 w-4" />
+                Создать КП
+              </Link>
+            </Button>
+          )}
+        </>
+      }
+      summary={
+        <>
+          <CustomerInfo order={order} />
+          <InstallationAddress order={order} />
+          <OrderNotes notes={order.notes} />
+        </>
+      }
+    >
+      <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-4 text-sm text-sky-900">
+        Главное действие: довести замеры и выбор клиента до состояния, из которого можно собрать КП.
+      </div>
+      <div className="space-y-5">
+        {designer ? (
+          <DesignerMeasurerSection
+            measurements={designer.measurements}
+            roomsCount={designer.rooms_count}
+            windowsCount={designer.windows_count}
+            selectedMaterials={designer.selected_materials}
+            quoteItemsCount={designer.quote_items_count}
+            orderId={order.id}
+            onMeasurementCreated={refetchExecution}
+          />
+        ) : (
+          <MeasurementsSection orderId={order.id} measurements={order.measurements || []} />
+        )}
+
+        <RelatedQuotesSection order={order} />
+      </div>
+    </RoleWorkspaceCard>
+  );
+}
+
+function WarehouseOrderView({
+  order,
+  execution,
+  refetchExecution,
+}: {
+  order: OrderDetailDTO;
+  execution?: OrderExecutionDTO;
+  refetchExecution: () => Promise<unknown>;
+}) {
+  const warehouse = execution?.role_sections?.warehouse;
+
+  return (
+    <RoleWorkspaceCard
+      title="Материалы заказа"
+      description="Склад проверяет наличие материалов и отмечает готовность материалов."
+      icon={<Package className="h-5 w-5 text-amber-700" />}
+      accentClass="bg-amber-50"
+      summary={
+        <>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Кратко по складу</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-600">Готовность</span>
+                <span className="font-medium">{warehouse?.material_readiness_label || order.material_readiness}</span>
+              </div>
+              <div className="text-sm text-slate-500">
+                Точные потребности по материалам требуют backend endpoint. Сейчас проверьте материалы в заказе.
+              </div>
+            </CardContent>
+          </Card>
+          <CustomerInfo order={order} />
+        </>
+      }
+    >
+      <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4 text-sm text-amber-900">
+        Главное действие: выбрать состояние материалов — не готово, частично готово или готово.
+      </div>
+      <div className="space-y-5">
+        {warehouse ? (
+          <WarehouseMaterialsSection
+            materialRequirements={warehouse.material_requirements}
+            materialReadiness={warehouse.material_readiness}
+            materialReadinessLabel={warehouse.material_readiness_label}
+            missingMaterials={warehouse.missing_materials}
+            missingMaterialsCount={warehouse.missing_materials_count}
+            totalFabricsRequired={warehouse.total_fabrics_required}
+            orderId={order.id}
+            onMaterialReadinessChanged={refetchExecution}
+            quoteMaterials={execution?.role_sections?.designer?.selected_materials}
+            hasOrderItems={order.items.length > 0}
+            onGenerate={refetchExecution}
+          />
+        ) : (
+          <RoleFallback text="Точные потребности материалов не пришли в execution API. Откройте полный заказ или проверьте КП/позиции заказа." />
+        )}
+      </div>
+    </RoleWorkspaceCard>
+  );
+}
+
+function ProductionOrderView({
+  order,
+  execution,
+  refetchExecution,
+}: {
+  order: OrderDetailDTO;
+  execution?: OrderExecutionDTO;
+  refetchExecution: () => Promise<unknown>;
+}) {
+  const production = execution?.role_sections?.production;
+
+  return (
+    <RoleWorkspaceCard
+      title="Изделия к пошиву"
+      description="Производство видит только то, что нужно изготовить: изделия, размеры, ткань, тюль, срок и комментарии."
+      icon={<Scissors className="h-5 w-5 text-emerald-700" />}
+      accentClass="bg-emerald-50"
+      summary={
+        <>
+          <OrderNotes notes={order.notes} />
+          <CustomerInfo order={order} />
+          <OrderDates order={order} />
+        </>
+      }
+    >
+      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-emerald-900">
+        Главное действие: перевести пошив по этапам not_started → sewing → done.
+      </div>
+      <div className="space-y-5">
+        {production ? (
+          <ProductionSewingSection
+            itemsToSew={production.items_to_sew}
+            productionStage={production.production_stage}
+            deadline={production.deadline}
+            assignment={production.production_assignment}
+            materialReadiness={execution?.role_sections?.warehouse?.material_readiness || 'not_ready'}
+            orderId={order.id}
+            onProductionStageChanged={refetchExecution}
+            fallbackMaterials={execution?.role_sections?.designer?.selected_materials}
+            fallbackMeasurements={execution?.role_sections?.designer?.measurements}
+            orderItems={order.items}
+            orderStatus={order.status}
+            hasApprovedQuote={
+              order.source_quote?.status === 'approved' ||
+              order.related_quotes?.some(q => q.status === 'approved') ||
+              false
+            }
+            onGenerate={refetchExecution}
+          />
+        ) : (
+          <RoleFallback text="Производственная секция пока недоступна в execution API. Проверьте позиции заказа или полный заказ." />
+        )}
+      </div>
+    </RoleWorkspaceCard>
+  );
+}
+
+function InstallationOrderView({
+  order,
+  execution,
+  refetchExecution,
+}: {
+  order: OrderDetailDTO;
+  execution?: OrderExecutionDTO;
+  refetchExecution: () => Promise<unknown>;
+}) {
+  const installer = execution?.role_sections?.installer;
+
+  return (
+    <RoleWorkspaceCard
+      title="Установка заказа"
+      description="Установщик завершает установку, добавляет фотоотчёт и работает с АВР."
+      icon={<Truck className="h-5 w-5 text-indigo-700" />}
+      accentClass="bg-indigo-50"
+      summary={
+        <>
+          <CustomerInfo order={order} />
+          <InstallationAddress order={order} />
+          <OrderDates order={order} />
+        </>
+      }
+    >
+      <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-sm text-indigo-900">
+        Главное действие: провести установку, добавить фотоотчёт и загрузить подписанный АВР.
+      </div>
+      <div className="space-y-5">
+        {installer ? (
+          <InstallerHandoverSection
+            address={installer.address}
+            customer={installer.customer}
+            orderItems={installer.order_items}
+            itemsCount={installer.items_count}
+            handoverStage={installer.handover_stage}
+            handoverStageLabel={installer.handover_stage_label}
+            balanceDue={installer.balance_due}
+            paymentState={installer.payment_state}
+            warnings={installer.warnings}
+            orderId={order.id}
+            orderStatus={order.status}
+            onHandoverStageChanged={refetchExecution}
+            photoReportStatus={normalizePhotoReportStatus(installer.photo_report_status)}
+            photoReportCount={installer.photo_report_count ?? 0}
+            photoReports={installer.photo_reports || []}
+            completionActStatus={installer.completion_act_status}
+            completionActAvailable={installer.completion_act_available}
+            completionAct={installer.completion_act}
+          />
+        ) : (
+          <RoleFallback text="Данные установки пока недоступны в execution API. Адрес и изделия можно проверить в полном заказе." />
+        )}
+      </div>
+    </RoleWorkspaceCard>
+  );
+}
+
+function FinanceOrderView({
+  order,
+}: {
+  order: OrderDetailDTO;
+}) {
+  const paymentClosed = parseAmount(order.balance_due) <= 0;
+
+  return (
+    <RoleWorkspaceCard
+      title="Оплата заказа"
+      description="Финансы закрывают предоплату и финальную оплату. Завершение заказа происходит после проверки условий."
+      icon={<CreditCard className="h-5 w-5 text-sky-700" />}
+      accentClass="bg-sky-50"
+      actions={
+        <Button asChild>
+          <Link href={`/payments?order=${order.id}`}>
+            <CreditCard className="mr-2 h-4 w-4" />
+            Внести платёж
+          </Link>
+        </Button>
+      }
+      summary={
+        <>
+          <FinancialSummary order={order} />
+          {paymentClosed ? (
+            <Card className="border-emerald-200 bg-emerald-50/60">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CheckCheck className="h-4 w-4" />
+                  Готовность к завершению
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm text-emerald-800">
+                <div>Оплата закрыта. Для завершения проверьте установку, фотоотчёт и подписанный АВР в полном заказе.</div>
+                <Button asChild variant="outline" className="w-full bg-white">
+                  <Link href={`/orders/${order.id}`}>
+                    Открыть полный заказ
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
+          <CustomerInfo order={order} />
+        </>
+      }
+    >
+      <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-4 text-sm text-sky-900">
+        Главное действие: зафиксировать оплату клиента и убедиться, что остаток закрыт.
+      </div>
+      <div className="space-y-5">
+        <PaymentsSection
+          orderId={order.id}
+          payments={order.payments || []}
+          totalAmount={order.total_amount}
+          totalPaid={order.paid_amount}
+          balanceDue={order.balance_due}
+          orderStatus={order.status}
+        />
+
+        {paymentClosed ? (
+          <Alert className="border-emerald-200 bg-emerald-50">
+            <CheckCircle className="h-4 w-4 text-emerald-700" />
+            <AlertTitle>Оплата закрыта</AlertTitle>
+            <AlertDescription>
+              Остаток 0. Проверьте готовность к завершению заказа.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+      </div>
+    </RoleWorkspaceCard>
+  );
+}
+
+function RoleBasedOrderView({
+  view,
+  order,
+  execution,
+  customerId,
+  refetchExecution,
+}: {
+  view: OrderRoleView;
+  order: OrderDetailDTO;
+  execution?: OrderExecutionDTO;
+  customerId: string;
+  refetchExecution: () => Promise<unknown>;
+}) {
+  if (view === "designer") {
+    return <DesignerOrderView order={order} execution={execution} customerId={customerId} refetchExecution={refetchExecution} />;
+  }
+  if (view === "warehouse") {
+    return <WarehouseOrderView order={order} execution={execution} refetchExecution={refetchExecution} />;
+  }
+  if (view === "production") {
+    return <ProductionOrderView order={order} execution={execution} refetchExecution={refetchExecution} />;
+  }
+  if (view === "installation") {
+    return <InstallationOrderView order={order} execution={execution} refetchExecution={refetchExecution} />;
+  }
+  if (view === "finance") {
+    return <FinanceOrderView order={order} />;
+  }
+  return null;
+}
+
 export default function OrderDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const orderId = params.id as string;
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -3615,6 +4086,12 @@ export default function OrderDetailPage() {
   const hasQuotes = Boolean(order.source_quote) || Boolean(order.related_quotes?.length);
   const hasOrderItems = order.items.length > 0;
   const isEmptyOrderWorkflow = !hasMeasurements && !hasQuotes && !hasOrderItems;
+  const requestedView = searchParams.get("view");
+  const currentView: OrderRoleView = ORDER_ROLE_VIEWS.some((view) => view.value === requestedView)
+    ? (requestedView as OrderRoleView)
+    : "admin";
+  const displayNextStep = getDisplayNextStep(order, execution);
+  const displayPaymentLabel = getDisplayPaymentLabel(order, execution);
 
   // Data state
   return (
@@ -3663,6 +4140,28 @@ export default function OrderDetailPage() {
 
       <Card className="mb-6 border-slate-200 bg-white shadow-sm">
         <CardContent className="pt-6">
+          <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="text-sm font-medium text-sky-700">
+                {currentView === "admin" ? "Полный заказ" : `Рабочая зона: ${ORDER_ROLE_VIEWS.find((view) => view.value === currentView)?.label}`}
+              </div>
+              <div className="mt-1 text-lg font-semibold text-slate-950">
+                {displayNextStep}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {order.status === "waiting_final_payment" && isOrderPaymentClosed(order, execution) ? (
+                <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
+                  Оплата закрыта
+                </span>
+              ) : (
+                <StatusBadge status={order.status} />
+              )}
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                {displayPaymentLabel}
+              </span>
+            </div>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <div>
               <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Клиент</div>
@@ -3683,7 +4182,7 @@ export default function OrderDetailPage() {
             <div>
               <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Следующий шаг</div>
               <div className="mt-1 text-slate-900">
-                {execution?.next_step?.description || 'Определите следующий этап'}
+                {displayNextStep}
               </div>
             </div>
           </div>
@@ -3695,6 +4194,8 @@ export default function OrderDetailPage() {
         </CardContent>
       </Card>
 
+      <OrderRoleViewSwitcher orderId={order.id} currentView={currentView} />
+
       {/* Action error */}
       {actionError && (
         <Alert variant="destructive" className="mb-6">
@@ -3704,6 +4205,15 @@ export default function OrderDetailPage() {
         </Alert>
       )}
 
+      {currentView !== "admin" ? (
+        <RoleBasedOrderView
+          view={currentView}
+          order={order}
+          execution={execution}
+          customerId={customerId}
+          refetchExecution={refetchExecution}
+        />
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column - Main info */}
         <div className="lg:col-span-2 space-y-6">
@@ -3852,6 +4362,7 @@ export default function OrderDetailPage() {
           <OrderMetadata order={order} />
         </div>
       </div>
+      )}
 
       {/* Production Stage Modal */}
       <ProductionStageModal

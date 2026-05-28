@@ -17,7 +17,6 @@ import {
   Scissors,
   Sparkles,
   Truck,
-  UserCog,
 } from "lucide-react";
 
 function isOverdue(order: OrderListItemDTO): boolean {
@@ -85,37 +84,33 @@ function DashboardContent() {
     { title: "Финальная оплата", value: awaitingPayment.length, icon: CreditCard, helper: formatCurrency(balanceDue) },
     { title: "Завершены", value: completed.length, icon: CheckCircle2, helper: "Закрытые заказы" },
   ];
+  const roleLinks = [
+    { title: "Дизайнер", href: "/work/designer", helper: "Заказы, замеры, выбор тканей", icon: ClipboardList },
+    { title: "КП", href: "/work/quotes", helper: "Расчёты и согласование", icon: Map },
+    { title: "Склад", href: "/work/warehouse", helper: "Материалы и остатки", icon: PackageCheck },
+    { title: "Пошив", href: "/work/production", helper: "Очередь производства", icon: Scissors },
+    { title: "Установка", href: "/work/installation", helper: "Выдача, фото, АВР", icon: Truck },
+    { title: "Финансы", href: "/work/finance", helper: "Оплаты и остатки", icon: CreditCard },
+  ];
 
   return (
     <>
       <PageHeader
-        title="Рабочий стол"
-        description="Обзор владельца: реальные данные из заказов, без тестовых чисел"
+        title="Сегодня"
+        description="Главный вход владельца: что требует внимания, где следующий шаг и в какой рабочий кабинет перейти."
       >
         <div className="flex flex-wrap gap-2">
+          <Button asChild>
+            <Link href="/orders/new">Новый заказ</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/work/designer">Дизайнер</Link>
+          </Button>
           <Button variant="outline" asChild>
             <Link href="/product-demo">
               <Sparkles className="mr-2 h-4 w-4" />
-              Демо-продукт
+              Демо
             </Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/mvp-preview">MVP Preview</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/workflow-map">
-              <Map className="mr-2 h-4 w-4" />
-              Карта процесса
-            </Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/role-workspaces">
-              <UserCog className="mr-2 h-4 w-4" />
-              Рабочие места ролей
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link href="/orders/new">Новый заказ</Link>
           </Button>
         </div>
       </PageHeader>
@@ -137,6 +132,34 @@ function DashboardContent() {
           );
         })}
       </div>
+
+      <Card className="mt-6 border-slate-200 bg-white shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Рабочие кабинеты</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {roleLinks.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-sky-200 hover:bg-sky-50"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <span className="block font-medium text-slate-950">{item.title}</span>
+                    <span className="block text-sm text-slate-500">{item.helper}</span>
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <Card className="border-slate-200 bg-white shadow-sm">
