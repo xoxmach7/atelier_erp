@@ -50,7 +50,7 @@ function FinanceWorkspace() {
               {waitingPayment.slice(0, 10).map((order) => (
                 <OrderTaskCard key={order.id} order={order} nextStep={`Остаток: ${formatMoney(order.balance_due)}. Внесите платеж или откройте заказ для проверки условий.`}>
                   <Button asChild size="sm"><Link href={`/payments?order=${order.id}`}>Внести платеж</Link></Button>
-                  <OpenOrderButton orderId={order.id} />
+                  <OpenOrderButton orderId={order.id} view="finance" />
                 </OrderTaskCard>
               ))}
               {waitingPayment.length === 0 ? <EmptyRoleState text="Нет заказов с открытым остатком оплаты." /> : null}
@@ -71,7 +71,7 @@ function FinanceWorkspace() {
                       <StatusBadge status={order.status} />
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <OpenOrderButton orderId={order.id} />
+                      <OpenOrderButton orderId={order.id} view="finance" />
                     </div>
                   </CardContent>
                 </Card>
@@ -94,7 +94,7 @@ function FinanceWorkspace() {
                     <Badge variant="outline">{formatMoney(payment.amount)}</Badge>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button asChild size="sm" variant="outline"><Link href={`/orders/${payment.order}`}>Открыть заказ</Link></Button>
+                    <Button asChild size="sm" variant="outline"><Link href={`/orders/${payment.order}?view=finance`}>Открыть заказ</Link></Button>
                     <Button asChild size="sm" variant="outline"><Link href={`/payments?order=${payment.order}`}>Платежи</Link></Button>
                   </div>
                 </CardContent>

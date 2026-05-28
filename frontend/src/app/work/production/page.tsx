@@ -38,7 +38,7 @@ function ProductionWorkspace() {
           <div className="grid gap-3">
             {sewingOrders.slice(0, 10).map((order) => (
               <OrderTaskCard key={order.id} order={order} nextStep="Проверьте изделия и отметьте production_stage в заказе: not_started → sewing → done.">
-                <OpenOrderButton orderId={order.id} />
+                <OpenOrderButton orderId={order.id} view="production" />
               </OrderTaskCard>
             ))}
             {sewingOrders.length === 0 ? <EmptyRoleState text="Нет заказов в пошиве." /> : null}
@@ -49,7 +49,7 @@ function ProductionWorkspace() {
           <div className="grid gap-3">
             {readyForProduction.slice(0, 8).map((order) => (
               <OrderTaskCard key={order.id} order={order} nextStep="Проверьте КП, материалы и договорённость перед запуском в работу.">
-                <OpenOrderButton orderId={order.id} />
+                <OpenOrderButton orderId={order.id} view="production" />
               </OrderTaskCard>
             ))}
             {readyForProduction.length === 0 ? <EmptyRoleState text="Нет заказов на подготовке к производству." /> : null}

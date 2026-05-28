@@ -44,7 +44,7 @@ function QuotesWorkspace() {
                   <div className="mt-1 text-sm text-slate-600">{customerName(order)}</div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button asChild size="sm"><Link href={`/estimate?customer=${order.customer}&order=${order.id}`}>Создать КП</Link></Button>
-                    <Button asChild size="sm" variant="outline"><Link href={`/orders/${order.id}`}>Открыть заказ</Link></Button>
+                    <Button asChild size="sm" variant="outline"><Link href={`/orders/${order.id}?view=designer`}>Открыть заказ</Link></Button>
                   </div>
                 </CardContent>
               </Card>

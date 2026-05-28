@@ -63,9 +63,31 @@ function getPaymentSignal(order: OrderListItemDTO): { label: string; className: 
   return { label: "Оплата ожидается", className: "text-slate-600" };
 }
 
+function isPaymentClosedForDisplay(order: OrderListItemDTO): boolean {
+  const balance = parseFloat(order.balance_due || "0");
+  const paid = parseFloat(order.paid_amount || "0");
+  const total = parseFloat(order.total_amount || "0");
+  return balance <= 0 || (total > 0 && paid >= total);
+}
+
+function getStageSignal(order: OrderListItemDTO): { label: string; subtext: string } {
+  if (order.status === "waiting_final_payment" && isPaymentClosedForDisplay(order)) {
+    return { label: "Оплата закрыта", subtext: "Нужно завершить заказ" };
+  }
+
+  return {
+    label: ORDER_STATUS_LABELS[order.status] || order.status,
+    subtext: "",
+  };
+}
+
 function getNextAction(order: OrderListItemDTO): string {
   const balance = parseFloat(order.balance_due || "0");
   const status = order.status as string;
+
+  if (status === "waiting_final_payment" && isPaymentClosedForDisplay(order)) {
+    return "Проверить готовность и завершить заказ";
+  }
 
   if (status === "new") return "Добавить замер или КП";
   if (status === "in_work") return "Проверить материалы";
@@ -198,6 +220,7 @@ function OrdersContent() {
                   const isValidId = isValidOrderId(order.id);
                   const displayNumber = order.order_number?.trim() || `Order ${order.id.slice(0, 8)}`;
                   const paymentSignal = getPaymentSignal(order);
+                  const stageSignal = getStageSignal(order);
                   return (
                     <tr key={order.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 font-medium">
@@ -217,9 +240,15 @@ function OrdersContent() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="space-y-1">
-                          <StatusBadge status={order.status} />
+                          {order.status === "waiting_final_payment" && isPaymentClosedForDisplay(order) ? (
+                            <span className="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700">
+                              Оплата закрыта
+                            </span>
+                          ) : (
+                            <StatusBadge status={order.status} />
+                          )}
                           <div className="text-xs text-slate-500">
-                            {ORDER_STATUS_LABELS[order.status] || order.status}
+                            {stageSignal.subtext || stageSignal.label}
                           </div>
                         </div>
                       </td>

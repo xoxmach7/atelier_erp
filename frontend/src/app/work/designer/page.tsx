@@ -45,7 +45,7 @@ function DesignerWorkspace() {
             {needsMeasurement.slice(0, 8).map((order) => (
               <OrderTaskCard key={order.id} order={order} nextStep="Добавить замер: комната, окно, размеры, ткань, тюль, метраж.">
                 <Button asChild size="sm"><Link href={`/measurements?order=${order.id}`}>Добавить замер</Link></Button>
-                <OpenOrderButton orderId={order.id} />
+                <OpenOrderButton orderId={order.id} view="designer" />
               </OrderTaskCard>
             ))}
             {needsMeasurement.length === 0 ? <EmptyRoleState text="Нет заказов без замера." /> : null}
@@ -58,7 +58,7 @@ function DesignerWorkspace() {
               <OrderTaskCard key={order.id} order={order} nextStep="Параметры клиента есть. Следующий шаг — собрать КП и внести цены.">
                 <Button asChild size="sm"><Link href={`/estimate?customer=${order.customer}&order=${order.id}`}>Создать КП</Link></Button>
                 <Button asChild size="sm" variant="outline"><Link href={`/measurements?order=${order.id}`}>Открыть замеры</Link></Button>
-                <OpenOrderButton orderId={order.id} />
+                <OpenOrderButton orderId={order.id} view="designer" />
               </OrderTaskCard>
             ))}
             {needsQuote.length === 0 ? <EmptyRoleState text="Нет заказов с замером без следующего шага КП." /> : null}
@@ -69,7 +69,7 @@ function DesignerWorkspace() {
           <div className="grid gap-3">
             {overdue.slice(0, 8).map((order) => (
               <OrderTaskCard key={order.id} order={order} nextStep="Проверьте дату и следующий шаг по заказу.">
-                <OpenOrderButton orderId={order.id} />
+                <OpenOrderButton orderId={order.id} view="designer" />
               </OrderTaskCard>
             ))}
             {overdue.length === 0 ? <EmptyRoleState text="Просроченных задач дизайнера не найдено." /> : null}

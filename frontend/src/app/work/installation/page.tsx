@@ -38,7 +38,7 @@ function InstallationWorkspace() {
           <div className="grid gap-3">
             {installationOrders.slice(0, 10).map((order) => (
               <OrderTaskCard key={order.id} order={order} nextStep={`Свяжитесь с клиентом${order.customer_phone ? `: ${order.customer_phone}` : ""}. Адрес и изделия доступны в заказе.`}>
-                <OpenOrderButton orderId={order.id} />
+                <OpenOrderButton orderId={order.id} view="installation" />
               </OrderTaskCard>
             ))}
             {installationOrders.length === 0 ? <EmptyRoleState text="Нет заказов на установку." /> : null}
@@ -49,7 +49,7 @@ function InstallationWorkspace() {
           <div className="grid gap-3">
             {closingOrders.slice(0, 8).map((order) => (
               <OrderTaskCard key={order.id} order={order} nextStep="Если установка завершена, проверьте фотоотчёт и загруженный подписанный АВР.">
-                <OpenOrderButton orderId={order.id} />
+                <OpenOrderButton orderId={order.id} view="installation" />
               </OrderTaskCard>
             ))}
             {closingOrders.length === 0 ? <EmptyRoleState text="Нет заказов после установки с незакрытыми артефактами." /> : null}

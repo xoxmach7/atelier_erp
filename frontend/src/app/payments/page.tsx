@@ -183,11 +183,17 @@ function PaymentsContent() {
 
   const formOrder = orders.find((order) => order.id === paymentForm.order) || selectedOrder;
   const remainingAmount = parseMoney(formOrder?.balance_due);
+  const isFormPaymentClosed = !!formOrder && remainingAmount <= 0;
 
   const handleCreatePayment = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError(null);
     setFormSuccess(null);
+
+    if (isFormPaymentClosed) {
+      setFormError("Оплата по заказу уже закрыта. Откройте заказ для проверки готовности к завершению.");
+      return;
+    }
 
     const amount = Number.parseFloat(paymentForm.amount.replace(",", "."));
     if (!paymentForm.order) {
@@ -275,7 +281,7 @@ function PaymentsContent() {
                   <div className={remainingAmount <= 0 ? "mt-1 text-green-700" : "mt-1 text-amber-700"}>
                     Остаток: {formatCurrency(formOrder.balance_due)}
                   </div>
-                  {remainingAmount <= 0 && formOrder.status !== "completed" && (
+                  {isFormPaymentClosed && formOrder.status !== "completed" && (
                     <div className="mt-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-green-700">
                       Оплата закрыта. Откройте заказ для проверки готовности к завершению.
                     </div>
@@ -283,6 +289,18 @@ function PaymentsContent() {
                 </div>
               )}
 
+              {isFormPaymentClosed ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+                    Повторный платеж не требуется: остаток по заказу равен 0.
+                  </div>
+                  <Button asChild className="w-full bg-sky-400 hover:bg-sky-500">
+                    <Link href={`/orders/${formOrder.id}`}>
+                      Открыть заказ для завершения
+                    </Link>
+                  </Button>
+                </div>
+              ) : (
               <form onSubmit={handleCreatePayment} className="space-y-4">
                 <div className="space-y-2">
                   <Label>Заказ</Label>
@@ -371,6 +389,7 @@ function PaymentsContent() {
                   {createPayment.isPending ? "Записываем..." : "Записать платёж"}
                 </Button>
               </form>
+              )}
 
               {formError && (
                 <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">

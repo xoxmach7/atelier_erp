@@ -54,7 +54,7 @@ function WarehouseWorkspace() {
             <div className="grid gap-3">
               {materialCheck.slice(0, 8).map((order) => (
                 <OrderTaskCard key={order.id} order={order} nextStep="Проверьте ткани, тюль и готовность материалов в order detail.">
-                  <OpenOrderButton orderId={order.id} />
+                  <OpenOrderButton orderId={order.id} view="warehouse" />
                 </OrderTaskCard>
               ))}
               {materialCheck.length === 0 ? <EmptyRoleState text="Нет заказов, где склад должен проверить материалы." /> : null}
@@ -65,7 +65,7 @@ function WarehouseWorkspace() {
             <div className="grid gap-3">
               {productionOrders.slice(0, 4).map((order) => (
                 <OrderTaskCard key={order.id} order={order} nextStep="Если материал не закрыт, откройте заказ и обновите готовность материалов.">
-                  <OpenOrderButton orderId={order.id} />
+                  <OpenOrderButton orderId={order.id} view="warehouse" />
                 </OrderTaskCard>
               ))}
               {productionOrders.length === 0 ? <EmptyRoleState text="Нет заказов в производстве для контроля склада." /> : null}

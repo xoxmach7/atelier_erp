@@ -120,10 +120,10 @@ export function EmptyRoleState({ text }: { text: string }) {
   );
 }
 
-export function OpenOrderButton({ orderId }: { orderId: string }) {
+export function OpenOrderButton({ orderId, view }: { orderId: string; view?: string }) {
   return (
     <Button asChild size="sm" variant="outline">
-      <Link href={`/orders/${orderId}`}>Открыть заказ</Link>
+      <Link href={`/orders/${orderId}${view ? `?view=${view}` : ""}`}>Открыть заказ</Link>
     </Button>
   );
 }
