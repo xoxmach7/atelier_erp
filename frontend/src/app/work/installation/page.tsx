@@ -4,55 +4,85 @@ import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { ErrorState, LoadingState } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { useOrders } from "@/hooks/useOrders";
+import { Card, CardContent } from "@/components/ui/card";
+import { useInstallationQueue } from "@/hooks/useWorkQueues";
+import type { InstallationTask } from "@/services/http/work";
 import {
   EmptyRoleState,
-  OpenOrderButton,
-  OrderTaskCard,
+  MaterialsList,
+  StatusPill,
   TaskSection,
+  WorkOrderHeader,
   WorkspaceHeader,
+  formatDate,
 } from "@/components/layout/role-workspace";
 
+function InstallationCard({ task }: { task: InstallationTask }) {
+  return (
+    <Card className="border-slate-200 bg-white shadow-sm">
+      <CardContent className="space-y-3 p-4">
+        <WorkOrderHeader task={task} right={<StatusPill label={task.handover_stage_label} tone="sky" />} />
+        <div className="grid gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+          <div><span className="font-medium">Телефон:</span> {task.customer_phone || "не указан"}</div>
+          <div><span className="font-medium">Адрес:</span> {task.installation_address || "адрес не указан"}</div>
+          <div><span className="font-medium">Дата установки:</span> {formatDate(task.installation_date || task.planned_completion_date)}</div>
+        </div>
+        <MaterialsList items={task.items_to_install} emptyText="Список изделий доступен в заказе." />
+        <div className="flex flex-wrap gap-2">
+          <StatusPill label={`Фото: ${task.photo_report_count}`} tone={task.photo_report_count > 0 ? "green" : "amber"} />
+          <StatusPill label={task.signed_act_uploaded ? "АВР подписан" : "АВР нужен"} tone={task.signed_act_uploaded ? "green" : "amber"} />
+          <Button asChild size="sm">
+            <Link href={`/orders/${task.id}?view=installation`}>Открыть заказ</Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function InstallationWorkspace() {
-  const ordersQuery = useOrders({ pageSize: 100 });
+  const queue = useInstallationQueue();
 
-  if (ordersQuery.isLoading) return <LoadingState message="Загрузка рабочего места установки..." />;
-  if (ordersQuery.isError) return <ErrorState title="Не удалось загрузить заказы" description={ordersQuery.error?.message || "Проверьте API заказов."} />;
+  if (queue.isLoading) return <LoadingState message="Загрузка очереди установки..." />;
+  if (queue.isError) return <ErrorState title="Не удалось загрузить установку" description={queue.error?.message || "Проверьте API очереди установки."} />;
 
-  const orders = ordersQuery.data?.results || [];
-  const installationOrders = orders.filter((order) => ["ready", "on_installation"].includes(order.status));
-  const closingOrders = orders.filter((order) => order.status === "waiting_final_payment");
+  const data = queue.data;
 
   return (
     <ProtectedRoute>
       <WorkspaceHeader
-        title="Установка / Выдача"
-        description="Установщик видит заказ, клиента, телефон, адрес, изделия, фотоотчёт и АВР. Финансы здесь не показываются."
+        title="Установка"
+        description="Установщик видит маршрут: клиент, телефон, адрес, изделия, фотоотчёт и АВР."
       >
-        <Button asChild><Link href="/installation">Очередь установки</Link></Button>
-        <Button asChild variant="outline"><Link href="/orders">Все заказы</Link></Button>
+        <Button asChild variant="outline"><Link href="/installation">Старый экран</Link></Button>
       </WorkspaceHeader>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <TaskSection title="На установку / выдачу" count={installationOrders.length} description="Откройте заказ, чтобы начать установку, завершить выдачу и добавить фотоотчёт.">
+        <TaskSection title="Готово к выезду" count={data?.ready_for_installation.length || 0}>
           <div className="grid gap-3">
-            {installationOrders.slice(0, 10).map((order) => (
-              <OrderTaskCard key={order.id} order={order} nextStep={`Свяжитесь с клиентом${order.customer_phone ? `: ${order.customer_phone}` : ""}. Адрес и изделия доступны в заказе.`}>
-                <OpenOrderButton orderId={order.id} view="installation" />
-              </OrderTaskCard>
-            ))}
-            {installationOrders.length === 0 ? <EmptyRoleState text="Нет заказов на установку." /> : null}
+            {data?.ready_for_installation.map((task) => <InstallationCard key={task.id} task={task} />)}
+            {!data?.ready_for_installation.length ? <EmptyRoleState text="Нет заказов, готовых к установке." /> : null}
           </div>
         </TaskSection>
 
-        <TaskSection title="После установки" count={closingOrders.length} description="Проверьте фотоотчёт, подписанный АВР и готовность к финальной оплате.">
+        <TaskSection title="В установке" count={data?.in_installation.length || 0}>
           <div className="grid gap-3">
-            {closingOrders.slice(0, 8).map((order) => (
-              <OrderTaskCard key={order.id} order={order} nextStep="Если установка завершена, проверьте фотоотчёт и загруженный подписанный АВР.">
-                <OpenOrderButton orderId={order.id} view="installation" />
-              </OrderTaskCard>
-            ))}
-            {closingOrders.length === 0 ? <EmptyRoleState text="Нет заказов после установки с незакрытыми артефактами." /> : null}
+            {data?.in_installation.map((task) => <InstallationCard key={task.id} task={task} />)}
+            {!data?.in_installation.length ? <EmptyRoleState text="Нет активных установок." /> : null}
+          </div>
+        </TaskSection>
+
+        <TaskSection title="Нужны фото или АВР" count={data?.needs_photo_or_avr.length || 0}>
+          <div className="grid gap-3">
+            {data?.needs_photo_or_avr.map((task) => <InstallationCard key={task.id} task={task} />)}
+            {!data?.needs_photo_or_avr.length ? <EmptyRoleState text="Нет заказов с незакрытыми фото/АВР." /> : null}
+          </div>
+        </TaskSection>
+
+        <TaskSection title="После установки" count={data?.waiting_final_payment.length || 0}>
+          <div className="grid gap-3">
+            {data?.waiting_final_payment.map((task) => <InstallationCard key={task.id} task={task} />)}
+            {!data?.waiting_final_payment.length ? <EmptyRoleState text="Нет заказов после установки." /> : null}
           </div>
         </TaskSection>
       </div>

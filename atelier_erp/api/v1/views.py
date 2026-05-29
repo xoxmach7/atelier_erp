@@ -4,7 +4,11 @@ Minimal ViewSets with service layer integration
 All state changes go through services
 """
 
+from decimal import Decimal
+
+from django.db.models import Q
 from rest_framework import viewsets, status, filters
+from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -14,7 +18,10 @@ from atelier_erp.api.permissions import IsManagerOrAdmin
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 
-from atelier_erp.models import Order, Task, Fabric, PhotoReport, OrderItem, OrderCompletionAct
+from atelier_erp.models import (
+    Order, Task, Fabric, PhotoReport, OrderItem, OrderCompletionAct,
+    Measurement, Quote, Payment
+)
 from atelier_erp.services import OrderService, TaskService, UnitOfWork
 from atelier_erp.services.exceptions import (
     OrderNotFoundError, InvalidOrderStatusTransition,
@@ -916,6 +923,508 @@ class OrderViewSet(viewsets.ModelViewSet):
                 )
             except Exception as e:
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+STATUS_LABELS = {
+    'new': 'Новый',
+    'in_work': 'В работе',
+    'in_production': 'В производстве',
+    'ready': 'Готов к установке',
+    'on_installation': 'На установке',
+    'waiting_final_payment': 'Ожидает финальной оплаты',
+    'completed': 'Завершён',
+    'cancelled': 'Отменён',
+}
+
+MATERIAL_LABELS = {
+    MaterialReadiness.NOT_READY: 'Не готово',
+    MaterialReadiness.PARTIALLY_READY: 'Частично готово',
+    MaterialReadiness.READY: 'Готово',
+}
+
+PRODUCTION_LABELS = {
+    ProductionStage.NOT_STARTED: 'Не начато',
+    ProductionStage.CUTTING: 'Раскрой',
+    ProductionStage.SEWING: 'Пошив',
+    ProductionStage.QUALITY_CHECK: 'Контроль качества',
+    ProductionStage.DONE: 'Готово',
+}
+
+HANDOVER_LABELS = {
+    HandoverStage.NOT_REQUIRED: 'Не требуется',
+    HandoverStage.PENDING: 'Ожидает установки',
+    HandoverStage.SCHEDULED: 'Запланировано',
+    HandoverStage.IN_PROGRESS: 'В процессе',
+    HandoverStage.DONE: 'Установка завершена',
+}
+
+QUOTE_LABELS = {
+    Quote.Status.DRAFT: 'Черновик',
+    Quote.Status.SENT: 'На согласовании',
+    Quote.Status.APPROVED: 'Принято',
+    Quote.Status.REJECTED: 'Отклонено',
+    Quote.Status.EXPIRED: 'Истекло',
+}
+
+
+def _money(value):
+    return str(value or Decimal('0'))
+
+
+def _date(value):
+    return value.isoformat() if value else None
+
+
+def _address(order):
+    parts = [
+        order.installation_address_city,
+        order.installation_address_street,
+        order.installation_address_building,
+        order.installation_address_apartment,
+    ]
+    return ', '.join(part for part in parts if part) or ''
+
+
+def _base_order(order):
+    balance_due = max(order.remaining_amount, Decimal('0'))
+    is_paid = balance_due <= 0
+
+    return {
+        'id': str(order.id),
+        'order_number': order.order_number,
+        'customer_name': order.customer.full_name,
+        'customer_phone': order.customer.phone,
+        'installation_address': _address(order),
+        'status': order.status,
+        'status_label': 'Оплата закрыта' if order.status == Order.Status.WAITING_FINAL_PAYMENT and is_paid else STATUS_LABELS.get(order.status, order.status),
+        'planned_completion_date': _date(order.planned_completion),
+        'measurement_date': _date(order.measurement_date),
+        'installation_date': _date(order.installation_date),
+        'material_readiness': order.material_readiness,
+        'material_readiness_label': MATERIAL_LABELS.get(order.material_readiness, order.material_readiness),
+        'production_stage': order.production_stage,
+        'production_stage_label': PRODUCTION_LABELS.get(order.production_stage, order.production_stage),
+        'handover_stage': order.handover_stage,
+        'handover_stage_label': HANDOVER_LABELS.get(order.handover_stage, order.handover_stage),
+        'total_amount': _money(order.total_amount),
+        'paid_amount': _money(order.paid_amount),
+        'balance_due': _money(balance_due),
+        'payment_state': 'paid' if is_paid else 'partial' if order.paid_amount > 0 else 'unpaid',
+        'order_url': f'/orders/{order.id}',
+    }
+
+
+def _quote_payload(quote):
+    return {
+        'id': str(quote.id),
+        'quote_number': quote.quote_number,
+        'customer_name': quote.customer.full_name,
+        'customer_phone': quote.customer.phone,
+        'status': quote.status,
+        'status_label': QUOTE_LABELS.get(quote.status, quote.status),
+        'total': _money(quote.total),
+        'items_count': quote.items.count(),
+        'order_id': str(quote.order_id) if quote.order_id else None,
+        'order_url': f'/orders/{quote.order_id}' if quote.order_id else '',
+        'quote_url': f'/quotes/{quote.id}',
+    }
+
+
+def _measurement_payload(measurement):
+    curtain = measurement.curtain_fabric or measurement.selected_fabric
+
+    return {
+        'id': str(measurement.id),
+        'room_name': measurement.room_name,
+        'window_name': measurement.window_name,
+        'product_type': measurement.mounting_type or 'Шторы',
+        'width_cm': measurement.width_cm,
+        'height_cm': measurement.height_cm,
+        'fabric_name': curtain.name if curtain else '',
+        'fabric_meters': _money(measurement.curtain_meters),
+        'tulle_name': measurement.tulle_fabric.name if measurement.tulle_fabric else '',
+        'tulle_meters': _money(measurement.tulle_meters),
+        'notes': measurement.notes,
+    }
+
+
+def _quote_item_payload(item):
+    return {
+        'id': str(item.id),
+        'room_name': item.room_name,
+        'window_name': item.window_name,
+        'product_type': item.sewing_type or 'Шторы',
+        'width_cm': item.window_width_cm,
+        'height_cm': item.window_height_cm,
+        'fabric_name': item.fabric.name if item.fabric else '',
+        'fabric_meters': _money(item.fabric_meters),
+        'tulle_name': item.tulle_fabric.name if item.tulle_fabric else '',
+        'tulle_meters': _money(item.tulle_meters),
+        'notes': '',
+    }
+
+
+def _order_item_payload(item):
+    label = ''
+    if item.fabric:
+        label = item.fabric.name
+    elif item.service:
+        label = item.service.name
+    elif item.cornice:
+        label = item.cornice.name
+
+    return {
+        'id': str(item.id),
+        'room_name': item.room_name,
+        'window_name': item.window_name,
+        'product_type': item.sewing_type or item.item_type,
+        'width_cm': item.window_width_cm,
+        'height_cm': item.window_height_cm,
+        'fabric_name': label if item.item_type == OrderItem.ItemType.FABRIC else '',
+        'fabric_meters': _money(item.quantity) if item.item_type == OrderItem.ItemType.FABRIC else '0',
+        'tulle_name': '',
+        'tulle_meters': '0',
+        'notes': item.notes,
+    }
+
+
+def _related_quotes(order):
+    quotes = list(order.related_quotes.all())
+    if order.quote_id and order.quote not in quotes:
+        quotes.append(order.quote)
+    return quotes
+
+
+def _best_quote(order):
+    quotes = _related_quotes(order)
+    approved = [quote for quote in quotes if quote.status == Quote.Status.APPROVED]
+    return approved[0] if approved else quotes[0] if quotes else None
+
+
+def _measurement_summary(order):
+    return [_measurement_payload(item) for item in order.measurements.all()]
+
+
+def _selected_materials(order):
+    materials = _measurement_summary(order)
+    if materials:
+        return materials
+
+    quote = _best_quote(order)
+    if quote:
+        return [_quote_item_payload(item) for item in quote.items.all()]
+
+    return [_order_item_payload(item) for item in order.items.all()]
+
+
+def _items_for_work(order):
+    quote = _best_quote(order)
+    if quote and quote.items.exists():
+        return [_quote_item_payload(item) for item in quote.items.all()]
+
+    measurements = _measurement_summary(order)
+    if measurements:
+        return measurements
+
+    return [_order_item_payload(item) for item in order.items.all()]
+
+
+def _photo_status(order):
+    count = order.photo_reports.filter(is_active=True).count()
+    return {
+        'photo_report_status': 'uploaded' if count else 'missing',
+        'photo_report_count': count,
+    }
+
+
+def _completion_act_status(order):
+    act = getattr(order, 'completion_act', None)
+    if not act or not act.is_active:
+        return {
+            'completion_act_status': 'missing',
+            'signed_act_uploaded': False,
+        }
+
+    return {
+        'completion_act_status': act.status,
+        'signed_act_uploaded': bool(act.signed_file),
+    }
+
+
+def _base_order_queryset():
+    return (
+        Order.objects
+        .select_related('customer', 'quote')
+        .prefetch_related(
+            'measurements__selected_fabric',
+            'measurements__curtain_fabric',
+            'measurements__tulle_fabric',
+            'related_quotes__items__fabric',
+            'related_quotes__items__tulle_fabric',
+            'items__fabric',
+            'items__service',
+            'items__cornice',
+            'photo_reports',
+            'payments',
+        )
+        .order_by('planned_completion', '-created_at')
+    )
+
+
+class BaseWorkQueueView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def orders(self):
+        return _base_order_queryset()
+
+
+class ProductionWorkQueueView(BaseWorkQueueView):
+    def _payload(self, order):
+        data = _base_order(order)
+        data.update({
+            'items_to_sew': _items_for_work(order),
+            'actions': {
+                'can_start_sewing': order.status == Order.Status.IN_PRODUCTION and order.production_stage == ProductionStage.NOT_STARTED,
+                'can_mark_done': order.status == Order.Status.IN_PRODUCTION and order.production_stage in [ProductionStage.SEWING, ProductionStage.QUALITY_CHECK],
+            },
+        })
+        return data
+
+    def get(self, request):
+        production_orders = list(self.orders().filter(
+            Q(status=Order.Status.IN_PRODUCTION) | Q(status=Order.Status.IN_WORK, material_readiness=MaterialReadiness.READY)
+        ))
+        ready_to_start = [
+            self._payload(order)
+            for order in production_orders
+            if order.status == Order.Status.IN_WORK or order.production_stage == ProductionStage.NOT_STARTED
+        ]
+        in_sewing = [
+            self._payload(order)
+            for order in production_orders
+            if order.status == Order.Status.IN_PRODUCTION and order.production_stage in [
+                ProductionStage.CUTTING,
+                ProductionStage.SEWING,
+                ProductionStage.QUALITY_CHECK,
+            ]
+        ]
+        done = [
+            self._payload(order)
+            for order in self.orders().filter(
+                Q(status=Order.Status.IN_PRODUCTION, production_stage=ProductionStage.DONE) | Q(status=Order.Status.READY)
+            )
+        ]
+        return Response({'ready_to_start': ready_to_start, 'in_sewing': in_sewing, 'done': done})
+
+
+class InstallationWorkQueueView(BaseWorkQueueView):
+    def _payload(self, order):
+        data = _base_order(order)
+        data.update({
+            'items_to_install': _items_for_work(order),
+            **_photo_status(order),
+            **_completion_act_status(order),
+        })
+        return data
+
+    def get(self, request):
+        orders = self.orders()
+        ready = [self._payload(order) for order in orders.filter(status=Order.Status.READY)]
+        in_installation = [self._payload(order) for order in orders.filter(status=Order.Status.ON_INSTALLATION)]
+        payment = [self._payload(order) for order in orders.filter(status=Order.Status.WAITING_FINAL_PAYMENT)]
+        needs_artifacts = [
+            item for item in payment
+            if item['photo_report_status'] == 'missing' or not item['signed_act_uploaded']
+        ]
+        return Response({
+            'ready_for_installation': ready,
+            'in_installation': in_installation,
+            'needs_photo_or_avr': needs_artifacts,
+            'waiting_final_payment': payment,
+        })
+
+
+class WarehouseWorkQueueView(BaseWorkQueueView):
+    def _payload(self, order):
+        data = _base_order(order)
+        data.update({'selected_materials': _selected_materials(order)})
+        return data
+
+    def get(self, request):
+        orders = self.orders().filter(status__in=[
+            Order.Status.IN_WORK,
+            Order.Status.IN_PRODUCTION,
+            Order.Status.READY,
+        ])
+
+        def group(readiness):
+            return [self._payload(order) for order in orders.filter(material_readiness=readiness)]
+
+        fabrics = [
+            {
+                'id': str(fabric.id),
+                'hanger_number': fabric.hanger_number,
+                'name': fabric.name,
+                'stock_meters': _money(fabric.stock_meters),
+                'reserved_meters': _money(fabric.reserved_meters),
+                'available_meters': _money(fabric.available_meters),
+                'color': fabric.color,
+                'location': fabric.location,
+            }
+            for fabric in Fabric.objects.filter(is_active=True).order_by('name')[:30]
+        ]
+
+        needs_check = [
+            self._payload(order)
+            for order in orders
+            if not _selected_materials(order)
+        ]
+
+        return Response({
+            'needs_check': needs_check,
+            'not_ready': group(MaterialReadiness.NOT_READY),
+            'partially_ready': group(MaterialReadiness.PARTIALLY_READY),
+            'ready': group(MaterialReadiness.READY),
+            'fabrics': fabrics,
+        })
+
+
+class DesignerWorkQueueView(BaseWorkQueueView):
+    def _payload(self, order):
+        data = _base_order(order)
+        customer_id = str(order.customer_id)
+        data.update({
+            'measurement_summary': _measurement_summary(order),
+            'measurements_url': f'/measurements?order={order.id}',
+            'estimate_url': f'/estimate?customer={customer_id}&order={order.id}',
+        })
+        return data
+
+    def get(self, request):
+        orders = self.orders().filter(status__in=[Order.Status.NEW, Order.Status.IN_WORK])
+        today = timezone.localdate()
+
+        needs_measurement = []
+        measurement_done_needs_quote = []
+        quote_in_progress = []
+        overdue = []
+
+        for order in orders:
+            has_measurements = order.measurements.exists()
+            quotes = _related_quotes(order)
+            has_quote = bool(quotes)
+            if not has_measurements:
+                needs_measurement.append(self._payload(order))
+            elif not has_quote:
+                measurement_done_needs_quote.append(self._payload(order))
+            elif any(quote.status in [Quote.Status.DRAFT, Quote.Status.SENT] for quote in quotes):
+                quote_in_progress.append(self._payload(order))
+
+            if order.planned_completion and order.planned_completion < today:
+                overdue.append(self._payload(order))
+
+        return Response({
+            'needs_measurement': needs_measurement,
+            'measurement_done_needs_quote': measurement_done_needs_quote,
+            'quote_in_progress': quote_in_progress,
+            'overdue': overdue,
+        })
+
+
+class QuotesWorkQueueView(BaseWorkQueueView):
+    def get(self, request):
+        orders = self.orders().filter(status__in=[Order.Status.NEW, Order.Status.IN_WORK])
+        ready_for_quote = [
+            {
+                **_base_order(order),
+                'measurement_summary': _measurement_summary(order),
+                'estimate_url': f'/estimate?customer={order.customer_id}&order={order.id}',
+            }
+            for order in orders
+            if order.measurements.exists() and not _related_quotes(order)
+        ]
+
+        quotes = Quote.objects.select_related('customer', 'order').prefetch_related('items').order_by('-created_at')
+
+        return Response({
+            'ready_for_quote': ready_for_quote,
+            'draft_quotes': [_quote_payload(quote) for quote in quotes.filter(status=Quote.Status.DRAFT)],
+            'pending_approval': [_quote_payload(quote) for quote in quotes.filter(status=Quote.Status.SENT)],
+            'accepted_quotes': [_quote_payload(quote) for quote in quotes.filter(status=Quote.Status.APPROVED)],
+        })
+
+
+class OwnerWorkQueueView(BaseWorkQueueView):
+    def get(self, request):
+        orders = list(self.orders())
+        today = timezone.localdate()
+
+        def paid(order):
+            return order.remaining_amount <= 0
+
+        new_orders = [_base_order(order) for order in orders if order.status == Order.Status.NEW]
+        needs_measurement = [_base_order(order) for order in orders if order.status in [Order.Status.NEW, Order.Status.IN_WORK] and not order.measurements.exists()]
+        needs_quote = [_base_order(order) for order in orders if order.status in [Order.Status.NEW, Order.Status.IN_WORK] and order.measurements.exists() and not _related_quotes(order)]
+        materials_not_ready = [_base_order(order) for order in orders if order.status in [Order.Status.IN_WORK, Order.Status.IN_PRODUCTION] and order.material_readiness != MaterialReadiness.READY]
+        in_sewing = [_base_order(order) for order in orders if order.status == Order.Status.IN_PRODUCTION]
+        on_installation = [_base_order(order) for order in orders if order.status in [Order.Status.READY, Order.Status.ON_INSTALLATION]]
+        waiting_payment = [_base_order(order) for order in orders if order.status == Order.Status.WAITING_FINAL_PAYMENT and not paid(order)]
+        paid_needs_completion = [_base_order(order) for order in orders if order.status == Order.Status.WAITING_FINAL_PAYMENT and paid(order)]
+        overdue = [_base_order(order) for order in orders if order.planned_completion and order.planned_completion < today and order.status not in [Order.Status.COMPLETED, Order.Status.CANCELLED]]
+
+        return Response({
+            'counters': {
+                'new_orders': len(new_orders),
+                'needs_measurement': len(needs_measurement),
+                'needs_quote': len(needs_quote),
+                'materials_not_ready': len(materials_not_ready),
+                'in_sewing': len(in_sewing),
+                'on_installation': len(on_installation),
+                'waiting_payment': len(waiting_payment),
+                'paid_needs_completion': len(paid_needs_completion),
+                'overdue': len(overdue),
+            },
+            'new_orders': new_orders[:10],
+            'needs_measurement': needs_measurement[:10],
+            'needs_quote': needs_quote[:10],
+            'materials_not_ready': materials_not_ready[:10],
+            'in_sewing': in_sewing[:10],
+            'on_installation': on_installation[:10],
+            'waiting_payment': waiting_payment[:10],
+            'paid_needs_completion': paid_needs_completion[:10],
+            'overdue': overdue[:10],
+        })
+
+
+class FinanceWorkQueueView(BaseWorkQueueView):
+    def get(self, request):
+        waiting_payment = []
+        paid_needs_completion = []
+        for order in self.orders().filter(status=Order.Status.WAITING_FINAL_PAYMENT):
+            if order.remaining_amount <= 0:
+                paid_needs_completion.append(_base_order(order))
+            else:
+                waiting_payment.append(_base_order(order))
+
+        recent_payments = [
+            {
+                'id': str(payment.id),
+                'order_id': str(payment.order_id),
+                'order_number': payment.order.order_number,
+                'customer_name': payment.order.customer.full_name,
+                'amount': _money(payment.amount),
+                'payment_type': payment.payment_type,
+                'payment_method': payment.payment_method,
+                'received_at': payment.received_at.isoformat() if payment.received_at else None,
+            }
+            for payment in Payment.objects.select_related('order', 'order__customer').order_by('-received_at')[:20]
+        ]
+
+        return Response({
+            'waiting_payment': waiting_payment,
+            'paid_needs_completion': paid_needs_completion,
+            'recent_payments': recent_payments,
+        })
 
 
 class TaskViewSet(viewsets.ModelViewSet):

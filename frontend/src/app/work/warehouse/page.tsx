@@ -3,113 +3,93 @@
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { ErrorState, LoadingState } from "@/components/shared";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { useFabrics } from "@/hooks/useFabrics";
-import { useOrders } from "@/hooks/useOrders";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useWarehouseQueue } from "@/hooks/useWorkQueues";
+import type { WarehouseTask } from "@/services/http/work";
 import {
   EmptyRoleState,
-  OpenOrderButton,
-  OrderTaskCard,
+  MaterialsList,
+  StatusPill,
   TaskSection,
+  WorkOrderHeader,
   WorkspaceHeader,
-  formatMoney,
-  parseMoney,
+  formatMeters,
 } from "@/components/layout/role-workspace";
 
-function stockState(available: string | number | null | undefined) {
-  const value = parseMoney(available);
-  if (value <= 0) return { label: "Нужно закупить", className: "bg-rose-100 text-rose-700" };
-  if (value < 10) return { label: "Проверить", className: "bg-amber-100 text-amber-700" };
-  return { label: "Готово", className: "bg-emerald-100 text-emerald-700" };
+function WarehouseCard({ task }: { task: WarehouseTask }) {
+  return (
+    <Card className="border-slate-200 bg-white shadow-sm">
+      <CardContent className="space-y-3 p-4">
+        <WorkOrderHeader task={task} right={<StatusPill label={task.material_readiness_label} tone={task.material_readiness === "ready" ? "green" : task.material_readiness === "partially_ready" ? "amber" : "red"} />} />
+        <div className="rounded-xl bg-sky-50 px-3 py-2 text-sm text-sky-900">
+          Проверьте выбранные ткани и отметьте готовность материалов в заказе.
+        </div>
+        <MaterialsList items={task.selected_materials} emptyText="Точные потребности по материалам требуют backend requirements endpoint. Сейчас проверьте материалы в заказе." />
+        <Button asChild size="sm">
+          <Link href={`/orders/${task.id}?view=warehouse`}>Открыть заказ</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
 }
 
 function WarehouseWorkspace() {
-  const ordersQuery = useOrders({ pageSize: 100 });
-  const fabricsQuery = useFabrics({ pageSize: 100, isActive: true });
+  const queue = useWarehouseQueue();
 
-  if (ordersQuery.isLoading || fabricsQuery.isLoading) return <LoadingState message="Загрузка рабочего места склада..." />;
-  if (ordersQuery.isError) return <ErrorState title="Не удалось загрузить заказы" description={ordersQuery.error?.message || "Проверьте API заказов."} />;
+  if (queue.isLoading) return <LoadingState message="Загрузка склада..." />;
+  if (queue.isError) return <ErrorState title="Не удалось загрузить склад" description={queue.error?.message || "Проверьте API очереди склада."} />;
 
-  const orders = ordersQuery.data?.results || [];
-  const fabrics = fabricsQuery.data?.results || [];
-  const materialCheck = orders.filter((order) => ["in_work", "in_production"].includes(order.status));
-  const productionOrders = orders.filter((order) => order.status === "in_production");
-  const lowStock = fabrics.filter((fabric) => parseMoney(fabric.available_meters) < 10);
+  const data = queue.data;
 
   return (
     <ProtectedRoute>
       <WorkspaceHeader
-        title="Склад / Материалы"
-        description="Склад проверяет наличие материалов и отмечает готовность материалов в заказе. Резервы и точные потребности по заказам — следующий backend-этап."
+        title="Склад / материалы"
+        description="Склад видит заказы, выбранные ткани, тюль, метраж и readiness. Остатки тканей показаны отдельным блоком."
       >
-        <Button asChild><Link href="/inventory">Открыть склад</Link></Button>
-        <Button asChild variant="outline"><Link href="/orders">Все заказы</Link></Button>
+        <Button asChild variant="outline"><Link href="/inventory">Складские остатки</Link></Button>
       </WorkspaceHeader>
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_1fr]">
-        <div className="space-y-6">
-          <TaskSection title="Проверить материалы по заказам" count={materialCheck.length} description="Детали по fabric/tulle и готовность материалов открываются в заказе.">
-            <div className="grid gap-3">
-              {materialCheck.slice(0, 8).map((order) => (
-                <OrderTaskCard key={order.id} order={order} nextStep="Проверьте ткани, тюль и готовность материалов в order detail.">
-                  <OpenOrderButton orderId={order.id} view="warehouse" />
-                </OrderTaskCard>
-              ))}
-              {materialCheck.length === 0 ? <EmptyRoleState text="Нет заказов, где склад должен проверить материалы." /> : null}
-            </div>
-          </TaskSection>
-
-          <TaskSection title="В производстве" count={productionOrders.length} description="Заказы уже запущены, склад держит контроль по материалам и доборам.">
-            <div className="grid gap-3">
-              {productionOrders.slice(0, 4).map((order) => (
-                <OrderTaskCard key={order.id} order={order} nextStep="Если материал не закрыт, откройте заказ и обновите готовность материалов.">
-                  <OpenOrderButton orderId={order.id} view="warehouse" />
-                </OrderTaskCard>
-              ))}
-              {productionOrders.length === 0 ? <EmptyRoleState text="Нет заказов в производстве для контроля склада." /> : null}
-            </div>
-          </TaskSection>
-        </div>
-
-        <TaskSection title="Ткани и остатки" count={fabrics.length} description="Живой список склада без выдуманной очереди закупок.">
+      <div className="grid gap-6 xl:grid-cols-2">
+        <TaskSection title="Не готово" count={data?.not_ready.length || 0}>
           <div className="grid gap-3">
-            {fabrics.slice(0, 10).map((fabric) => {
-              const state = stockState(fabric.available_meters);
-              return (
-                <Card key={fabric.id} className="border-slate-200 bg-white shadow-sm">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="font-semibold text-slate-950">{fabric.name || "Материал без названия"}</div>
-                        <div className="mt-1 text-sm text-slate-500">Артикул: {fabric.hanger_number || "не указан"}</div>
-                      </div>
-                      <Badge className={state.className}>{state.label}</Badge>
-                    </div>
-                    <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
-                      <div className="rounded-xl bg-slate-50 p-2">
-                        <div className="text-slate-500">Остаток</div>
-                        <div className="font-semibold">{parseMoney(fabric.stock_meters).toLocaleString("ru-RU")} м</div>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 p-2">
-                        <div className="text-slate-500">Резерв</div>
-                        <div className="font-semibold">{parseMoney(fabric.reserved_meters).toLocaleString("ru-RU")} м</div>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 p-2">
-                        <div className="text-slate-500">Доступно</div>
-                        <div className="font-semibold">{parseMoney(fabric.available_meters).toLocaleString("ru-RU")} м</div>
-                      </div>
-                    </div>
-                    <div className="mt-3 text-sm text-slate-500">Цена: {formatMoney(fabric.price_per_meter)} / м</div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-            {fabrics.length === 0 ? <EmptyRoleState text="Материалы не найдены. Проверьте /inventory или demo seed." /> : null}
-            {lowStock.length > 0 ? <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">Низкий остаток: {lowStock.length}. Проверьте закупку и наличие у поставщика.</div> : null}
+            {data?.not_ready.map((task) => <WarehouseCard key={task.id} task={task} />)}
+            {!data?.not_ready.length ? <EmptyRoleState text="Нет заказов с материалами в статусе “не готово”." /> : null}
           </div>
         </TaskSection>
+
+        <TaskSection title="Частично готово" count={data?.partially_ready.length || 0}>
+          <div className="grid gap-3">
+            {data?.partially_ready.map((task) => <WarehouseCard key={task.id} task={task} />)}
+            {!data?.partially_ready.length ? <EmptyRoleState text="Нет частично обеспеченных заказов." /> : null}
+          </div>
+        </TaskSection>
+
+        <TaskSection title="Готово" count={data?.ready.length || 0}>
+          <div className="grid gap-3">
+            {data?.ready.map((task) => <WarehouseCard key={task.id} task={task} />)}
+            {!data?.ready.length ? <EmptyRoleState text="Нет заказов с полностью готовыми материалами." /> : null}
+          </div>
+        </TaskSection>
+
+        <Card className="border-slate-200 bg-white shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Ткани на складе</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {data?.fabrics.slice(0, 12).map((fabric) => (
+              <div key={fabric.id} className="rounded-xl bg-slate-50 p-3 text-sm">
+                <div className="font-medium text-slate-900">{fabric.name}</div>
+                <div className="mt-1 text-slate-500">
+                  {fabric.hanger_number} · доступно {formatMeters(fabric.available_meters)}
+                  {fabric.location ? ` · ${fabric.location}` : ""}
+                </div>
+              </div>
+            ))}
+            {!data?.fabrics.length ? <EmptyRoleState text="Ткани пока не найдены." /> : null}
+          </CardContent>
+        </Card>
       </div>
     </ProtectedRoute>
   );

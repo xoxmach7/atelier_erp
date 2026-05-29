@@ -2,107 +2,86 @@
 
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
-import { ErrorState, LoadingState, StatusBadge } from "@/components/shared";
-import { Badge } from "@/components/ui/badge";
+import { ErrorState, LoadingState } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { useOrders } from "@/hooks/useOrders";
-import { usePayments } from "@/hooks/usePayments";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useFinanceQueue } from "@/hooks/useWorkQueues";
+import type { WorkOrderTask } from "@/services/http/work";
 import {
   EmptyRoleState,
-  OpenOrderButton,
-  OrderTaskCard,
+  StatusPill,
   TaskSection,
+  WorkOrderHeader,
   WorkspaceHeader,
-  customerName,
   formatDate,
   formatMoney,
-  orderNumber,
-  parseMoney,
 } from "@/components/layout/role-workspace";
 
+function PaymentOrderCard({ task, paid }: { task: WorkOrderTask; paid?: boolean }) {
+  return (
+    <Card className="border-slate-200 bg-white shadow-sm">
+      <CardContent className="space-y-3 p-4">
+        <WorkOrderHeader task={task} right={<StatusPill label={paid ? "Оплата закрыта" : "Ждёт оплату"} tone={paid ? "green" : "amber"} />} />
+        <div className="grid gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700 sm:grid-cols-3">
+          <div><span className="text-slate-500">Итог</span><br />{formatMoney(task.total_amount)}</div>
+          <div><span className="text-slate-500">Оплачено</span><br />{formatMoney(task.paid_amount)}</div>
+          <div><span className="text-slate-500">Остаток</span><br />{formatMoney(task.balance_due)}</div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {!paid ? <Button asChild size="sm"><Link href={`/payments?order=${task.id}`}>Внести платёж</Link></Button> : null}
+          <Button asChild size="sm" variant="outline"><Link href={`/orders/${task.id}?view=finance`}>Открыть заказ</Link></Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function FinanceWorkspace() {
-  const ordersQuery = useOrders({ pageSize: 100 });
-  const paymentsQuery = usePayments({ pageSize: 20 });
+  const queue = useFinanceQueue();
 
-  if (ordersQuery.isLoading || paymentsQuery.isLoading) return <LoadingState message="Загрузка рабочего места финансов..." />;
-  if (ordersQuery.isError) return <ErrorState title="Не удалось загрузить заказы" description={ordersQuery.error?.message || "Проверьте API заказов."} />;
+  if (queue.isLoading) return <LoadingState message="Загрузка платежей..." />;
+  if (queue.isError) return <ErrorState title="Не удалось загрузить финансы" description={queue.error?.message || "Проверьте API очереди финансов."} />;
 
-  const orders = ordersQuery.data?.results || [];
-  const payments = paymentsQuery.data?.results || [];
-  const waitingPayment = orders.filter((order) => parseMoney(order.balance_due) > 0 && order.status !== "cancelled");
-  const paidNeedsCompletion = orders.filter((order) => order.status === "waiting_final_payment" && parseMoney(order.balance_due) <= 0);
+  const data = queue.data;
 
   return (
     <ProtectedRoute>
       <WorkspaceHeader
-        title="Финансы / Оплаты"
-        description="Финансы закрывают предоплату и финальную оплату. Завершение заказа происходит в заказе после проверки установки, фотоотчёта и подписанного АВР."
+        title="Платежи"
+        description="Финансы в MVP — не отдельная роль исполнителя, а служебный список оплат для владельца и администратора."
       >
         <Button asChild><Link href="/payments">Все платежи</Link></Button>
-        <Button asChild variant="outline"><Link href="/orders">Все заказы</Link></Button>
       </WorkspaceHeader>
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="space-y-6">
-          <TaskSection title="Ожидают оплату" count={waitingPayment.length} description="Показываем заказы с остатком больше 0. Сумма предоплаты свободная, если владелец подтвердил договорённость.">
-            <div className="grid gap-3">
-              {waitingPayment.slice(0, 10).map((order) => (
-                <OrderTaskCard key={order.id} order={order} nextStep={`Остаток: ${formatMoney(order.balance_due)}. Внесите платеж или откройте заказ для проверки условий.`}>
-                  <Button asChild size="sm"><Link href={`/payments?order=${order.id}`}>Внести платеж</Link></Button>
-                  <OpenOrderButton orderId={order.id} view="finance" />
-                </OrderTaskCard>
-              ))}
-              {waitingPayment.length === 0 ? <EmptyRoleState text="Нет заказов с открытым остатком оплаты." /> : null}
-            </div>
-          </TaskSection>
-
-          <TaskSection title="Оплата закрыта, нужно завершить" count={paidNeedsCompletion.length} description="Остаток 0. Откройте заказ и проверьте blockers завершения.">
-            <div className="grid gap-3">
-              {paidNeedsCompletion.slice(0, 8).map((order) => (
-                <Card key={order.id} className="border-emerald-200 bg-white shadow-sm">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="font-semibold text-slate-950">{orderNumber(order)}</div>
-                        <div className="mt-1 text-sm text-slate-600">{customerName(order)}</div>
-                        <div className="mt-1 text-sm text-emerald-700">Оплата закрыта: {formatMoney(order.paid_amount)}</div>
-                      </div>
-                      <StatusBadge status={order.status} />
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <OpenOrderButton orderId={order.id} view="finance" />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-              {paidNeedsCompletion.length === 0 ? <EmptyRoleState text="Нет полностью оплаченных заказов, ожидающих завершения." /> : null}
-            </div>
-          </TaskSection>
-        </div>
-
-        <TaskSection title="Последние платежи" count={payments.length}>
+      <div className="grid gap-6 xl:grid-cols-2">
+        <TaskSection title="Ждут оплату" count={data?.waiting_payment.length || 0}>
           <div className="grid gap-3">
-            {payments.slice(0, 10).map((payment) => (
-              <Card key={payment.id} className="border-slate-200 bg-white shadow-sm">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-semibold text-slate-950">{payment.order_number || "Заказ без номера"}</div>
-                      <div className="mt-1 text-sm text-slate-500">{formatDate(payment.received_at)}</div>
-                    </div>
-                    <Badge variant="outline">{formatMoney(payment.amount)}</Badge>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button asChild size="sm" variant="outline"><Link href={`/orders/${payment.order}?view=finance`}>Открыть заказ</Link></Button>
-                    <Button asChild size="sm" variant="outline"><Link href={`/payments?order=${payment.order}`}>Платежи</Link></Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            {payments.length === 0 ? <EmptyRoleState text="Платежей пока нет." /> : null}
+            {data?.waiting_payment.map((task) => <PaymentOrderCard key={task.id} task={task} />)}
+            {!data?.waiting_payment.length ? <EmptyRoleState text="Нет заказов с открытым остатком." /> : null}
           </div>
         </TaskSection>
+
+        <TaskSection title="Оплата закрыта, нужно завершить" count={data?.paid_needs_completion.length || 0}>
+          <div className="grid gap-3">
+            {data?.paid_needs_completion.map((task) => <PaymentOrderCard key={task.id} task={task} paid />)}
+            {!data?.paid_needs_completion.length ? <EmptyRoleState text="Нет полностью оплаченных заказов, ожидающих завершения." /> : null}
+          </div>
+        </TaskSection>
+
+        <Card className="border-slate-200 bg-white shadow-sm xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Последние платежи</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2 md:grid-cols-2">
+            {data?.recent_payments.map((payment) => (
+              <Link key={payment.id} href={`/orders/${payment.order_id}?view=finance`} className="rounded-xl bg-slate-50 p-3 text-sm transition hover:bg-sky-50">
+                <div className="font-medium text-slate-900">{payment.order_number} · {payment.customer_name}</div>
+                <div className="mt-1 text-slate-500">{formatMoney(payment.amount)} · {formatDate(payment.received_at)}</div>
+              </Link>
+            ))}
+            {!data?.recent_payments.length ? <EmptyRoleState text="Платежей пока нет." /> : null}
+          </CardContent>
+        </Card>
       </div>
     </ProtectedRoute>
   );

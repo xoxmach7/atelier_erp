@@ -2,9 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import {
   BadgeDollarSign,
   Boxes,
@@ -21,6 +18,9 @@ import {
   Truck,
   UserCog,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 
 interface NavItem {
   title: string;
@@ -44,22 +44,22 @@ export const navSections: NavSection[] = [
     ],
   },
   {
-    title: "Работа по ролям",
+    title: "Рабочие роли",
     items: [
       { title: "Дизайнер", href: "/work/designer", icon: Ruler },
       { title: "КП", href: "/work/quotes", icon: FileText, match: ["/work/quotes", "/quotes"] },
       { title: "Склад", href: "/work/warehouse", icon: Boxes },
       { title: "Пошив", href: "/work/production", icon: Scissors },
       { title: "Установка", href: "/work/installation", icon: Truck },
-      { title: "Финансы", href: "/work/finance", icon: CreditCard },
     ],
   },
   {
-    title: "Быстрые действия",
+    title: "Действия",
     items: [
       { title: "Новый заказ", href: "/orders/new", icon: PlusCircle },
       { title: "Создать КП", href: "/estimate", icon: Calculator },
-      { title: "Платежи", href: "/payments", icon: BadgeDollarSign },
+      { title: "Платежи", href: "/payments", icon: CreditCard },
+      { title: "Финансовый список", href: "/work/finance", icon: BadgeDollarSign },
     ],
   },
   {
@@ -117,7 +117,7 @@ export function Sidebar() {
           </span>
           <span>
             <span className="block text-base font-semibold text-slate-950">Sheber ERP</span>
-            <span className="block text-xs text-slate-500">Atelier Management</span>
+            <span className="block text-xs text-slate-500">Role-first MVP</span>
           </span>
         </Link>
       </div>
