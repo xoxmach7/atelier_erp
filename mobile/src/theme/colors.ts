@@ -1,0 +1,63 @@
+export const colors = {
+  primary: {
+    50: '#F0F4FF',
+    100: '#D6E0FF',
+    200: '#A8BDFF',
+    300: '#7A9AFF',
+    400: '#4C77FF',
+    500: '#2D5AF5',
+    600: '#1E3FBF',
+    700: '#152D8A',
+    800: '#0C1B54',
+    900: '#060D2E',
+  },
+  success: {
+    light: '#DCFCE7',
+    DEFAULT: '#22C55E',
+    dark: '#166534',
+  },
+  warning: {
+    light: '#FEF9C3',
+    DEFAULT: '#EAB308',
+    dark: '#A16207',
+  },
+  danger: {
+    light: '#FEE2E2',
+    DEFAULT: '#EF4444',
+    dark: '#991B1B',
+  },
+  info: {
+    light: '#DBEAFE',
+    DEFAULT: '#3B82F6',
+    dark: '#1E40AF',
+  },
+  neutral: {
+    50: '#FAFAFA',
+    100: '#F5F5F5',
+    200: '#E5E5E5',
+    300: '#D4D4D4',
+    400: '#A3A3A3',
+    500: '#737373',
+    600: '#525252',
+    700: '#404040',
+    800: '#262626',
+    900: '#171717',
+  },
+  role: {
+    owner: '#7C3AED',
+    designer: '#EC4899',
+    quotes: '#F59E0B',
+    warehouse: '#10B981',
+    production: '#3B82F6',
+    installation: '#06B6D4',
+    finance: '#6366F1',
+  },
+  background: '#FFFFFF',
+  surface: '#F8FAFC',
+  border: '#E2E8F0',
+  text: '#0F172A',
+  textMuted: '#64748B',
+  white: '#FFFFFF',
+} as const;
+
+export type Colors = typeof colors;
