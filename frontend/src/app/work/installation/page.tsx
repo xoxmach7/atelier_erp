@@ -7,15 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useInstallationQueue } from "@/hooks/useWorkQueues";
 import type { InstallationTask } from "@/services/http/work";
-import {
-  EmptyRoleState,
-  MaterialsList,
-  StatusPill,
-  TaskSection,
-  WorkOrderHeader,
-  WorkspaceHeader,
-  formatDate,
-} from "@/components/layout/role-workspace";
+import { EmptyRoleState, MaterialsList, StatusPill, TaskSection, WorkOrderHeader, WorkspaceHeader, formatDate } from "@/components/layout/role-workspace";
 
 function InstallationCard({ task }: { task: InstallationTask }) {
   return (
@@ -25,15 +17,14 @@ function InstallationCard({ task }: { task: InstallationTask }) {
         <div className="grid gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
           <div><span className="font-medium">Телефон:</span> {task.customer_phone || "не указан"}</div>
           <div><span className="font-medium">Адрес:</span> {task.installation_address || "адрес не указан"}</div>
-          <div><span className="font-medium">Дата установки:</span> {formatDate(task.installation_date || task.planned_completion_date)}</div>
+          <div><span className="font-medium">Дата:</span> {formatDate(task.installation_date || task.planned_completion_date)}</div>
         </div>
-        <MaterialsList items={task.items_to_install} emptyText="Список изделий доступен в заказе." />
+        <MaterialsList items={task.items_to_install} emptyText="Позиции для установки ещё не сформированы." />
         <div className="flex flex-wrap gap-2">
-          <StatusPill label={`Фото: ${task.photo_report_count}`} tone={task.photo_report_count > 0 ? "green" : "amber"} />
-          <StatusPill label={task.signed_act_uploaded ? "АВР подписан" : "АВР нужен"} tone={task.signed_act_uploaded ? "green" : "amber"} />
-          <Button asChild size="sm">
-            <Link href={`/orders/${task.id}?view=installation`}>Открыть заказ</Link>
-          </Button>
+          <StatusPill label={task.photo_report_count > 0 ? `фото: ${task.photo_report_count}` : "фото нет"} tone={task.photo_report_count > 0 ? "green" : "amber"} />
+          <StatusPill label={task.completion_act_status === "missing" ? "АВР нет" : "АВР создан"} tone={task.completion_act_status === "missing" ? "amber" : "green"} />
+          <StatusPill label={task.signed_act_uploaded ? "подписан" : "подпись нужна"} tone={task.signed_act_uploaded ? "green" : "amber"} />
+          <Button asChild size="sm"><Link href={`/orders/${task.id}?view=installation`}>Открыть заказ</Link></Button>
         </div>
       </CardContent>
     </Card>
@@ -43,19 +34,14 @@ function InstallationCard({ task }: { task: InstallationTask }) {
 function InstallationWorkspace() {
   const queue = useInstallationQueue();
 
-  if (queue.isLoading) return <LoadingState message="Загрузка очереди установки..." />;
+  if (queue.isLoading) return <LoadingState message="Загрузка установки..." />;
   if (queue.isError) return <ErrorState title="Не удалось загрузить установку" description={queue.error?.message || "Проверьте API очереди установки."} />;
 
   const data = queue.data;
 
   return (
     <ProtectedRoute>
-      <WorkspaceHeader
-        title="Установка"
-        description="Установщик видит маршрут: клиент, телефон, адрес, изделия, фотоотчёт и АВР."
-      >
-        <Button asChild variant="outline"><Link href="/installation">Старый экран</Link></Button>
-      </WorkspaceHeader>
+      <WorkspaceHeader title="Установка" description="Куда ехать, кому звонить, что установить и что закрыть после установки." />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <TaskSection title="Готово к выезду" count={data?.ready_for_installation.length || 0}>
@@ -75,7 +61,7 @@ function InstallationWorkspace() {
         <TaskSection title="Нужны фото или АВР" count={data?.needs_photo_or_avr.length || 0}>
           <div className="grid gap-3">
             {data?.needs_photo_or_avr.map((task) => <InstallationCard key={task.id} task={task} />)}
-            {!data?.needs_photo_or_avr.length ? <EmptyRoleState text="Нет заказов с незакрытыми фото/АВР." /> : null}
+            {!data?.needs_photo_or_avr.length ? <EmptyRoleState text="Нет заказов с незакрытыми фото или АВР." /> : null}
           </div>
         </TaskSection>
 
