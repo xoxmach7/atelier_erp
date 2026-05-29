@@ -117,7 +117,7 @@ export function Sidebar() {
           </span>
           <span>
             <span className="block text-base font-semibold text-slate-950">Sheber ERP</span>
-            <span className="block text-xs text-slate-500">Role-first MVP</span>
+            <span className="block text-xs text-slate-500">рабочее приложение</span>
           </span>
         </Link>
       </div>

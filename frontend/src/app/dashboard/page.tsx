@@ -11,21 +11,24 @@ import type { WorkOrderTask } from "@/services/http/work";
 import { StatusPill, formatDate } from "@/components/layout/role-workspace";
 
 const roleLinks = [
-  { title: "Дизайнер", href: "/work/designer", helper: "замеры и выбор клиента", icon: Ruler },
+  { title: "Дизайнер", href: "/work/designer", helper: "замеры и выбор ткани", icon: Ruler },
   { title: "КП", href: "/work/quotes", helper: "расчёты и согласование", icon: FileText },
-  { title: "Склад", href: "/work/warehouse", helper: "материалы и готовность", icon: PackageCheck },
-  { title: "Пошив", href: "/work/production", helper: "изделия к изготовлению", icon: Scissors },
-  { title: "Установка", href: "/work/installation", helper: "адрес, изделия, фото, АВР", icon: Truck },
+  { title: "Склад", href: "/work/warehouse", helper: "материалы и readiness", icon: PackageCheck },
+  { title: "Пошив", href: "/work/production", helper: "что шить сегодня", icon: Scissors },
+  { title: "Установка", href: "/work/installation", helper: "куда ехать и что закрыть", icon: Truck },
 ];
 
-function OrderLine({ order, view = "admin" }: { order: WorkOrderTask; view?: string }) {
+function OrderLine({ order, view = "admin", nextStep }: { order: WorkOrderTask; view?: string; nextStep: string }) {
   return (
-    <Link href={`/orders/${order.id}${view === "admin" ? "" : `?view=${view}`}`} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 transition hover:bg-sky-50">
-      <div className="min-w-0">
-        <div className="font-medium text-slate-950">{order.order_number}</div>
-        <div className="truncate text-sm text-slate-500">{order.customer_name} · {formatDate(order.planned_completion_date)}</div>
+    <Link href={`/orders/${order.id}${view === "admin" ? "" : `?view=${view}`}`} className="block rounded-xl bg-slate-50 p-3 transition hover:bg-sky-50">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-medium text-slate-950">{order.order_number}</div>
+          <div className="truncate text-sm text-slate-500">{order.customer_name} · {formatDate(order.planned_completion_date)}</div>
+          <div className="mt-1 text-sm text-sky-800">{nextStep}</div>
+        </div>
+        <StatusPill label={order.status_label} tone="sky" />
       </div>
-      <StatusPill label={order.status_label} tone="sky" />
     </Link>
   );
 }
@@ -33,59 +36,72 @@ function OrderLine({ order, view = "admin" }: { order: WorkOrderTask; view?: str
 function DashboardContent() {
   const queue = useOwnerQueue();
 
-  if (queue.isLoading) return <LoadingState message="Загрузка пульта владельца..." />;
+  if (queue.isLoading) return <LoadingState message="Загрузка dashboard..." />;
   if (queue.isError) return <ErrorState title="Не удалось загрузить dashboard" description={queue.error?.message || "Проверьте API owner queue."} />;
 
   const data = queue.data;
-  const counters = [
-    { title: "Новые", value: data?.counters.new_orders || 0, icon: ClipboardList },
-    { title: "Нужен замер", value: data?.counters.needs_measurement || 0, icon: Ruler },
-    { title: "Нужно КП", value: data?.counters.needs_quote || 0, icon: FileText },
-    { title: "Материалы", value: data?.counters.materials_not_ready || 0, icon: PackageCheck },
-    { title: "В пошиве", value: data?.counters.in_sewing || 0, icon: Scissors },
-    { title: "Установка", value: data?.counters.on_installation || 0, icon: Truck },
-    { title: "Ждут оплату", value: data?.counters.waiting_payment || 0, icon: CreditCard },
-    { title: "Оплачено, закрыть", value: data?.counters.paid_needs_completion || 0, icon: AlertTriangle },
-    { title: "Просрочено", value: data?.counters.overdue || 0, icon: AlertTriangle },
+  const counters = data?.counters;
+  const activeCount = counters
+    ? counters.new_orders + counters.needs_measurement + counters.needs_quote + counters.materials_not_ready + counters.in_sewing + counters.on_installation + counters.waiting_payment + counters.paid_needs_completion
+    : 0;
+
+  const attention = [
+    { title: "Нужен замер", value: counters?.needs_measurement || 0, icon: Ruler, href: "/work/designer", tone: "amber" as const },
+    { title: "Нужно КП", value: counters?.needs_quote || 0, icon: FileText, href: "/work/quotes", tone: "amber" as const },
+    { title: "Материалы не готовы", value: counters?.materials_not_ready || 0, icon: PackageCheck, href: "/work/warehouse", tone: "red" as const },
+    { title: "В пошиве", value: counters?.in_sewing || 0, icon: Scissors, href: "/work/production", tone: "sky" as const },
+    { title: "На установке", value: counters?.on_installation || 0, icon: Truck, href: "/work/installation", tone: "sky" as const },
+    { title: "Ждут оплату", value: counters?.waiting_payment || 0, icon: CreditCard, href: "/payments", tone: "amber" as const },
+    { title: "Оплачено, завершить", value: counters?.paid_needs_completion || 0, icon: AlertTriangle, href: "/work/finance", tone: "green" as const },
+    { title: "Просрочено", value: counters?.overdue || 0, icon: AlertTriangle, href: "/orders", tone: "red" as const },
   ];
+
+  const latestOrders = [
+    ...(data?.new_orders || []).map((order) => ({ order, view: "designer", nextStep: "назначить замер" })),
+    ...(data?.needs_quote || []).map((order) => ({ order, view: "designer", nextStep: "создать КП" })),
+    ...(data?.materials_not_ready || []).map((order) => ({ order, view: "warehouse", nextStep: "проверить материалы" })),
+    ...(data?.in_sewing || []).map((order) => ({ order, view: "production", nextStep: "контроль пошива" })),
+    ...(data?.on_installation || []).map((order) => ({ order, view: "installation", nextStep: "установка / фото / АВР" })),
+    ...(data?.waiting_payment || []).map((order) => ({ order, view: "finance", nextStep: "получить оплату" })),
+    ...(data?.paid_needs_completion || []).map((order) => ({ order, view: "finance", nextStep: "проверить готовность и завершить" })),
+  ].filter((item, index, array) => array.findIndex((candidate) => candidate.order.id === item.order.id) === index).slice(0, 8);
 
   return (
     <>
       <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-sm font-medium text-sky-700">Главная</div>
+          <div className="text-sm font-medium text-sky-700">Пульт владельца</div>
           <h1 className="mt-1 text-2xl font-semibold text-slate-950">Сегодня</h1>
-          <p className="mt-1 max-w-3xl text-sm text-slate-500">Операционный пульт владельца: где затык, какой следующий шаг и в какой кабинет перейти.</p>
+          <p className="mt-1 text-sm text-slate-500">Активных сигналов: {activeCount}. Откройте блок с самым большим числом — там текущий затык.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild><Link href="/orders/new">Новый заказ</Link></Button>
-          <Button asChild variant="outline"><Link href="/orders">Все заказы</Link></Button>
-        </div>
+        <Button asChild><Link href="/orders/new">Новый заказ</Link></Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {counters.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Card key={item.title} className="border-slate-200 bg-white shadow-sm">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
-                  <Icon className="h-5 w-5" />
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-950">Требует внимания</h2>
+          <p className="text-sm text-slate-500">Короткая карта процесса: замер → КП → материалы → пошив → установка → оплата → завершение.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {attention.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.title} href={item.href} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-200 hover:bg-sky-50">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <StatusPill label={String(item.value)} tone={item.tone} />
                 </div>
-                <div>
-                  <div className="text-2xl font-semibold text-slate-950">{item.value}</div>
-                  <div className="text-sm text-slate-500">{item.title}</div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                <div className="mt-3 font-medium text-slate-950">{item.title}</div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
       <Card className="mt-6 border-slate-200 bg-white shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Рабочие кабинеты</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-base">Рабочие места</CardTitle></CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {roleLinks.map((item) => {
             const Icon = item.icon;
@@ -100,43 +116,13 @@ function DashboardContent() {
         </CardContent>
       </Card>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <Card className="border-slate-200 bg-white shadow-sm">
-          <CardHeader><CardTitle className="text-base">Нужно сделать</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {data?.needs_measurement.slice(0, 4).map((order) => <OrderLine key={order.id} order={order} view="designer" />)}
-            {data?.needs_quote.slice(0, 4).map((order) => <OrderLine key={order.id} order={order} view="designer" />)}
-            {!data?.needs_measurement.length && !data?.needs_quote.length ? <div className="text-sm text-slate-500">Нет срочных задач по замерам и КП.</div> : null}
-          </CardContent>
-        </Card>
-
-        <Card className="border-slate-200 bg-white shadow-sm">
-          <CardHeader><CardTitle className="text-base">Исполнение</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {data?.materials_not_ready.slice(0, 3).map((order) => <OrderLine key={order.id} order={order} view="warehouse" />)}
-            {data?.in_sewing.slice(0, 3).map((order) => <OrderLine key={order.id} order={order} view="production" />)}
-            {data?.on_installation.slice(0, 3).map((order) => <OrderLine key={order.id} order={order} view="installation" />)}
-            {!data?.materials_not_ready.length && !data?.in_sewing.length && !data?.on_installation.length ? <div className="text-sm text-slate-500">Нет активных задач исполнения.</div> : null}
-          </CardContent>
-        </Card>
-
-        <Card className="border-slate-200 bg-white shadow-sm">
-          <CardHeader><CardTitle className="text-base">Оплата</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {data?.waiting_payment.slice(0, 4).map((order) => <OrderLine key={order.id} order={order} view="finance" />)}
-            {data?.paid_needs_completion.slice(0, 4).map((order) => <OrderLine key={order.id} order={order} view="finance" />)}
-            {!data?.waiting_payment.length && !data?.paid_needs_completion.length ? <div className="text-sm text-slate-500">Нет открытых финансовых задач.</div> : null}
-          </CardContent>
-        </Card>
-
-        <Card className="border-slate-200 bg-white shadow-sm">
-          <CardHeader><CardTitle className="text-base">Просроченные</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {data?.overdue.slice(0, 5).map((order) => <OrderLine key={order.id} order={order} />)}
-            {!data?.overdue.length ? <div className="text-sm text-slate-500">Просроченных заказов нет.</div> : null}
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="mt-6 border-slate-200 bg-white shadow-sm">
+        <CardHeader><CardTitle className="text-base">Последние заказы и следующий шаг</CardTitle></CardHeader>
+        <CardContent className="grid gap-2 lg:grid-cols-2">
+          {latestOrders.map(({ order, view, nextStep }) => <OrderLine key={order.id} order={order} view={view} nextStep={nextStep} />)}
+          {!latestOrders.length ? <div className="text-sm text-slate-500">Нет активных заказов для внимания.</div> : null}
+        </CardContent>
+      </Card>
     </>
   );
 }

@@ -7,15 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFinanceQueue } from "@/hooks/useWorkQueues";
 import type { WorkOrderTask } from "@/services/http/work";
-import {
-  EmptyRoleState,
-  StatusPill,
-  TaskSection,
-  WorkOrderHeader,
-  WorkspaceHeader,
-  formatDate,
-  formatMoney,
-} from "@/components/layout/role-workspace";
+import { EmptyRoleState, StatusPill, TaskSection, WorkOrderHeader, WorkspaceHeader, formatDate, formatMoney } from "@/components/layout/role-workspace";
 
 function PaymentOrderCard({ task, paid }: { task: WorkOrderTask; paid?: boolean }) {
   return (
@@ -40,16 +32,13 @@ function FinanceWorkspace() {
   const queue = useFinanceQueue();
 
   if (queue.isLoading) return <LoadingState message="Загрузка платежей..." />;
-  if (queue.isError) return <ErrorState title="Не удалось загрузить финансы" description={queue.error?.message || "Проверьте API очереди финансов."} />;
+  if (queue.isError) return <ErrorState title="Не удалось загрузить платежи" description={queue.error?.message || "Проверьте API очереди финансов."} />;
 
   const data = queue.data;
 
   return (
     <ProtectedRoute>
-      <WorkspaceHeader
-        title="Платежи"
-        description="Финансы в MVP — не отдельная роль исполнителя, а служебный список оплат для владельца и администратора."
-      >
+      <WorkspaceHeader title="Платежи" description="Служебный финансовый список. Основная работа с оплатой остаётся в заказе и на /payments.">
         <Button asChild><Link href="/payments">Все платежи</Link></Button>
       </WorkspaceHeader>
 
@@ -69,9 +58,7 @@ function FinanceWorkspace() {
         </TaskSection>
 
         <Card className="border-slate-200 bg-white shadow-sm xl:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base">Последние платежи</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base">Последние платежи</CardTitle></CardHeader>
           <CardContent className="grid gap-2 md:grid-cols-2">
             {data?.recent_payments.map((payment) => (
               <Link key={payment.id} href={`/orders/${payment.order_id}?view=finance`} className="rounded-xl bg-slate-50 p-3 text-sm transition hover:bg-sky-50">
