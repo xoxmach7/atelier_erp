@@ -1,132 +1,81 @@
 "use client";
 
 import Link from "next/link";
+import { AlertTriangle, ClipboardList, CreditCard, FileText, PackageCheck, Ruler, Scissors, Truck } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
-import { PageHeader, StatusBadge, LoadingState, ErrorState } from "@/components/shared";
+import { ErrorState, LoadingState } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useOrders } from "@/hooks/useOrders";
-import type { OrderListItemDTO } from "@/types";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ClipboardList,
-  CreditCard,
-  Map,
-  PackageCheck,
-  Scissors,
-  Sparkles,
-  Truck,
-} from "lucide-react";
+import { useOwnerQueue } from "@/hooks/useWorkQueues";
+import type { WorkOrderTask } from "@/services/http/work";
+import { StatusPill, formatDate } from "@/components/layout/role-workspace";
 
-function isOverdue(order: OrderListItemDTO): boolean {
-  if (!order.planned_completion) return false;
-  if (["completed", "cancelled"].includes(order.status)) return false;
-  const due = new Date(order.planned_completion);
-  due.setHours(23, 59, 59, 999);
-  return due.getTime() < Date.now();
-}
+const roleLinks = [
+  { title: "Дизайнер", href: "/work/designer", helper: "замеры и выбор клиента", icon: Ruler },
+  { title: "КП", href: "/work/quotes", helper: "расчёты и согласование", icon: FileText },
+  { title: "Склад", href: "/work/warehouse", helper: "материалы и готовность", icon: PackageCheck },
+  { title: "Пошив", href: "/work/production", helper: "изделия к изготовлению", icon: Scissors },
+  { title: "Установка", href: "/work/installation", helper: "адрес, изделия, фото, АВР", icon: Truck },
+];
 
-function formatCurrency(value: string | number | null | undefined): string {
-  const num = typeof value === "string" ? Number.parseFloat(value) : value;
-  if (num === null || num === undefined || Number.isNaN(num)) return "₸ 0";
-  return `₸ ${num.toLocaleString("ru-RU", { maximumFractionDigits: 0 })}`;
-}
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) return "Дата не указана";
-  return new Date(value).toLocaleDateString("ru-RU");
-}
-
-function getDisplayOrderNumber(order: OrderListItemDTO): string {
-  return order.order_number?.trim() || "Заказ без номера";
+function OrderLine({ order, view = "admin" }: { order: WorkOrderTask; view?: string }) {
+  return (
+    <Link href={`/orders/${order.id}${view === "admin" ? "" : `?view=${view}`}`} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 transition hover:bg-sky-50">
+      <div className="min-w-0">
+        <div className="font-medium text-slate-950">{order.order_number}</div>
+        <div className="truncate text-sm text-slate-500">{order.customer_name} · {formatDate(order.planned_completion_date)}</div>
+      </div>
+      <StatusPill label={order.status_label} tone="sky" />
+    </Link>
+  );
 }
 
 function DashboardContent() {
-  const { data, isLoading, isError, error } = useOrders({ pageSize: 100 });
+  const queue = useOwnerQueue();
 
-  if (isLoading) {
-    return (
-      <>
-        <PageHeader title="Рабочий стол" description="Обзор заказов и операционных сигналов" />
-        <LoadingState message="Загрузка сводки..." />
-      </>
-    );
-  }
+  if (queue.isLoading) return <LoadingState message="Загрузка пульта владельца..." />;
+  if (queue.isError) return <ErrorState title="Не удалось загрузить dashboard" description={queue.error?.message || "Проверьте API owner queue."} />;
 
-  if (isError) {
-    return (
-      <>
-        <PageHeader title="Рабочий стол" description="Обзор заказов и операционных сигналов" />
-        <ErrorState
-          title="Не удалось загрузить рабочий стол"
-          description={error?.message || "Проверьте доступность API и попробуйте позже."}
-        />
-      </>
-    );
-  }
-
-  const orders = data?.results || [];
-  const inWork = orders.filter((order) => order.status === "in_work");
-  const inProduction = orders.filter((order) => order.status === "in_production");
-  const installation = orders.filter((order) => order.status === "ready" || order.status === "on_installation");
-  const awaitingPayment = orders.filter((order) => order.status === "waiting_final_payment");
-  const completed = orders.filter((order) => order.status === "completed");
-  const overdue = orders.filter(isOverdue);
-  const balanceDue = awaitingPayment.reduce((sum, order) => sum + Number.parseFloat(order.balance_due || "0"), 0);
-  const recentOrders = orders.slice(0, 5);
-
-  const stats = [
-    { title: "Всего заказов", value: orders.length, icon: ClipboardList, helper: "По данным списка заказов" },
-    { title: "В работе", value: inWork.length, icon: PackageCheck, helper: "Требуют замеры, КП или материалы" },
-    { title: "В производстве", value: inProduction.length, icon: Scissors, helper: "Пошив и контроль готовности" },
-    { title: "Установка / выдача", value: installation.length, icon: Truck, helper: "Готовые к передаче клиенту" },
-    { title: "Финальная оплата", value: awaitingPayment.length, icon: CreditCard, helper: formatCurrency(balanceDue) },
-    { title: "Завершены", value: completed.length, icon: CheckCircle2, helper: "Закрытые заказы" },
-  ];
-  const roleLinks = [
-    { title: "Дизайнер", href: "/work/designer", helper: "Заказы, замеры, выбор тканей", icon: ClipboardList },
-    { title: "КП", href: "/work/quotes", helper: "Расчёты и согласование", icon: Map },
-    { title: "Склад", href: "/work/warehouse", helper: "Материалы и остатки", icon: PackageCheck },
-    { title: "Пошив", href: "/work/production", helper: "Очередь производства", icon: Scissors },
-    { title: "Установка", href: "/work/installation", helper: "Выдача, фото, АВР", icon: Truck },
-    { title: "Финансы", href: "/work/finance", helper: "Оплаты и остатки", icon: CreditCard },
+  const data = queue.data;
+  const counters = [
+    { title: "Новые", value: data?.counters.new_orders || 0, icon: ClipboardList },
+    { title: "Нужен замер", value: data?.counters.needs_measurement || 0, icon: Ruler },
+    { title: "Нужно КП", value: data?.counters.needs_quote || 0, icon: FileText },
+    { title: "Материалы", value: data?.counters.materials_not_ready || 0, icon: PackageCheck },
+    { title: "В пошиве", value: data?.counters.in_sewing || 0, icon: Scissors },
+    { title: "Установка", value: data?.counters.on_installation || 0, icon: Truck },
+    { title: "Ждут оплату", value: data?.counters.waiting_payment || 0, icon: CreditCard },
+    { title: "Оплачено, закрыть", value: data?.counters.paid_needs_completion || 0, icon: AlertTriangle },
+    { title: "Просрочено", value: data?.counters.overdue || 0, icon: AlertTriangle },
   ];
 
   return (
     <>
-      <PageHeader
-        title="Сегодня"
-        description="Главный вход владельца: что требует внимания, где следующий шаг и в какой рабочий кабинет перейти."
-      >
-        <div className="flex flex-wrap gap-2">
-          <Button asChild>
-            <Link href="/orders/new">Новый заказ</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/work/designer">Дизайнер</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/product-demo">
-              <Sparkles className="mr-2 h-4 w-4" />
-              Демо
-            </Link>
-          </Button>
+      <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="text-sm font-medium text-sky-700">Главная</div>
+          <h1 className="mt-1 text-2xl font-semibold text-slate-950">Сегодня</h1>
+          <p className="mt-1 max-w-3xl text-sm text-slate-500">Операционный пульт владельца: где затык, какой следующий шаг и в какой кабинет перейти.</p>
         </div>
-      </PageHeader>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild><Link href="/orders/new">Новый заказ</Link></Button>
+          <Button asChild variant="outline"><Link href="/orders">Все заказы</Link></Button>
+        </div>
+      </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {counters.map((item) => {
+          const Icon = item.icon;
           return (
-            <Card key={stat.title} className="border-slate-200 bg-white shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600">{stat.title}</CardTitle>
-                <Icon className="h-4 w-4 text-sky-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-slate-900">{stat.value}</div>
-                <p className="mt-1 text-xs text-slate-500">{stat.helper}</p>
+            <Card key={item.title} className="border-slate-200 bg-white shadow-sm">
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="text-2xl font-semibold text-slate-950">{item.value}</div>
+                  <div className="text-sm text-slate-500">{item.title}</div>
+                </div>
               </CardContent>
             </Card>
           );
@@ -137,86 +86,54 @@ function DashboardContent() {
         <CardHeader>
           <CardTitle className="text-base">Рабочие кабинеты</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {roleLinks.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-sky-200 hover:bg-sky-50"
-                >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <span>
-                    <span className="block font-medium text-slate-950">{item.title}</span>
-                    <span className="block text-sm text-slate-500">{item.helper}</span>
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
+        <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {roleLinks.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href} className="rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-sky-200 hover:bg-sky-50">
+                <Icon className="h-5 w-5 text-sky-700" />
+                <div className="mt-2 font-medium text-slate-950">{item.title}</div>
+                <div className="text-sm text-slate-500">{item.helper}</div>
+              </Link>
+            );
+          })}
         </CardContent>
       </Card>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card className="border-slate-200 bg-white shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Последние заказы</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recentOrders.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-200 p-6 text-sm text-slate-500">
-                Заказов пока нет. Создайте первый заказ или примите КП.
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {recentOrders.map((order) => (
-                  <Link
-                    key={order.id}
-                    href={`/orders/${order.id}`}
-                    className="flex flex-col gap-2 py-3 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <div className="font-medium text-slate-900">{getDisplayOrderNumber(order)}</div>
-                      <div className="text-sm text-slate-500">
-                        {order.customer_name || "Клиент не указан"} · {formatDate(order.created_at)}
-                      </div>
-                    </div>
-                    <StatusBadge status={order.status} />
-                  </Link>
-                ))}
-              </div>
-            )}
+          <CardHeader><CardTitle className="text-base">Нужно сделать</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {data?.needs_measurement.slice(0, 4).map((order) => <OrderLine key={order.id} order={order} view="designer" />)}
+            {data?.needs_quote.slice(0, 4).map((order) => <OrderLine key={order.id} order={order} view="designer" />)}
+            {!data?.needs_measurement.length && !data?.needs_quote.length ? <div className="text-sm text-slate-500">Нет срочных задач по замерам и КП.</div> : null}
           </CardContent>
         </Card>
 
         <Card className="border-slate-200 bg-white shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              Риски и просрочки
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {overdue.length === 0 ? (
-              <div className="text-sm text-slate-500">Явных просрочек по плановой дате не найдено.</div>
-            ) : (
-              <div className="space-y-3">
-                {overdue.slice(0, 5).map((order) => (
-                  <Link
-                    key={order.id}
-                    href={`/orders/${order.id}`}
-                    className="block rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm hover:bg-amber-100"
-                  >
-                    <div className="font-medium text-slate-900">{getDisplayOrderNumber(order)}</div>
-                    <div className="text-amber-700">План: {formatDate(order.planned_completion)}</div>
-                  </Link>
-                ))}
-              </div>
-            )}
+          <CardHeader><CardTitle className="text-base">Исполнение</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {data?.materials_not_ready.slice(0, 3).map((order) => <OrderLine key={order.id} order={order} view="warehouse" />)}
+            {data?.in_sewing.slice(0, 3).map((order) => <OrderLine key={order.id} order={order} view="production" />)}
+            {data?.on_installation.slice(0, 3).map((order) => <OrderLine key={order.id} order={order} view="installation" />)}
+            {!data?.materials_not_ready.length && !data?.in_sewing.length && !data?.on_installation.length ? <div className="text-sm text-slate-500">Нет активных задач исполнения.</div> : null}
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200 bg-white shadow-sm">
+          <CardHeader><CardTitle className="text-base">Оплата</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {data?.waiting_payment.slice(0, 4).map((order) => <OrderLine key={order.id} order={order} view="finance" />)}
+            {data?.paid_needs_completion.slice(0, 4).map((order) => <OrderLine key={order.id} order={order} view="finance" />)}
+            {!data?.waiting_payment.length && !data?.paid_needs_completion.length ? <div className="text-sm text-slate-500">Нет открытых финансовых задач.</div> : null}
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200 bg-white shadow-sm">
+          <CardHeader><CardTitle className="text-base">Просроченные</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {data?.overdue.slice(0, 5).map((order) => <OrderLine key={order.id} order={order} />)}
+            {!data?.overdue.length ? <div className="text-sm text-slate-500">Просроченных заказов нет.</div> : null}
           </CardContent>
         </Card>
       </div>
