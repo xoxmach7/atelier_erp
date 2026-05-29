@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen } from '../src/components/Screen';
 import { colors } from '../src/theme/colors';
@@ -8,6 +9,8 @@ import { typography } from '../src/theme/typography';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
 
   const handleLogin = () => {
     router.replace('/(tabs)/today');
@@ -21,17 +24,38 @@ export default function LoginScreen() {
     <Screen scrollable={false} withPadding>
       <View style={styles.container}>
         <View style={styles.header}>
+          <View style={styles.logoCircle}>
+            <Text style={styles.logoLetter}>S</Text>
+          </View>
           <Text style={styles.logo}>Sheber</Text>
-          <Text style={styles.subtitle}>Atelier Management</Text>
+          <Text style={styles.subtitle}>Единая база</Text>
         </View>
 
         <View style={styles.form}>
+          <TextInput
+            style={styles.input}
+            placeholder="Телефон или email"
+            placeholderTextColor={colors.textMuted}
+            value={phone}
+            onChangeText={setPhone}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Пароль"
+            placeholderTextColor={colors.textMuted}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+
           <TouchableOpacity
             style={styles.button}
             onPress={handleLogin}
             activeOpacity={0.8}
           >
-            <Text style={styles.buttonText}>Войти</Text>
+            <Text style={styles.buttonText}>Вход</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -39,11 +63,11 @@ export default function LoginScreen() {
             onPress={handleDemoLogin}
             activeOpacity={0.8}
           >
-            <Text style={styles.demoButtonText}>Демо-режим</Text>
+            <Text style={styles.demoButtonText}>Демо-вход</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.version}>v1.0.0</Text>
+        <Text style={styles.footer}>Sheber ERP</Text>
       </View>
     </Screen>
   );
@@ -58,19 +82,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing['3xl'],
   },
-  logo: {
-    fontSize: typography.sizes['4xl'],
+  logoCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.primary[500],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  logoLetter: {
+    fontSize: typography.sizes['3xl'],
     fontWeight: typography.weights.bold,
-    color: colors.primary[500],
+    color: colors.white,
+  },
+  logo: {
+    fontSize: typography.sizes['3xl'],
+    fontWeight: typography.weights.bold,
+    color: colors.text,
   },
   subtitle: {
     fontSize: typography.sizes.base,
     color: colors.textMuted,
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
   },
   form: {
     gap: spacing.base,
     marginBottom: spacing['2xl'],
+  },
+  input: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.base,
+    fontSize: typography.sizes.base,
+    color: colors.text,
   },
   button: {
     backgroundColor: colors.primary[500],
@@ -96,9 +144,9 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     fontWeight: typography.weights.medium,
   },
-  version: {
+  footer: {
     textAlign: 'center',
-    fontSize: typography.sizes.xs,
+    fontSize: typography.sizes.sm,
     color: colors.textMuted,
   },
 });

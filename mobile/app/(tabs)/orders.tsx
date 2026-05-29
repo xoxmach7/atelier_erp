@@ -1,15 +1,24 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { Screen } from '../../src/components/Screen';
-import { StatusPill } from '../../src/components/StatusPill';
+import { RoleOrderRow } from '../../src/components/RoleOrderRow';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useOrders } from '../../src/hooks/useOrder';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
-import { radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 
+function getStatusColor(status: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
+  const s = status.toLowerCase();
+  if (s.includes('completed') || s.includes('done') || s.includes('ready')) return 'success';
+  if (s.includes('urgent') || s.includes('overdue') || s.includes('cancelled')) return 'danger';
+  if (s.includes('waiting') || s.includes('payment') || s.includes('partial')) return 'warning';
+  if (s.includes('new') || s.includes('in_work') || s.includes('production')) return 'info';
+  return 'neutral';
+}
+
 export default function OrdersScreen() {
+  const router = useRouter();
   const { data, loading, error } = useOrders();
 
   return (
@@ -20,7 +29,7 @@ export default function OrdersScreen() {
       </View>
 
       {loading && (
-        <Text style={styles.loading}>Загрузка...</Text>
+        <ActivityIndicator size="large" color={colors.primary[500]} />
       )}
 
       {error && (
@@ -37,20 +46,14 @@ export default function OrdersScreen() {
       {!loading &&
         !error &&
         data.map((order) => (
-          <TouchableOpacity
+          <RoleOrderRow
             key={order.id}
-            style={styles.orderCard}
-            activeOpacity={0.7}
-          >
-            <View style={styles.orderHeader}>
-              <Text style={styles.orderNumber}>{order.orderNumber}</Text>
-              <StatusPill status={order.status} />
-            </View>
-            <Text style={styles.customer}>{order.customerName}</Text>
-            <Text style={styles.amount}>
-              {order.paidAmount} / {order.totalAmount}
-            </Text>
-          </TouchableOpacity>
+            orderNumber={order.orderNumber}
+            client={order.customerName}
+            subtitle={order.status}
+            statusColor={getStatusColor(order.status)}
+            onPress={() => router.push(`/orders/${order.id}`)}
+          />
         ))}
     </Screen>
   );
@@ -72,42 +75,10 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     color: colors.textMuted,
   },
-  loading: {
-    textAlign: 'center',
-    color: colors.textMuted,
-    marginTop: spacing.lg,
-  },
   error: {
     color: colors.danger.DEFAULT,
+    fontSize: typography.sizes.base,
     textAlign: 'center',
     marginTop: spacing.lg,
-  },
-  orderCard: {
-    backgroundColor: colors.white,
-    borderRadius: radius.lg,
-    padding: spacing.base,
-    marginBottom: spacing.base,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  orderNumber: {
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.semibold,
-    color: colors.text,
-  },
-  customer: {
-    fontSize: typography.sizes.base,
-    color: colors.textMuted,
-    marginBottom: spacing.xs,
-  },
-  amount: {
-    fontSize: typography.sizes.sm,
-    color: colors.text,
   },
 });

@@ -1,61 +1,94 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Screen } from '../../src/components/Screen';
-import { StatusPill } from '../../src/components/StatusPill';
-import { EmptyState } from '../../src/components/EmptyState';
+import { StatusDot } from '../../src/components/StatusDot';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
+import { radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 
-const DASHBOARD_SECTIONS = [
-  { label: 'Новые заказы', status: 'new', count: 0 },
-  { label: 'Нужен замер', status: 'in_work', count: 0 },
-  { label: 'Нужно КП', status: 'in_work', count: 0 },
-  { label: 'Материалы не готовы', status: 'not_ready', count: 0 },
-  { label: 'В пошиве', status: 'in_production', count: 0 },
-  { label: 'Установка', status: 'installation', count: 0 },
-  { label: 'Ждут оплату', status: 'waiting_final_payment', count: 0 },
+type MetricKey = 'profit' | 'revenue' | 'expenses';
+
+const METRICS: { key: MetricKey; label: string }[] = [
+  { key: 'profit', label: 'Прибыль' },
+  { key: 'revenue', label: 'Выручка' },
+  { key: 'expenses', label: 'Расходы' },
+];
+
+const SUMMARY_ITEMS = [
+  { label: 'Всего заказов', value: '0', dot: 'neutral' as const },
+  { label: 'Выполнено', value: '0', dot: 'success' as const },
+  { label: 'В работе', value: '0', dot: 'info' as const },
+  { label: 'Требуют внимания', value: '0', dot: 'warning' as const },
+  { label: 'Просрочено', value: '0', dot: 'danger' as const },
+  { label: 'Ожидают оплаты', value: '0', dot: 'warning' as const },
+  { label: 'Материалы на исходе', value: '0', dot: 'danger' as const },
+  { label: 'Можно завершить', value: '0', dot: 'success' as const },
 ];
 
 export default function TodayScreen() {
+  const router = useRouter();
+  const [activeMetric, setActiveMetric] = useState<MetricKey>('profit');
+
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.greeting}>Добрый день</Text>
-        <Text style={styles.subtitle}>Сегодня</Text>
+        <Text style={styles.orgName}>Sheber Atelier</Text>
+        <Text style={styles.period}>Май 2026</Text>
       </View>
 
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>0</Text>
-          <Text style={styles.statLabel}>В работе</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>0</Text>
-          <Text style={styles.statLabel}>Срочно</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>0</Text>
-          <Text style={styles.statLabel}>Завершить</Text>
-        </View>
+      <View style={styles.toggles}>
+        {METRICS.map((m) => (
+          <TouchableOpacity
+            key={m.key}
+            style={[styles.toggle, activeMetric === m.key && styles.toggleActive]}
+            onPress={() => setActiveMetric(m.key)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.toggleLabel, activeMetric === m.key && styles.toggleLabelActive]}>
+              {m.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      <Text style={styles.sectionTitle}>Требует внимания</Text>
-
-      {DASHBOARD_SECTIONS.map((section) => (
-        <View key={section.label} style={styles.row}>
-          <Text style={styles.rowLabel}>{section.label}</Text>
-          <View style={styles.rowRight}>
-            <Text style={styles.rowCount}>{section.count}</Text>
-            <StatusPill status={section.status} />
+      <View style={styles.chartCard}>
+        <Text style={styles.chartTitle}>{METRICS.find(m => m.key === activeMetric)?.label}</Text>
+        <Text style={styles.chartValue}>0 ₸</Text>
+        <View style={styles.chartPlaceholder}>
+          <View style={styles.barGroup}>
+            <View style={[styles.bar, { height: 24 }]} />
+            <View style={[styles.bar, { height: 40 }]} />
+            <View style={[styles.bar, { height: 32 }]} />
+            <View style={[styles.bar, { height: 48 }]} />
+            <View style={[styles.bar, { height: 20 }]} />
+            <View style={[styles.bar, { height: 36 }]} />
+            <View style={[styles.bar, { height: 28 }]} />
           </View>
+          <Text style={styles.chartHint}>Динамика по неделям (placeholder)</Text>
+        </View>
+      </View>
+
+      <Text style={styles.sectionTitle}>Показатели</Text>
+
+      {SUMMARY_ITEMS.map((item) => (
+        <View key={item.label} style={styles.row}>
+          <View style={styles.rowLeft}>
+            <StatusDot variant={item.dot} />
+            <Text style={styles.rowLabel}>{item.label}</Text>
+          </View>
+          <Text style={styles.rowValue}>{item.value}</Text>
         </View>
       ))}
 
-      <EmptyState
-        title="Нет срочных задач"
-        subtitle="Все текущие задачи в норме"
-      />
+      <TouchableOpacity
+        style={styles.linkButton}
+        onPress={() => router.push('/(tabs)/orders')}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.linkButtonText}>Все заказы →</Text>
+      </TouchableOpacity>
     </Screen>
   );
 }
@@ -64,39 +97,82 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: spacing.lg,
   },
-  greeting: {
+  orgName: {
     fontSize: typography.sizes.xl,
     fontWeight: typography.weights.bold,
     color: colors.text,
   },
-  subtitle: {
-    fontSize: typography.sizes.base,
+  period: {
+    fontSize: typography.sizes.sm,
     color: colors.textMuted,
     marginTop: spacing.xs,
   },
-  statsRow: {
+  toggles: {
     flexDirection: 'row',
-    gap: spacing.base,
+    gap: spacing.sm,
     marginBottom: spacing.lg,
   },
-  statCard: {
+  toggle: {
     flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: spacing.base,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.base,
+    borderRadius: radius.lg,
+    backgroundColor: colors.neutral[100],
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
   },
-  statValue: {
+  toggleActive: {
+    backgroundColor: colors.primary[500],
+    borderColor: colors.primary[500],
+  },
+  toggleLabel: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium,
+    color: colors.text,
+  },
+  toggleLabelActive: {
+    color: colors.white,
+    fontWeight: typography.weights.semibold,
+  },
+  chartCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chartTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium,
+    color: colors.textMuted,
+    marginBottom: spacing.xs,
+  },
+  chartValue: {
     fontSize: typography.sizes['2xl'],
     fontWeight: typography.weights.bold,
-    color: colors.primary[500],
+    color: colors.text,
+    marginBottom: spacing.base,
   },
-  statLabel: {
+  chartPlaceholder: {
+    alignItems: 'center',
+  },
+  barGroup: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.sm,
+    height: 56,
+    marginBottom: spacing.xs,
+  },
+  bar: {
+    width: 20,
+    backgroundColor: colors.primary[200],
+    borderRadius: radius.sm,
+  },
+  chartHint: {
     fontSize: typography.sizes.xs,
     color: colors.textMuted,
-    marginTop: spacing.xs,
   },
   sectionTitle: {
     fontSize: typography.sizes.base,
@@ -112,18 +188,28 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  rowLabel: {
-    fontSize: typography.sizes.base,
-    color: colors.text,
-  },
-  rowRight: {
+  rowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
   },
-  rowCount: {
-    fontSize: typography.sizes.sm,
+  rowLabel: {
+    fontSize: typography.sizes.base,
+    color: colors.text,
+  },
+  rowValue: {
+    fontSize: typography.sizes.base,
     fontWeight: typography.weights.semibold,
-    color: colors.textMuted,
+    color: colors.text,
+  },
+  linkButton: {
+    marginTop: spacing.lg,
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+  },
+  linkButtonText: {
+    fontSize: typography.sizes.base,
+    fontWeight: typography.weights.semibold,
+    color: colors.primary[500],
   },
 });

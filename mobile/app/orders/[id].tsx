@@ -1,7 +1,7 @@
-import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { Screen } from '../../src/components/Screen';
-import { StatusPill } from '../../src/components/StatusPill';
+import { StatusDot } from '../../src/components/StatusDot';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useOrderDetail } from '../../src/hooks/useOrder';
 import { colors } from '../../src/theme/colors';
@@ -9,9 +9,18 @@ import { spacing } from '../../src/theme/spacing';
 import { radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 
-export default function OrderDetailScreen({ route }: any) {
-  const orderId = route?.params?.id;
-  const { data, loading, error } = useOrderDetail(orderId);
+function getStatusColor(status: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
+  const s = status.toLowerCase();
+  if (s.includes('completed') || s.includes('done') || s.includes('ready')) return 'success';
+  if (s.includes('urgent') || s.includes('overdue') || s.includes('cancelled')) return 'danger';
+  if (s.includes('waiting') || s.includes('payment') || s.includes('partial')) return 'warning';
+  if (s.includes('new') || s.includes('in_work') || s.includes('production')) return 'info';
+  return 'neutral';
+}
+
+export default function OrderDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { data, loading, error } = useOrderDetail(id);
 
   if (loading) {
     return (
@@ -35,37 +44,48 @@ export default function OrderDetailScreen({ route }: any) {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.orderNumber}>{data.orderNumber}</Text>
-        <StatusPill status={data.status} />
+        <View>
+          <Text style={styles.orderNumber}>{data.orderNumber}</Text>
+          <Text style={styles.customer}>{data.customerName}</Text>
+          {data.customerPhone && <Text style={styles.meta}>{data.customerPhone}</Text>}
+        </View>
+        <StatusDot variant={getStatusColor(data.status)} size={12} />
       </View>
 
-      <Text style={styles.customer}>{data.customerName}</Text>
-      <Text style={styles.phone}>{data.customerPhone}</Text>
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>Статус</Text>
+        <Text style={styles.cardValue}>{data.status}</Text>
+      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Сумма</Text>
-        <Text style={styles.amount}>
-          Оплачено: {data.paidAmount} / {data.totalAmount}
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>Следующий шаг</Text>
+        <Text style={styles.cardValue}>В работе</Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>Оплата</Text>
+        <Text style={styles.cardValue}>
+          {data.paidAmount} / {data.totalAmount}
         </Text>
       </View>
 
       {data.photoReportStatus && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Фотоотчёт</Text>
-          <StatusPill status={data.photoReportStatus} />
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Фотоотчёт</Text>
+          <Text style={styles.cardValue}>{data.photoReportStatus}</Text>
         </View>
       )}
 
       {data.avrStatus && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>АВР</Text>
-          <StatusPill status={data.avrStatus} />
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>АВР</Text>
+          <Text style={styles.cardValue}>{data.avrStatus}</Text>
         </View>
       )}
 
       <View style={styles.actions}>
         <TouchableOpacity style={styles.actionButton} activeOpacity={0.8}>
-          <Text style={styles.actionText}>Добавить платёж</Text>
+          <Text style={styles.actionText}>Выполнить действие</Text>
         </TouchableOpacity>
       </View>
     </Screen>
@@ -81,25 +101,25 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.base,
+    alignItems: 'flex-start',
+    marginBottom: spacing.lg,
   },
   orderNumber: {
     fontSize: typography.sizes.xl,
     fontWeight: typography.weights.bold,
     color: colors.text,
+    marginBottom: spacing.xs,
   },
   customer: {
-    fontSize: typography.sizes.lg,
+    fontSize: typography.sizes.base,
     color: colors.text,
     marginBottom: spacing.xs,
   },
-  phone: {
-    fontSize: typography.sizes.base,
+  meta: {
+    fontSize: typography.sizes.sm,
     color: colors.textMuted,
-    marginBottom: spacing.lg,
   },
-  section: {
+  card: {
     backgroundColor: colors.white,
     borderRadius: radius.lg,
     padding: spacing.base,
@@ -107,14 +127,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  sectionTitle: {
-    fontSize: typography.sizes.sm,
+  cardLabel: {
+    fontSize: typography.sizes.xs,
     fontWeight: typography.weights.medium,
     color: colors.textMuted,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
     textTransform: 'uppercase',
   },
-  amount: {
+  cardValue: {
     fontSize: typography.sizes.base,
     color: colors.text,
   },
