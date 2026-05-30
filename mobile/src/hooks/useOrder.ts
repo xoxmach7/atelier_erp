@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Order, OrderDetail } from '../types/order';
 import { fetchOrders, fetchOrderDetail } from '../api/orders';
-import { DEMO_ORDERS, DEMO_ORDER_DETAIL } from '../api/demoOrders';
+import { DEMO_ORDERS, getDemoOrderDetail } from '../api/demoOrders';
 import type { ApiError } from '../api/client';
 
 function getErrorMessage(err: unknown): { message: string; status: number; isDemoEligible: boolean } {
@@ -60,13 +60,24 @@ export function useOrderDetail(id: string | null) {
     setError(null);
     setIsDemo(false);
     try {
+      if (id.startsWith('demo-')) {
+        const demo = getDemoOrderDetail(id);
+        if (demo) {
+          setData(demo);
+          setIsDemo(true);
+          setLoading(false);
+          return;
+        }
+      }
       const detail = await fetchOrderDetail(id);
       setData(detail);
     } catch (err) {
       const { message, isDemoEligible } = getErrorMessage(err);
       if (isDemoEligible) {
-        setData(DEMO_ORDER_DETAIL);
-        setIsDemo(true);
+        const demo = getDemoOrderDetail(id);
+        setData(demo ?? null);
+        setIsDemo(!!demo);
+        if (!demo) setError(message);
       } else {
         setError(message);
       }

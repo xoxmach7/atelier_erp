@@ -5,8 +5,7 @@ import { StatusDot } from '../../src/components/StatusDot';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useOrderDetail } from '../../src/hooks/useOrder';
 import { colors } from '../../src/theme/colors';
-import { spacing } from '../../src/theme/spacing';
-import { radius } from '../../src/theme/spacing';
+import { spacing, radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 
 function getStatusColor(status: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
@@ -20,7 +19,7 @@ function getStatusColor(status: string): 'success' | 'warning' | 'danger' | 'inf
 
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data, loading, error } = useOrderDetail(id);
+  const { data, loading, error, isDemo } = useOrderDetail(id);
 
   if (loading) {
     return (
@@ -43,6 +42,12 @@ export default function OrderDetailScreen() {
 
   return (
     <Screen>
+      {isDemo && (
+        <View style={styles.demoBanner}>
+          <Text style={styles.demoBannerText}>Демо-данные: backend требует авторизацию</Text>
+        </View>
+      )}
+
       <View style={styles.header}>
         <View>
           <Text style={styles.orderNumber}>{data.orderNumber}</Text>
@@ -151,5 +156,19 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.base,
     fontWeight: typography.weights.semibold,
+  },
+  demoBanner: {
+    backgroundColor: colors.warning.light,
+    borderRadius: radius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.base,
+    borderWidth: 1,
+    borderColor: colors.warning.DEFAULT,
+  },
+  demoBannerText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium,
+    color: colors.warning.dark,
+    textAlign: 'center',
   },
 });
