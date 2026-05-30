@@ -8,6 +8,7 @@ import {
   fetchProductionQueue,
   fetchInstallationQueue,
 } from '../api/work';
+import { DEMO_WORK_QUEUES } from '../api/demoWork';
 import type { ApiError } from '../api/client';
 
 const fetchers: Record<RoleKey, () => Promise<WorkQueueResponse>> = {
@@ -20,13 +21,15 @@ const fetchers: Record<RoleKey, () => Promise<WorkQueueResponse>> = {
   finance: fetchOwnerQueue,
 };
 
-function getErrorMessage(err: unknown): string {
+function getErrorInfo(err: unknown): { message: string; isDemoEligible: boolean } {
   if (err && typeof err === 'object') {
     const apiErr = err as ApiError;
-    if (typeof apiErr.message === 'string') return apiErr.message;
+    const status = typeof apiErr.status === 'number' ? apiErr.status : 0;
+    const message = typeof apiErr.message === 'string' ? apiErr.message : 'Не удалось загрузить задачи.';
+    return { message, isDemoEligible: status === 401 || status === 0 };
   }
-  if (err instanceof Error) return err.message;
-  return 'Не удалось загрузить задачи.';
+  if (err instanceof Error) return { message: err.message, isDemoEligible: true };
+  return { message: 'Не удалось загрузить задачи.', isDemoEligible: true };
 }
 
 export function useWorkQueue(role: RoleKey) {
@@ -34,10 +37,12 @@ export function useWorkQueue(role: RoleKey) {
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDemo, setIsDemo] = useState(false);
 
   const fetchQueue = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setIsDemo(false);
     try {
       const fetcher = fetchers[role];
       if (!fetcher) {
@@ -47,7 +52,15 @@ export function useWorkQueue(role: RoleKey) {
       setData(response.items || []);
       setCount(response.count || 0);
     } catch (err) {
-      setError(getErrorMessage(err));
+      const { message, isDemoEligible } = getErrorInfo(err);
+      if (isDemoEligible) {
+        const demo = DEMO_WORK_QUEUES[role];
+        setData(demo?.items || []);
+        setCount(demo?.count || 0);
+        setIsDemo(true);
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -57,5 +70,5 @@ export function useWorkQueue(role: RoleKey) {
     fetchQueue();
   }, [fetchQueue]);
 
-  return { data, count, loading, error, refetch: fetchQueue };
+  return { data, count, loading, error, isDemo, refetch: fetchQueue };
 }

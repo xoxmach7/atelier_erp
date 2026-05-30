@@ -7,7 +7,7 @@ import { RoleOrderRow } from '../../src/components/RoleOrderRow';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useWorkQueue } from '../../src/hooks/useWorkQueues';
 import { colors } from '../../src/theme/colors';
-import { spacing } from '../../src/theme/spacing';
+import { spacing, radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 import type { RoleKey } from '../../src/types/work';
 
@@ -34,7 +34,7 @@ function getNextStep(role: RoleKey, status: string): string {
 export default function WorkScreen() {
   const router = useRouter();
   const [activeRole, setActiveRole] = useState<RoleKey>('designer');
-  const { data, count, loading, error } = useWorkQueue(activeRole);
+  const { data, count, loading, error, isDemo } = useWorkQueue(activeRole);
 
   return (
     <Screen>
@@ -50,6 +50,12 @@ export default function WorkScreen() {
       </View>
 
       <RoleSwitcher activeRole={activeRole} onRoleChange={setActiveRole} />
+
+      {isDemo && (
+        <View style={styles.demoBanner}>
+          <Text style={styles.demoBannerText}>Демо-данные: backend требует авторизацию</Text>
+        </View>
+      )}
 
       {loading && (
         <ActivityIndicator size="large" color={colors.primary[500]} />
@@ -104,5 +110,19 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     textAlign: 'center',
     marginTop: spacing.lg,
+  },
+  demoBanner: {
+    backgroundColor: colors.warning.light,
+    borderRadius: radius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.base,
+    borderWidth: 1,
+    borderColor: colors.warning.DEFAULT,
+  },
+  demoBannerText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium,
+    color: colors.warning.dark,
+    textAlign: 'center',
   },
 });
