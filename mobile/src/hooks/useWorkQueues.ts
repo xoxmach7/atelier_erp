@@ -8,6 +8,7 @@ import {
   fetchProductionQueue,
   fetchInstallationQueue,
 } from '../api/work';
+import type { ApiError } from '../api/client';
 
 const fetchers: Record<RoleKey, () => Promise<WorkQueueResponse>> = {
   owner: fetchOwnerQueue,
@@ -18,6 +19,15 @@ const fetchers: Record<RoleKey, () => Promise<WorkQueueResponse>> = {
   installation: fetchInstallationQueue,
   finance: fetchOwnerQueue,
 };
+
+function getErrorMessage(err: unknown): string {
+  if (err && typeof err === 'object') {
+    const apiErr = err as ApiError;
+    if (typeof apiErr.message === 'string') return apiErr.message;
+  }
+  if (err instanceof Error) return err.message;
+  return 'Не удалось загрузить задачи.';
+}
 
 export function useWorkQueue(role: RoleKey) {
   const [data, setData] = useState<WorkQueueItem[]>([]);
@@ -37,7 +47,7 @@ export function useWorkQueue(role: RoleKey) {
       setData(response.items || []);
       setCount(response.count || 0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

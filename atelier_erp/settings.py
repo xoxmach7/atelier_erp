@@ -15,7 +15,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Security
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'change-this-in-production')
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get(
+        'ALLOWED_HOSTS',
+        'localhost,127.0.0.1,192.168.15.53,172.28.41.204,0.0.0.0'
+    ).split(',')
+    if host.strip()
+]
 
 # Application definition
 INSTALLED_APPS = [
@@ -132,12 +139,20 @@ REST_FRAMEWORK = {
 }
 
 # CORS
-CORS_ALLOWED_ORIGINS = os.environ.get(
-    'CORS_ALLOWED_ORIGINS',
-    'http://localhost:3000,http://127.0.0.1:3000'
-).split(',') if os.environ.get('CORS_ALLOWED_ORIGINS') else [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        'CORS_ALLOWED_ORIGINS',
+        'http://localhost:3000,'
+        'http://127.0.0.1:3000,'
+        'http://localhost:8081,'
+        'http://127.0.0.1:8081,'
+        'http://192.168.15.53:8081,'
+        'http://localhost:8082,'
+        'http://127.0.0.1:8082,'
+        'http://192.168.15.53:8082'
+    ).split(',')
+    if origin.strip()
 ]
 
 # JWT Settings

@@ -5,7 +5,7 @@ import { RoleOrderRow } from '../../src/components/RoleOrderRow';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useOrders } from '../../src/hooks/useOrder';
 import { colors } from '../../src/theme/colors';
-import { spacing } from '../../src/theme/spacing';
+import { spacing, radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 
 function getStatusColor(status: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
@@ -19,7 +19,7 @@ function getStatusColor(status: string): 'success' | 'warning' | 'danger' | 'inf
 
 export default function OrdersScreen() {
   const router = useRouter();
-  const { data, loading, error } = useOrders();
+  const { data, loading, error, isDemo } = useOrders();
 
   return (
     <Screen>
@@ -27,6 +27,12 @@ export default function OrdersScreen() {
         <Text style={styles.title}>Заказы</Text>
         <Text style={styles.count}>{data.length} всего</Text>
       </View>
+
+      {isDemo && (
+        <View style={styles.demoBanner}>
+          <Text style={styles.demoBannerText}>Демо-данные: backend требует авторизацию</Text>
+        </View>
+      )}
 
       {loading && (
         <ActivityIndicator size="large" color={colors.primary[500]} />
@@ -80,5 +86,19 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     textAlign: 'center',
     marginTop: spacing.lg,
+  },
+  demoBanner: {
+    backgroundColor: colors.warning.light,
+    borderRadius: radius.lg,
+    padding: spacing.base,
+    marginBottom: spacing.base,
+    borderWidth: 1,
+    borderColor: colors.warning.DEFAULT,
+  },
+  demoBannerText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium,
+    color: colors.warning.dark,
+    textAlign: 'center',
   },
 });

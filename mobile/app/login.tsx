@@ -13,11 +13,11 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
 
   const handleLogin = () => {
-    router.replace('/(tabs)/today');
+    router.replace('/today');
   };
 
   const handleDemoLogin = () => {
-    router.replace('/(tabs)/today');
+    router.replace('/today');
   };
 
   return (
