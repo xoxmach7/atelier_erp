@@ -4,20 +4,10 @@ import { Screen } from '../../src/components/Screen';
 import { RoleOrderRow } from '../../src/components/RoleOrderRow';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useOrders } from '../../src/hooks/useOrder';
-import { getStatusLabel } from '../../src/utils/orderLabels';
+import { getOrderIndicator } from '../../src/utils/orderLabels';
 import { colors } from '../../src/theme/colors';
 import { spacing, radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
-
-function getStatusColor(status: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
-  const s = status.toLowerCase();
-  if (s.includes('completed') || s.includes('done') || s.includes('ready')) return 'success';
-  if (s.includes('urgent') || s.includes('overdue') || s.includes('cancelled')) return 'danger';
-  if (s.includes('waiting') || s.includes('payment') || s.includes('partial')) return 'warning';
-  if (s.includes('new')) return 'neutral';
-  if (s.includes('in_work') || s.includes('production')) return 'info';
-  return 'neutral';
-}
 
 function IconButton({ icon, onPress }: { icon: string; onPress?: () => void }) {
   return (
@@ -34,7 +24,6 @@ export default function OrdersScreen() {
   return (
     <Screen>
       <View style={styles.topBar}>
-        <View style={styles.topBarPlaceholder} />
         <Text style={styles.pageTitle}>Управление заказами</Text>
         <View style={styles.actions}>
           <IconButton icon="⌕" />
@@ -66,17 +55,20 @@ export default function OrdersScreen() {
 
       {!loading &&
         !error &&
-        data.map((order) => (
-          <RoleOrderRow
-            key={order.id}
-            orderNumber={order.orderNumber}
-            client={order.customerName}
-            date={order.dueDate}
-            subtitle={getStatusLabel(order.status)}
-            statusColor={getStatusColor(order.status)}
-            onPress={() => router.push(`/orders/${order.id}`)}
-          />
-        ))}
+        data.map((order) => {
+          const indicator = getOrderIndicator(order.status);
+          return (
+            <RoleOrderRow
+              key={order.id}
+              orderNumber={order.orderNumber}
+              client={order.customerName}
+              date={order.dueDate}
+              subtitle={indicator.label}
+              statusColor={indicator.variant}
+              onPress={() => router.push(`/orders/${order.id}`)}
+            />
+          );
+        })}
     </Screen>
   );
 }
@@ -88,33 +80,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.lg,
   },
-  topBarPlaceholder: {
-    width: 80,
-  },
   pageTitle: {
     fontSize: typography.sizes.lg,
     fontWeight: typography.weights.bold,
     color: colors.text,
-    textAlign: 'center',
-    flex: 1,
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    width: 80,
-    justifyContent: 'flex-end',
   },
   iconBtn: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: radius.md,
     backgroundColor: colors.neutral[100],
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconText: {
-    fontSize: typography.sizes.base,
+    fontSize: typography.sizes.md,
     color: colors.text,
   },
   error: {

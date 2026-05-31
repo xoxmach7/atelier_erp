@@ -21,42 +21,52 @@ interface RoleSwitcherProps {
 
 export function RoleSwitcher({ activeRole, onRoleChange }: RoleSwitcherProps) {
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.container}
-      contentContainerStyle={styles.content}
-    >
-      {ROLES.map((role) => {
-        const isActive = role.key === activeRole;
-        return (
-          <TouchableOpacity
-            key={role.key}
-            style={[styles.pill, isActive && styles.activePill]}
-            onPress={() => onRoleChange(role.key)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.label, isActive && styles.activeLabel]}>
-              {role.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </ScrollView>
+    <View style={styles.outer}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.container}
+        contentContainerStyle={styles.content}
+      >
+        <View style={styles.row}>
+          {ROLES.map((role) => {
+            const isActive = role.key === activeRole;
+            return (
+              <TouchableOpacity
+                key={role.key}
+                style={[styles.pill, isActive && styles.activePill]}
+                onPress={() => onRoleChange(role.key)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.label, isActive && styles.activeLabel]}>
+                  {role.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    maxHeight: 48,
+  outer: {
     marginBottom: spacing.base,
   },
+  container: {
+    maxHeight: 48,
+  },
   content: {
-    paddingHorizontal: spacing.base,
+    paddingRight: spacing.base,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
   },
   pill: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.full,
     backgroundColor: colors.neutral[100],
@@ -66,6 +76,11 @@ const styles = StyleSheet.create({
   activePill: {
     backgroundColor: colors.primary[500],
     borderColor: colors.primary[500],
+    shadowColor: colors.primary[500],
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
   label: {
     fontSize: typography.sizes.sm,

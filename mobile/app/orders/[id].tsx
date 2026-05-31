@@ -4,23 +4,27 @@ import { Screen } from '../../src/components/Screen';
 import { StatusDot } from '../../src/components/StatusDot';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useOrderDetail } from '../../src/hooks/useOrder';
-import { getStatusLabel, getNextStepLabel } from '../../src/utils/orderLabels';
+import { getOrderIndicator, getNextStepLabel } from '../../src/utils/orderLabels';
 import { formatCurrency } from '../../src/utils/formatters';
 import { colors } from '../../src/theme/colors';
 import { spacing, radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 
-function getStatusColor(status: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
-  const s = status.toLowerCase();
-  if (s.includes('completed') || s.includes('done') || s.includes('ready')) return 'success';
-  if (s.includes('urgent') || s.includes('overdue') || s.includes('cancelled')) return 'danger';
-  if (s.includes('waiting') || s.includes('payment') || s.includes('partial')) return 'warning';
-  if (s.includes('new')) return 'neutral';
-  if (s.includes('in_work') || s.includes('production')) return 'info';
-  return 'neutral';
+const DOC_STATUS_LABELS: Record<string, string> = {
+  pending: 'Ожидает',
+  uploaded: 'Загружен',
+  signed: 'Подписан',
+  done: 'Выполнен',
+  draft: 'Черновик',
+  not_required: 'Не требуется',
+};
+
+function translateDocStatus(status: string | null | undefined): string {
+  if (!status) return 'Не готово';
+  return DOC_STATUS_LABELS[status.toLowerCase()] ?? status;
 }
 
-function StatusRow({ label, value, dot }: { label: string; value: string; dot?: 'success' | 'warning' | 'danger' | 'info' | 'neutral' }) {
+function StatusRow({ label, value, dot }: { label: string; value: string; dot?: 'success' | 'warning' | 'danger' | 'info' | 'primary' | 'neutral' }) {
   return (
     <View style={styles.cardRow}>
       <Text style={styles.cardLabel}>{label}</Text>
@@ -67,19 +71,24 @@ export default function OrderDetailScreen() {
       )}
 
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-            <Text style={styles.back}>← Назад</Text>
-          </TouchableOpacity>
-          <Text style={styles.orderNumber}>{data.orderNumber}</Text>
-          <Text style={styles.customer}>{data.customerName}</Text>
-          {data.customerPhone && <Text style={styles.meta}>{data.customerPhone}</Text>}
+        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
+          <Text style={styles.back}>← Назад</Text>
+        </TouchableOpacity>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.orderNumber}>{data.orderNumber}</Text>
+            <Text style={styles.customer}>{data.customerName}</Text>
+            {data.customerPhone && <Text style={styles.meta}>{data.customerPhone}</Text>}
+          </View>
         </View>
-        <StatusDot variant={getStatusColor(data.status)} size={12} />
       </View>
 
       <View style={styles.card}>
-        <StatusRow label="СТАТУС" value={getStatusLabel(data.status)} dot={getStatusColor(data.status)} />
+        <StatusRow
+          label="СТАТУС"
+          value={getOrderIndicator(data.status).label}
+          dot={getOrderIndicator(data.status).variant}
+        />
         <View style={styles.divider} />
         <StatusRow label="СЛЕДУЮЩИЙ ШАГ" value={getNextStepLabel(data.status)} />
       </View>
@@ -96,13 +105,13 @@ export default function OrderDetailScreen() {
 
       {data.photoReportStatus && (
         <View style={styles.card}>
-          <StatusRow label="ФОТООТЧЁТ" value={data.photoReportStatus} />
+          <StatusRow label="ФОТООТЧЁТ" value={translateDocStatus(data.photoReportStatus)} />
         </View>
       )}
 
       {data.avrStatus && (
         <View style={styles.card}>
-          <StatusRow label="АВР" value={data.avrStatus} />
+          <StatusRow label="АВР" value={translateDocStatus(data.avrStatus)} />
         </View>
       )}
 
@@ -129,6 +138,12 @@ const styles = StyleSheet.create({
   },
   headerLeft: {
     flex: 1,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginTop: spacing.sm,
   },
   back: {
     fontSize: typography.sizes.sm,

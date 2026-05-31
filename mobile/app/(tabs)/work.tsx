@@ -6,20 +6,11 @@ import { RoleSwitcher } from '../../src/components/RoleSwitcher';
 import { RoleOrderRow } from '../../src/components/RoleOrderRow';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useWorkQueue } from '../../src/hooks/useWorkQueues';
+import { getOrderIndicator } from '../../src/utils/orderLabels';
 import { colors } from '../../src/theme/colors';
 import { spacing, radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 import type { RoleKey } from '../../src/types/work';
-
-function getStatusColor(status: string): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
-  const s = status.toLowerCase();
-  if (s.includes('completed') || s.includes('ready') || s.includes('done')) return 'success';
-  if (s.includes('urgent') || s.includes('overdue') || s.includes('error') || s.includes('not_ready')) return 'danger';
-  if (s.includes('warning') || s.includes('waiting') || s.includes('partial')) return 'warning';
-  if (s.includes('new')) return 'neutral';
-  if (s.includes('in_work') || s.includes('in_production')) return 'info';
-  return 'neutral';
-}
 
 function getNextStep(role: RoleKey, status: string): string {
   const map: Record<string, string> = {
@@ -59,7 +50,6 @@ export default function WorkScreen() {
   return (
     <Screen>
       <View style={styles.topBar}>
-        <View style={styles.topBarPlaceholder} />
         <Text style={styles.pageTitle}>{getRoleTitle(activeRole)}</Text>
         <View style={styles.actions}>
           <IconButton icon="⌕" />
@@ -92,17 +82,20 @@ export default function WorkScreen() {
 
       {!loading &&
         !error &&
-        data.map((item) => (
-          <RoleOrderRow
-            key={item.id}
-            orderNumber={item.orderNumber}
-            client={item.clientName}
-            date={item.dueDate}
-            subtitle={getNextStep(activeRole, item.status)}
-            statusColor={getStatusColor(item.status)}
-            onPress={() => router.push(`/orders/${item.orderId}`)}
-          />
-        ))}
+        data.map((item) => {
+          const indicator = getOrderIndicator(item.status, item.materialReadiness);
+          return (
+            <RoleOrderRow
+              key={item.id}
+              orderNumber={item.orderNumber}
+              client={item.clientName}
+              date={item.dueDate}
+              subtitle={getNextStep(activeRole, item.status)}
+              statusColor={indicator.variant}
+              onPress={() => router.push(`/orders/${item.orderId}`)}
+            />
+          );
+        })}
     </Screen>
   );
 }
@@ -114,33 +107,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.lg,
   },
-  topBarPlaceholder: {
-    width: 60,
-  },
   pageTitle: {
     fontSize: typography.sizes.lg,
     fontWeight: typography.weights.bold,
     color: colors.text,
-    textAlign: 'center',
-    flex: 1,
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    width: 60,
-    justifyContent: 'flex-end',
   },
   iconBtn: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: radius.md,
     backgroundColor: colors.neutral[100],
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconText: {
-    fontSize: typography.sizes.base,
+    fontSize: typography.sizes.md,
     color: colors.text,
   },
   error: {

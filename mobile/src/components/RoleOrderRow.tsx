@@ -10,7 +10,7 @@ interface RoleOrderRowProps {
   client: string;
   date?: string;
   subtitle?: string;
-  statusColor?: 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+  statusColor?: 'success' | 'warning' | 'danger' | 'info' | 'primary' | 'neutral';
   onPress?: () => void;
 }
 

@@ -15,15 +15,10 @@ const KPI_ITEMS = [
   { label: 'Материалы', value: '0', color: colors.danger.DEFAULT },
 ];
 
-const SUMMARY_ITEMS = [
-  { label: 'Всего заказов', value: '0', dot: 'neutral' as const },
-  { label: 'Выполнено', value: '0', dot: 'success' as const },
-  { label: 'В работе', value: '0', dot: 'info' as const },
-  { label: 'Требуют внимания', value: '0', dot: 'warning' as const },
-  { label: 'Просрочено', value: '0', dot: 'danger' as const },
+const ATTENTION_ITEMS = [
+  { label: 'Просроченные заказы', value: '0', dot: 'danger' as const },
   { label: 'Ожидают оплаты', value: '0', dot: 'warning' as const },
   { label: 'Материалы на исходе', value: '0', dot: 'danger' as const },
-  { label: 'Можно завершить', value: '0', dot: 'success' as const },
 ];
 
 export default function TodayScreen() {
@@ -33,7 +28,10 @@ export default function TodayScreen() {
     <Screen>
       <View style={styles.header}>
         <Text style={styles.orgName}>Sheber Atelier</Text>
-        <Text style={styles.period}>Май 2026</Text>
+        <View style={styles.periodRow}>
+          <Text style={styles.period}>Май 2026</Text>
+          <Text style={styles.periodMuted}>1 – 31 мая</Text>
+        </View>
       </View>
 
       <View style={styles.kpiGrid}>
@@ -45,9 +43,9 @@ export default function TodayScreen() {
         ))}
       </View>
 
-      <Text style={styles.sectionTitle}>Показатели</Text>
+      <Text style={styles.sectionTitle}>Что требует внимания</Text>
 
-      {SUMMARY_ITEMS.map((item) => (
+      {ATTENTION_ITEMS.map((item) => (
         <View key={item.label} style={styles.row}>
           <View style={styles.rowLeft}>
             <StatusDot variant={item.dot} />
@@ -73,14 +71,23 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   orgName: {
-    fontSize: typography.sizes.xl,
+    fontSize: typography.sizes['2xl'],
     fontWeight: typography.weights.bold,
     color: colors.text,
+  },
+  periodRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
   },
   period: {
     fontSize: typography.sizes.sm,
     color: colors.textMuted,
-    marginTop: spacing.xs,
+  },
+  periodMuted: {
+    fontSize: typography.sizes.sm,
+    color: colors.textMuted,
   },
   kpiGrid: {
     flexDirection: 'row',
@@ -100,7 +107,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   kpiValue: {
-    fontSize: typography.sizes['2xl'],
+    fontSize: typography.sizes['3xl'],
     fontWeight: typography.weights.bold,
     marginBottom: spacing.xs,
   },

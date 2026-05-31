@@ -31,10 +31,13 @@ export default function MoreScreen() {
       <Text style={styles.pageTitle}>Ещё</Text>
 
       <View style={styles.menu}>
-        {MENU_ITEMS.map((item) => (
+        {MENU_ITEMS.map((item, index) => (
           <TouchableOpacity
             key={item.label}
-            style={styles.menuItem}
+            style={[
+              styles.menuItem,
+              index === MENU_ITEMS.length - 1 && styles.menuItemLast,
+            ]}
             activeOpacity={0.7}
             onPress={() => handlePress(item)}
           >
@@ -46,11 +49,15 @@ export default function MoreScreen() {
         ))}
       </View>
 
+      <View style={styles.apiBlock}>
+        <Text style={styles.apiLabel}>API URL</Text>
+        <Text style={styles.apiUrl}>
+          {process.env.EXPO_PUBLIC_API_BASE_URL || 'localhost:8000'}
+        </Text>
+      </View>
+
       <View style={styles.footer}>
         <Text style={styles.version}>Sheber Mobile v1.0.0</Text>
-        <Text style={styles.apiUrl}>
-          API: {process.env.EXPO_PUBLIC_API_BASE_URL || 'localhost:8000'}
-        </Text>
       </View>
     </Screen>
   );
@@ -82,6 +89,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  menuItemLast: {
+    borderBottomWidth: 0,
+  },
   menuLabel: {
     fontSize: typography.sizes.base,
     color: colors.text,
@@ -93,6 +103,28 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     color: colors.textMuted,
   },
+  apiBlock: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.white,
+    borderRadius: radius.xl,
+    padding: spacing.base,
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  apiLabel: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.medium,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    marginBottom: spacing.xs,
+  },
+  apiUrl: {
+    fontSize: typography.sizes.sm,
+    color: colors.text,
+  },
   footer: {
     marginTop: spacing['2xl'],
     alignItems: 'center',
@@ -100,10 +132,5 @@ const styles = StyleSheet.create({
   version: {
     fontSize: typography.sizes.sm,
     color: colors.textMuted,
-  },
-  apiUrl: {
-    fontSize: typography.sizes.xs,
-    color: colors.textMuted,
-    marginTop: spacing.xs,
   },
 });

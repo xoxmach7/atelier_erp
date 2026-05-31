@@ -6,11 +6,12 @@ const DOT_COLORS: Record<string, string> = {
   warning: colors.warning.DEFAULT,
   danger: colors.danger.DEFAULT,
   info: colors.info.DEFAULT,
+  primary: colors.primary[500],
   neutral: colors.neutral[300],
 };
 
 interface StatusDotProps {
-  variant?: 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+  variant?: 'success' | 'warning' | 'danger' | 'info' | 'primary' | 'neutral';
   size?: number;
 }
 

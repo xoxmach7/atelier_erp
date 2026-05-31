@@ -19,9 +19,9 @@ export const DEMO_ORDERS: Order[] = [
     orderNumber: 'З-2026-002',
     customerName: 'Иванов Пётр',
     customerPhone: '+7 707 987 65 43',
-    status: 'in_production',
+    status: 'waiting_final_payment',
     totalAmount: 320000,
-    paidAmount: 320000,
+    paidAmount: 160000,
     dueDate: '2026-06-20',
     address: 'Алматы, ул. Абылай хана 10, кв. 3',
     createdAt: '2026-05-18T14:30:00Z',
@@ -45,9 +45,9 @@ export const DEMO_ORDERS: Order[] = [
     orderNumber: 'З-2026-004',
     customerName: 'Нурбеков Данияр',
     customerPhone: '+7 775 111 22 33',
-    status: 'waiting_final_payment',
+    status: 'completed',
     totalAmount: 210000,
-    paidAmount: 100000,
+    paidAmount: 210000,
     dueDate: '2026-06-01',
     address: 'Алматы, пр. Аль-Фараби 77, оф. 405',
     createdAt: '2026-05-25T16:00:00Z',
@@ -58,13 +58,13 @@ export const DEMO_ORDERS: Order[] = [
     orderNumber: 'З-2026-005',
     customerName: 'Бекжанова Гульнар',
     customerPhone: '+7 701 777 88 99',
-    status: 'completed',
+    status: 'cancelled',
     totalAmount: 175000,
-    paidAmount: 175000,
+    paidAmount: 50000,
     dueDate: '2026-05-15',
     address: 'Алматы, ул. Толе би 25, кв. 8',
     createdAt: '2026-05-01T11:00:00Z',
-    updatedAt: '2026-05-15T14:00:00Z',
+    updatedAt: '2026-05-10T09:00:00Z',
   },
 ];
 
@@ -89,6 +89,8 @@ const DEMO_ORDER_DETAILS: Record<string, OrderDetail> = {
   },
   'demo-2': {
     ...DEMO_ORDERS[1],
+    status: 'waiting_final_payment',
+    paidAmount: 160000,
     items: [
       { id: 'i1', type: 'fabric', name: 'Лён натуральный беж', quantity: 3.8, unitPrice: 15000, totalPrice: 57000, room: 'Спальня', window: 'Окно 1', sewingType: 'Римские шторы' },
       { id: 'i2', type: 'tulle', name: 'Шифон кремовый', quantity: 3.8, unitPrice: 6000, totalPrice: 22800, room: 'Спальня', window: 'Окно 1' },
@@ -128,6 +130,8 @@ const DEMO_ORDER_DETAILS: Record<string, OrderDetail> = {
   },
   'demo-4': {
     ...DEMO_ORDERS[3],
+    status: 'completed',
+    paidAmount: 210000,
     items: [
       { id: 'i1', type: 'fabric', name: 'Жаккард золотой', quantity: 2.5, unitPrice: 25000, totalPrice: 62500, room: 'Кабинет', window: 'Окно' },
       { id: 'i2', type: 'service', name: 'Монтаж', quantity: 1, unitPrice: 10000, totalPrice: 10000 },
@@ -144,6 +148,8 @@ const DEMO_ORDER_DETAILS: Record<string, OrderDetail> = {
   },
   'demo-5': {
     ...DEMO_ORDERS[4],
+    status: 'cancelled',
+    paidAmount: 50000,
     items: [
       { id: 'i1', type: 'fabric', name: 'Хлопок мятный', quantity: 3.0, unitPrice: 12000, totalPrice: 36000, room: 'Детская', window: 'Окно' },
       { id: 'i2', type: 'tulle', name: 'Бамбуковая сетка', quantity: 3.0, unitPrice: 4000, totalPrice: 12000, room: 'Детская', window: 'Окно' },

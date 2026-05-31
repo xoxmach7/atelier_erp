@@ -1,14 +1,16 @@
 import { Tabs } from 'expo-router';
-import { Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
+import { SCREEN_MAX_WIDTH } from '../../src/theme/layout';
 
-function TabLabel({ label, focused }: { label: string; focused: boolean }) {
+function TabIcon({ icon, label, focused }: { icon: string; label: string; focused: boolean }) {
   return (
-    <Text style={[styles.label, focused && styles.labelActive]}>
-      {label}
-    </Text>
+    <View style={styles.iconWrap}>
+      <Text style={[styles.icon, focused && styles.iconActive]}>{icon}</Text>
+      <Text style={[styles.label, focused && styles.labelActive]}>{label}</Text>
+    </View>
   );
 }
 
@@ -18,39 +20,41 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: styles.tabBar,
+        tabBarItemStyle: styles.tabItem,
         tabBarActiveTintColor: colors.primary[500],
         tabBarInactiveTintColor: colors.textMuted,
+        tabBarShowLabel: false,
       }}
     >
       <Tabs.Screen
         name="today"
         options={{
-          tabBarLabel: ({ focused }) => (
-            <TabLabel label="Сегодня" focused={focused} />
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="◎" label="Сегодня" focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
         name="work"
         options={{
-          tabBarLabel: ({ focused }) => (
-            <TabLabel label="Рабочие" focused={focused} />
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="⚒" label="Рабочие" focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
         name="orders"
         options={{
-          tabBarLabel: ({ focused }) => (
-            <TabLabel label="Заказы" focused={focused} />
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="☰" label="Заказы" focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
         name="more"
         options={{
-          tabBarLabel: ({ focused }) => (
-            <TabLabel label="Ещё" focused={focused} />
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="⋮" label="Ещё" focused={focused} />
           ),
         }}
       />
@@ -60,12 +64,31 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
+    width: '100%',
+    maxWidth: SCREEN_MAX_WIDTH,
+    alignSelf: 'center',
     backgroundColor: colors.white,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingBottom: spacing.sm,
     paddingTop: spacing.sm,
-    height: 60,
+    height: 68,
+  },
+  tabItem: {
+    flex: 1,
+  },
+  iconWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  icon: {
+    fontSize: 18,
+    color: colors.textMuted,
+    lineHeight: 22,
+  },
+  iconActive: {
+    color: colors.primary[500],
   },
   label: {
     fontSize: typography.sizes.xs,

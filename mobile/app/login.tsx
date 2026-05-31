@@ -1,11 +1,23 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen } from '../src/components/Screen';
 import { colors } from '../src/theme/colors';
 import { spacing } from '../src/theme/spacing';
 import { radius } from '../src/theme/spacing';
 import { typography } from '../src/theme/typography';
+
+const MAX_FORM_WIDTH = 325;
+const BUTTON_HEIGHT = 43;
+const BUTTON_RADIUS = 10;
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -21,62 +33,73 @@ export default function LoginScreen() {
   };
 
   return (
-    <Screen scrollable={false} withPadding variant="white">
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoLetter}>S</Text>
+    <Screen scrollable={false} withPadding={false} variant="white">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+      >
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <View style={styles.logoCircle}>
+              <Text style={styles.logoLetter}>S</Text>
+            </View>
+            <Text style={styles.title}>Единая база</Text>
+            <Text style={styles.subtitle}>Sheber ERP</Text>
           </View>
-          <Text style={styles.title}>Единая база</Text>
-          <Text style={styles.subtitle}>Sheber ERP</Text>
+
+          <View style={styles.form}>
+            <TextInput
+              style={styles.input}
+              placeholder="Телефон или email"
+              placeholderTextColor={colors.textMuted}
+              value={phone}
+              onChangeText={setPhone}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Пароль"
+              placeholderTextColor={colors.textMuted}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleLogin}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.buttonText}>Вход</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.demoButton}
+              onPress={handleDemoLogin}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.demoButtonText}>Демо-вход</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.footerWrap}>
+            <Text style={styles.footer}>SheberSolution</Text>
+          </View>
         </View>
-
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Телефон или email"
-            placeholderTextColor={colors.textMuted}
-            value={phone}
-            onChangeText={setPhone}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Пароль"
-            placeholderTextColor={colors.textMuted}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-
-          <TouchableOpacity
-            style={styles.button}
-            onPress={handleLogin}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.buttonText}>Вход</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.demoButton}
-            onPress={handleDemoLogin}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.demoButtonText}>Демо-вход</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.footer}>SheberSolution</Text>
-      </View>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardView: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
   },
   header: {
     alignItems: 'center',
@@ -108,21 +131,27 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: spacing.base,
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: MAX_FORM_WIDTH,
     marginBottom: spacing['2xl'],
   },
   input: {
     backgroundColor: colors.neutral[100],
-    borderRadius: radius.lg,
-    paddingVertical: spacing.lg,
+    borderRadius: BUTTON_RADIUS,
+    height: BUTTON_HEIGHT,
     paddingHorizontal: spacing.base,
     fontSize: typography.sizes.base,
     color: colors.text,
+    width: '100%',
   },
   button: {
     backgroundColor: colors.primary[500],
-    paddingVertical: spacing.lg,
-    borderRadius: radius.lg,
+    height: BUTTON_HEIGHT,
+    borderRadius: BUTTON_RADIUS,
     alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
   },
   buttonText: {
     color: colors.white,
@@ -131,17 +160,25 @@ const styles = StyleSheet.create({
   },
   demoButton: {
     backgroundColor: colors.neutral[100],
-    paddingVertical: spacing.lg,
-    borderRadius: radius.lg,
+    height: BUTTON_HEIGHT,
+    borderRadius: BUTTON_RADIUS,
     alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
   },
   demoButtonText: {
     color: colors.text,
     fontSize: typography.sizes.base,
     fontWeight: typography.weights.medium,
   },
+  footerWrap: {
+    position: 'absolute',
+    bottom: spacing.lg,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
   footer: {
-    textAlign: 'center',
     fontSize: typography.sizes.sm,
     color: colors.textMuted,
   },
