@@ -98,12 +98,13 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
+    paddingTop: spacing['4xl'],
+    paddingBottom: spacing.lg,
   },
   header: {
     alignItems: 'center',
-    marginBottom: spacing['3xl'],
   },
   logoCircle: {
     width: 72,
@@ -113,6 +114,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.lg,
+    borderWidth: 2,
+    borderColor: colors.primary[200],
   },
   logoLetter: {
     fontSize: typography.sizes['3xl'],
@@ -134,7 +137,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '100%',
     maxWidth: MAX_FORM_WIDTH,
-    marginBottom: spacing['2xl'],
   },
   input: {
     backgroundColor: colors.neutral[100],
@@ -172,11 +174,8 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.medium,
   },
   footerWrap: {
-    position: 'absolute',
-    bottom: spacing.lg,
-    left: 0,
-    right: 0,
     alignItems: 'center',
+    marginTop: spacing.lg,
   },
   footer: {
     fontSize: typography.sizes.sm,

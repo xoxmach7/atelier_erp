@@ -70,16 +70,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: radius.full,
     backgroundColor: colors.neutral[100],
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   activePill: {
     backgroundColor: colors.primary[500],
-    borderColor: colors.primary[500],
     shadowColor: colors.primary[500],
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
     elevation: 2,
   },
   label: {

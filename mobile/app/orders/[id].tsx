@@ -70,17 +70,14 @@ export default function OrderDetailScreen() {
         </View>
       )}
 
+      <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backWrap}>
+        <Text style={styles.back}>← Назад</Text>
+      </TouchableOpacity>
+
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-          <Text style={styles.back}>← Назад</Text>
-        </TouchableOpacity>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.orderNumber}>{data.orderNumber}</Text>
-            <Text style={styles.customer}>{data.customerName}</Text>
-            {data.customerPhone && <Text style={styles.meta}>{data.customerPhone}</Text>}
-          </View>
-        </View>
+        <Text style={styles.orderNumber}>{data.orderNumber}</Text>
+        <Text style={styles.customer}>{data.customerName}</Text>
+        {data.customerPhone && <Text style={styles.meta}>{data.customerPhone}</Text>}
       </View>
 
       <View style={styles.card}>
@@ -130,25 +127,17 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: spacing.lg,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.lg,
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginTop: spacing.sm,
+  backWrap: {
+    alignSelf: 'flex-start',
+    marginBottom: spacing.sm,
   },
   back: {
     fontSize: typography.sizes.sm,
     color: colors.primary[500],
-    marginBottom: spacing.sm,
+    fontWeight: typography.weights.medium,
+  },
+  header: {
+    marginBottom: spacing.lg,
   },
   orderNumber: {
     fontSize: typography.sizes.xl,
@@ -167,8 +156,8 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.white,
-    borderRadius: radius.xl,
-    padding: spacing.base,
+    borderRadius: radius.lg,
+    padding: spacing.md,
     marginBottom: spacing.base,
     shadowColor: colors.text,
     shadowOffset: { width: 0, height: 1 },
@@ -203,12 +192,14 @@ const styles = StyleSheet.create({
   },
   actions: {
     marginTop: spacing.lg,
+    marginBottom: spacing['2xl'],
   },
   actionButton: {
     backgroundColor: colors.primary[500],
-    paddingVertical: spacing.lg,
+    height: 43,
     borderRadius: radius.lg,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   actionText: {
     color: colors.white,
@@ -217,14 +208,13 @@ const styles = StyleSheet.create({
   },
   demoBanner: {
     backgroundColor: colors.warning.light,
-    borderRadius: radius.lg,
-    padding: spacing.base,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.base,
     marginBottom: spacing.base,
-    borderWidth: 1,
-    borderColor: colors.warning.DEFAULT,
   },
   demoBannerText: {
-    fontSize: typography.sizes.sm,
+    fontSize: typography.sizes.xs,
     fontWeight: typography.weights.medium,
     color: colors.warning.dark,
     textAlign: 'center',

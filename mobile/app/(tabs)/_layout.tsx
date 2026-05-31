@@ -30,7 +30,7 @@ export default function TabLayout() {
         name="today"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="◎" label="Сегодня" focused={focused} />
+            <TabIcon icon="◯" label="Сегодня" focused={focused} />
           ),
         }}
       />
@@ -81,11 +81,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
+    paddingTop: 2,
   },
   icon: {
-    fontSize: 18,
+    fontSize: 20,
     color: colors.textMuted,
-    lineHeight: 22,
+    lineHeight: 24,
   },
   iconActive: {
     color: colors.primary[500],
@@ -94,6 +95,7 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     fontWeight: typography.weights.medium,
     color: colors.textMuted,
+    lineHeight: 14,
   },
   labelActive: {
     color: colors.primary[500],
