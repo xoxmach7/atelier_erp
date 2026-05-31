@@ -58,6 +58,7 @@ export const colors = {
   text: '#0F172A',
   textMuted: '#64748B',
   white: '#FFFFFF',
+  input: '#E9E9E9',
 } as const;
 
 export type Colors = typeof colors;
