@@ -91,12 +91,12 @@ export const DEMO_WORK_QUEUES: Record<RoleKey, WorkQueueResponse> = {
   },
   warehouse: {
     role: 'warehouse',
-    count: 2,
+    count: 1,
     items: baseItems.filter((i) => i.materialReadiness !== 'ready'),
   },
   production: {
     role: 'production',
-    count: 2,
+    count: 1,
     items: baseItems.filter((i) => i.stage === 'production' || i.status === 'in_production'),
   },
   installation: {

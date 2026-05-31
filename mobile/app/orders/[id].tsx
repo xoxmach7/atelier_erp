@@ -4,6 +4,8 @@ import { Screen } from '../../src/components/Screen';
 import { StatusDot } from '../../src/components/StatusDot';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useOrderDetail } from '../../src/hooks/useOrder';
+import { getStatusLabel, getNextStepLabel } from '../../src/utils/orderLabels';
+import { formatCurrency } from '../../src/utils/formatters';
 import { colors } from '../../src/theme/colors';
 import { spacing, radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
@@ -59,18 +61,18 @@ export default function OrderDetailScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Статус</Text>
-        <Text style={styles.cardValue}>{data.status}</Text>
+        <Text style={styles.cardValue}>{getStatusLabel(data.status)}</Text>
       </View>
 
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Следующий шаг</Text>
-        <Text style={styles.cardValue}>В работе</Text>
+        <Text style={styles.cardValue}>{getNextStepLabel(data.status)}</Text>
       </View>
 
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Оплата</Text>
         <Text style={styles.cardValue}>
-          {data.paidAmount} / {data.totalAmount}
+          {formatCurrency(data.paidAmount)} / {formatCurrency(data.totalAmount)}
         </Text>
       </View>
 

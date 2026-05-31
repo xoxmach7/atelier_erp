@@ -4,6 +4,7 @@ import { Screen } from '../../src/components/Screen';
 import { RoleOrderRow } from '../../src/components/RoleOrderRow';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useOrders } from '../../src/hooks/useOrder';
+import { getStatusLabel } from '../../src/utils/orderLabels';
 import { colors } from '../../src/theme/colors';
 import { spacing, radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
@@ -56,7 +57,7 @@ export default function OrdersScreen() {
             key={order.id}
             orderNumber={order.orderNumber}
             client={order.customerName}
-            subtitle={order.status}
+            subtitle={getStatusLabel(order.status)}
             statusColor={getStatusColor(order.status)}
             onPress={() => router.push(`/orders/${order.id}`)}
           />
