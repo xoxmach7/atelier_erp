@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen } from '../../src/components/Screen';
 import { RoleSwitcher } from '../../src/components/RoleSwitcher';
@@ -16,7 +16,8 @@ function getStatusColor(status: string): 'success' | 'warning' | 'danger' | 'inf
   if (s.includes('completed') || s.includes('ready') || s.includes('done')) return 'success';
   if (s.includes('urgent') || s.includes('overdue') || s.includes('error') || s.includes('not_ready')) return 'danger';
   if (s.includes('warning') || s.includes('waiting') || s.includes('partial')) return 'warning';
-  if (s.includes('in_work') || s.includes('in_production') || s.includes('new')) return 'info';
+  if (s.includes('new')) return 'neutral';
+  if (s.includes('in_work') || s.includes('in_production')) return 'info';
   return 'neutral';
 }
 
@@ -31,6 +32,25 @@ function getNextStep(role: RoleKey, status: string): string {
   return map[role] || 'В работе';
 }
 
+function getRoleTitle(role: RoleKey): string {
+  const map: Record<string, string> = {
+    designer: 'Дизайнер',
+    quotes: 'КП',
+    warehouse: 'Склад',
+    production: 'Пошив',
+    installation: 'Установка',
+  };
+  return map[role] || 'Рабочие';
+}
+
+function IconButton({ icon, onPress }: { icon: string; onPress?: () => void }) {
+  return (
+    <TouchableOpacity style={styles.iconBtn} onPress={onPress} activeOpacity={0.7}>
+      <Text style={styles.iconText}>{icon}</Text>
+    </TouchableOpacity>
+  );
+}
+
 export default function WorkScreen() {
   const router = useRouter();
   const [activeRole, setActiveRole] = useState<RoleKey>('designer');
@@ -38,15 +58,13 @@ export default function WorkScreen() {
 
   return (
     <Screen>
-      <View style={styles.header}>
-        <Text style={styles.title}>
-          {activeRole === 'designer' && 'Дизайнер'}
-          {activeRole === 'quotes' && 'КП'}
-          {activeRole === 'warehouse' && 'Склад'}
-          {activeRole === 'production' && 'Пошив'}
-          {activeRole === 'installation' && 'Установка'}
-        </Text>
-        <Text style={styles.count}>{count} заказов</Text>
+      <View style={styles.topBar}>
+        <View style={styles.topBarPlaceholder} />
+        <Text style={styles.pageTitle}>{getRoleTitle(activeRole)}</Text>
+        <View style={styles.actions}>
+          <IconButton icon="⌕" />
+          <IconButton icon="≡" />
+        </View>
       </View>
 
       <RoleSwitcher activeRole={activeRole} onRoleChange={setActiveRole} />
@@ -90,20 +108,40 @@ export default function WorkScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
+  topBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.base,
+    justifyContent: 'space-between',
+    marginBottom: spacing.lg,
   },
-  title: {
-    fontSize: typography.sizes.xl,
+  topBarPlaceholder: {
+    width: 60,
+  },
+  pageTitle: {
+    fontSize: typography.sizes.lg,
     fontWeight: typography.weights.bold,
     color: colors.text,
+    textAlign: 'center',
+    flex: 1,
   },
-  count: {
-    fontSize: typography.sizes.sm,
-    color: colors.textMuted,
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    width: 60,
+    justifyContent: 'flex-end',
+  },
+  iconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.md,
+    backgroundColor: colors.neutral[100],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconText: {
+    fontSize: typography.sizes.base,
+    color: colors.text,
   },
   error: {
     color: colors.danger.DEFAULT,

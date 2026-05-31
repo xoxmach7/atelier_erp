@@ -21,14 +21,14 @@ export default function LoginScreen() {
   };
 
   return (
-    <Screen scrollable={false} withPadding>
+    <Screen scrollable={false} withPadding variant="white">
       <View style={styles.container}>
         <View style={styles.header}>
           <View style={styles.logoCircle}>
             <Text style={styles.logoLetter}>S</Text>
           </View>
-          <Text style={styles.logo}>Sheber</Text>
-          <Text style={styles.subtitle}>Единая база</Text>
+          <Text style={styles.title}>Единая база</Text>
+          <Text style={styles.subtitle}>Sheber ERP</Text>
         </View>
 
         <View style={styles.form}>
@@ -67,7 +67,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.footer}>Sheber ERP</Text>
+        <Text style={styles.footer}>SheberSolution</Text>
       </View>
     </Screen>
   );
@@ -96,8 +96,8 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.bold,
     color: colors.white,
   },
-  logo: {
-    fontSize: typography.sizes['3xl'],
+  title: {
+    fontSize: typography.sizes['2xl'],
     fontWeight: typography.weights.bold,
     color: colors.text,
   },
@@ -111,9 +111,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing['2xl'],
   },
   input: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: colors.neutral[100],
     borderRadius: radius.lg,
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.base,
@@ -136,8 +134,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     borderRadius: radius.lg,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   demoButtonText: {
     color: colors.text,

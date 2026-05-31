@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen } from '../../src/components/Screen';
@@ -8,12 +7,12 @@ import { spacing } from '../../src/theme/spacing';
 import { radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 
-type MetricKey = 'profit' | 'revenue' | 'expenses';
-
-const METRICS: { key: MetricKey; label: string }[] = [
-  { key: 'profit', label: 'Прибыль' },
-  { key: 'revenue', label: 'Выручка' },
-  { key: 'expenses', label: 'Расходы' },
+const KPI_ITEMS = [
+  { label: 'Всего заказов', value: '0', color: colors.primary[500] },
+  { label: 'В работе', value: '0', color: colors.primary[500] },
+  { label: 'Ожидают оплаты', value: '0', color: colors.warning.DEFAULT },
+  { label: 'Просрочено', value: '0', color: colors.danger.DEFAULT },
+  { label: 'Материалы', value: '0', color: colors.danger.DEFAULT },
 ];
 
 const SUMMARY_ITEMS = [
@@ -29,7 +28,6 @@ const SUMMARY_ITEMS = [
 
 export default function TodayScreen() {
   const router = useRouter();
-  const [activeMetric, setActiveMetric] = useState<MetricKey>('profit');
 
   return (
     <Screen>
@@ -38,36 +36,13 @@ export default function TodayScreen() {
         <Text style={styles.period}>Май 2026</Text>
       </View>
 
-      <View style={styles.toggles}>
-        {METRICS.map((m) => (
-          <TouchableOpacity
-            key={m.key}
-            style={[styles.toggle, activeMetric === m.key && styles.toggleActive]}
-            onPress={() => setActiveMetric(m.key)}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.toggleLabel, activeMetric === m.key && styles.toggleLabelActive]}>
-              {m.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>{METRICS.find(m => m.key === activeMetric)?.label}</Text>
-        <Text style={styles.chartValue}>0 ₸</Text>
-        <View style={styles.chartPlaceholder}>
-          <View style={styles.barGroup}>
-            <View style={[styles.bar, { height: 24 }]} />
-            <View style={[styles.bar, { height: 40 }]} />
-            <View style={[styles.bar, { height: 32 }]} />
-            <View style={[styles.bar, { height: 48 }]} />
-            <View style={[styles.bar, { height: 20 }]} />
-            <View style={[styles.bar, { height: 36 }]} />
-            <View style={[styles.bar, { height: 28 }]} />
+      <View style={styles.kpiGrid}>
+        {KPI_ITEMS.map((item) => (
+          <View key={item.label} style={styles.kpiCard}>
+            <Text style={[styles.kpiValue, { color: item.color }]}>{item.value}</Text>
+            <Text style={styles.kpiLabel}>{item.label}</Text>
           </View>
-          <Text style={styles.chartHint}>Динамика по неделям (placeholder)</Text>
-        </View>
+        ))}
       </View>
 
       <Text style={styles.sectionTitle}>Показатели</Text>
@@ -107,71 +82,30 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: spacing.xs,
   },
-  toggles: {
+  kpiGrid: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    flexWrap: 'wrap',
+    gap: spacing.base,
     marginBottom: spacing.lg,
   },
-  toggle: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.base,
-    borderRadius: radius.lg,
-    backgroundColor: colors.neutral[100],
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  toggleActive: {
-    backgroundColor: colors.primary[500],
-    borderColor: colors.primary[500],
-  },
-  toggleLabel: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.medium,
-    color: colors.text,
-  },
-  toggleLabelActive: {
-    color: colors.white,
-    fontWeight: typography.weights.semibold,
-  },
-  chartCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+  kpiCard: {
+    width: '47%',
+    backgroundColor: colors.white,
+    borderRadius: radius.xl,
     padding: spacing.base,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  chartTitle: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.medium,
-    color: colors.textMuted,
-    marginBottom: spacing.xs,
-  },
-  chartValue: {
+  kpiValue: {
     fontSize: typography.sizes['2xl'],
     fontWeight: typography.weights.bold,
-    color: colors.text,
-    marginBottom: spacing.base,
-  },
-  chartPlaceholder: {
-    alignItems: 'center',
-  },
-  barGroup: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: spacing.sm,
-    height: 56,
     marginBottom: spacing.xs,
   },
-  bar: {
-    width: 20,
-    backgroundColor: colors.primary[200],
-    borderRadius: radius.sm,
-  },
-  chartHint: {
-    fontSize: typography.sizes.xs,
+  kpiLabel: {
+    fontSize: typography.sizes.sm,
     color: colors.textMuted,
   },
   sectionTitle: {

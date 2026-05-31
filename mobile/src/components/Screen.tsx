@@ -8,17 +8,19 @@ interface ScreenProps {
   children: React.ReactNode;
   scrollable?: boolean;
   withPadding?: boolean;
+  variant?: 'gray' | 'white';
 }
 
-export function Screen({ children, scrollable = true, withPadding = true }: ScreenProps) {
+export function Screen({ children, scrollable = true, withPadding = true, variant = 'gray' }: ScreenProps) {
   const contentStyle = [
     styles.content,
     withPadding && styles.padding,
   ];
+  const containerBg = variant === 'white' ? colors.white : colors.background;
 
   if (scrollable) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: containerBg }]} edges={['top']}>
         <ScrollView style={styles.scroll} contentContainerStyle={contentStyle}>
           {children}
         </ScrollView>
@@ -27,7 +29,7 @@ export function Screen({ children, scrollable = true, withPadding = true }: Scre
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: containerBg }]} edges={['top']}>
       <View style={contentStyle}>
         {children}
       </View>
@@ -38,13 +40,12 @@ export function Screen({ children, scrollable = true, withPadding = true }: Scre
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   scroll: {
     flex: 1,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
   },
   padding: {
     padding: spacing.base,

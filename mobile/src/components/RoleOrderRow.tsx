@@ -25,12 +25,16 @@ export function RoleOrderRow({
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.left}>
-        <Text style={styles.orderNumber}>{orderNumber}</Text>
+        <View style={styles.topLine}>
+          <Text style={styles.orderNumber}>{orderNumber}</Text>
+          {date && <Text style={styles.date}>{date}</Text>}
+        </View>
         <Text style={styles.client}>{client}</Text>
-        {date && <Text style={styles.meta}>{date}</Text>}
         {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
       </View>
-      <StatusDot variant={statusColor} size={10} />
+      <View style={styles.status}>
+        <StatusDot variant={statusColor} size={10} />
+      </View>
     </TouchableOpacity>
   );
 }
@@ -41,33 +45,45 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: colors.white,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     padding: spacing.base,
     marginBottom: spacing.base,
-    borderWidth: 1,
-    borderColor: colors.border,
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
   left: {
     flex: 1,
+  },
+  topLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
   },
   orderNumber: {
     fontSize: typography.sizes.md,
     fontWeight: typography.weights.semibold,
     color: colors.text,
-    marginBottom: spacing.xs,
+  },
+  date: {
+    fontSize: typography.sizes.xs,
+    color: colors.textMuted,
   },
   client: {
     fontSize: typography.sizes.base,
     color: colors.text,
     marginBottom: spacing.xs,
   },
-  meta: {
-    fontSize: typography.sizes.sm,
-    color: colors.textMuted,
-  },
   subtitle: {
     fontSize: typography.sizes.sm,
     color: colors.textMuted,
-    marginTop: spacing.xs,
+  },
+  status: {
+    marginLeft: spacing.base,
+    alignSelf: 'flex-start',
+    paddingTop: spacing.xs,
   },
 });

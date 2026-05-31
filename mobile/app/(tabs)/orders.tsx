@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { Screen } from '../../src/components/Screen';
 import { RoleOrderRow } from '../../src/components/RoleOrderRow';
 import { EmptyState } from '../../src/components/EmptyState';
@@ -14,8 +14,17 @@ function getStatusColor(status: string): 'success' | 'warning' | 'danger' | 'inf
   if (s.includes('completed') || s.includes('done') || s.includes('ready')) return 'success';
   if (s.includes('urgent') || s.includes('overdue') || s.includes('cancelled')) return 'danger';
   if (s.includes('waiting') || s.includes('payment') || s.includes('partial')) return 'warning';
-  if (s.includes('new') || s.includes('in_work') || s.includes('production')) return 'info';
+  if (s.includes('new')) return 'neutral';
+  if (s.includes('in_work') || s.includes('production')) return 'info';
   return 'neutral';
+}
+
+function IconButton({ icon, onPress }: { icon: string; onPress?: () => void }) {
+  return (
+    <TouchableOpacity style={styles.iconBtn} onPress={onPress} activeOpacity={0.7}>
+      <Text style={styles.iconText}>{icon}</Text>
+    </TouchableOpacity>
+  );
 }
 
 export default function OrdersScreen() {
@@ -24,9 +33,14 @@ export default function OrdersScreen() {
 
   return (
     <Screen>
-      <View style={styles.header}>
-        <Text style={styles.title}>Заказы</Text>
-        <Text style={styles.count}>{data.length} всего</Text>
+      <View style={styles.topBar}>
+        <View style={styles.topBarPlaceholder} />
+        <Text style={styles.pageTitle}>Управление заказами</Text>
+        <View style={styles.actions}>
+          <IconButton icon="⌕" />
+          <IconButton icon="≡" />
+          <IconButton icon="+" />
+        </View>
       </View>
 
       {isDemo && (
@@ -57,6 +71,7 @@ export default function OrdersScreen() {
             key={order.id}
             orderNumber={order.orderNumber}
             client={order.customerName}
+            date={order.dueDate}
             subtitle={getStatusLabel(order.status)}
             statusColor={getStatusColor(order.status)}
             onPress={() => router.push(`/orders/${order.id}`)}
@@ -67,20 +82,40 @@ export default function OrdersScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
+  topBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.base,
+    justifyContent: 'space-between',
+    marginBottom: spacing.lg,
   },
-  title: {
-    fontSize: typography.sizes.xl,
+  topBarPlaceholder: {
+    width: 80,
+  },
+  pageTitle: {
+    fontSize: typography.sizes.lg,
     fontWeight: typography.weights.bold,
     color: colors.text,
+    textAlign: 'center',
+    flex: 1,
   },
-  count: {
-    fontSize: typography.sizes.sm,
-    color: colors.textMuted,
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    width: 80,
+    justifyContent: 'flex-end',
+  },
+  iconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.md,
+    backgroundColor: colors.neutral[100],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconText: {
+    fontSize: typography.sizes.base,
+    color: colors.text,
   },
   error: {
     color: colors.danger.DEFAULT,
