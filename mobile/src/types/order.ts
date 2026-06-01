@@ -1,27 +1,37 @@
+// Backend returns snake_case — these types match the API response directly
 export type OrderStatus =
   | 'new'
   | 'in_work'
   | 'in_production'
   | 'ready'
-  | 'installation'
+  | 'on_installation'
+  | 'waiting_final_payment'
   | 'completed'
-  | 'cancelled'
-  | 'waiting_final_payment';
+  | 'cancelled';
 
 export interface Order {
   id: string;
-  orderNumber: string;
-  customerName: string;
-  customerPhone: string;
+  order_number: string;
+  customer: string;          // UUID
+  customer_name: string;
+  customer_phone: string;
   status: OrderStatus;
-  totalAmount: number;
-  paidAmount: number;
-  dueDate?: string;
-  address?: string;
-  createdAt: string;
-  updatedAt: string;
+  status_display: string;
+  total_amount: string;
+  paid_amount: string;
+  balance_due: string;
+  created_at: string;
+  planned_completion: string | null;
 }
 
+export interface OrdersPage {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: Order[];
+}
+
+// Keep legacy types for OrderDetail until detail screen is rebuilt
 export interface OrderDetail extends Order {
   items: OrderItem[];
   measurements?: Measurement[];

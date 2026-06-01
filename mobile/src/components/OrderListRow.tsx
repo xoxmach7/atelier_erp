@@ -1,39 +1,24 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
-import { radius } from '../theme/spacing';
-import { typography } from '../theme/typography';
 
 interface OrderListRowProps {
   title: string;
   date?: string;
-  designer?: string;
+  subtitle?: string;
   statusColor?: string;
   onPress?: () => void;
 }
 
-export function OrderListRow({
-  title,
-  date,
-  designer,
-  statusColor,
-  onPress,
-}: OrderListRowProps) {
+export function OrderListRow({ title, date, subtitle, statusColor, onPress }: OrderListRowProps) {
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.left}>
         <Text style={styles.titleText}>{title}</Text>
-        {date ? <Text style={styles.dateText}>{date}</Text> : null}
-        {designer ? <Text style={styles.designerText}>{designer}</Text> : null}
+        {date ? <Text style={styles.metaText}>{date}</Text> : null}
+        {subtitle ? <Text style={styles.metaText}>{subtitle}</Text> : null}
       </View>
-      <View style={styles.dotWrap}>
-        <View
-          style={[
-            styles.dot,
-            { backgroundColor: statusColor ?? colors.neutral[400] },
-          ]}
-        />
-      </View>
+      <View style={[styles.dot, { backgroundColor: statusColor ?? colors.neutral[300] }]} />
     </TouchableOpacity>
   );
 }
@@ -43,38 +28,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.neutral[50],
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.base,
-    marginBottom: spacing.xs,
+    paddingVertical: spacing.base,
+    paddingHorizontal: 29,
+    backgroundColor: 'transparent',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
     minHeight: 88,
   },
   left: {
     flex: 1,
+    paddingRight: spacing.xl,
   },
   titleText: {
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.semibold,
+    fontSize: 16,
+    fontWeight: '400',
     color: colors.text,
-    marginBottom: spacing.xs,
+    marginBottom: 2,
   },
-  dateText: {
-    fontSize: typography.sizes.sm,
+  metaText: {
+    fontSize: 14,
     color: colors.textMuted,
-    marginBottom: spacing.xs,
-  },
-  designerText: {
-    fontSize: typography.sizes.sm,
-    color: colors.textMuted,
-  },
-  dotWrap: {
-    marginLeft: spacing.base,
-    justifyContent: 'center',
+    marginTop: 2,
   },
   dot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    flexShrink: 0,
   },
 });

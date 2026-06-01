@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen } from '../src/components/Screen';
 import { LogoTitle } from '../src/components/LogoTitle';
 import { AppTextInput } from '../src/components/AppTextInput';
 import { PrimaryButton } from '../src/components/PrimaryButton';
+import { useAuthContext } from '../src/context/AuthContext';
 import { spacing } from '../src/theme/spacing';
 import { colors } from '../src/theme/colors';
 import { typography } from '../src/theme/typography';
@@ -13,15 +14,26 @@ const FORM_MAX_WIDTH = 326;
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [phone, setPhone] = useState('');
+  const { login } = useAuthContext();
+
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    router.replace('/today');
-  };
-
-  const handleDemoLogin = () => {
-    router.replace('/today');
+  const handleLogin = async () => {
+    if (!username.trim() || !password.trim()) {
+      Alert.alert('Ошибка', 'Введите логин и пароль');
+      return;
+    }
+    setLoading(true);
+    try {
+      await login(username.trim(), password);
+      router.replace('/(tabs)/today');
+    } catch (err) {
+      Alert.alert('Не удалось войти', err instanceof Error ? err.message : 'Ошибка входа');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -37,11 +49,11 @@ export default function LoginScreen() {
 
           <View style={styles.form}>
             <AppTextInput
-              placeholder="Телефон или email"
-              value={phone}
-              onChangeText={setPhone}
+              placeholder="Логин"
+              value={username}
+              onChangeText={setUsername}
               autoCapitalize="none"
-              keyboardType="email-address"
+              autoCorrect={false}
             />
             <AppTextInput
               placeholder="Пароль"
@@ -49,8 +61,11 @@ export default function LoginScreen() {
               onChangeText={setPassword}
               secureTextEntry
             />
-            <PrimaryButton title="Вход" onPress={handleLogin} />
-            <PrimaryButton title="Демо-вход" onPress={handleDemoLogin} variant="secondary" />
+            <PrimaryButton
+              title={loading ? 'Вход...' : 'Войти'}
+              onPress={handleLogin}
+              disabled={loading}
+            />
           </View>
 
           <View style={styles.footerWrap}>
@@ -63,9 +78,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  keyboardView: {
-    flex: 1,
-  },
+  keyboardView: { flex: 1 },
   container: {
     flex: 1,
     justifyContent: 'space-between',
@@ -73,22 +86,8 @@ const styles = StyleSheet.create({
     paddingTop: spacing['5xl'],
     paddingBottom: spacing.lg,
   },
-  top: {
-    alignItems: 'center',
-    marginTop: spacing['2xl'],
-  },
-  form: {
-    gap: spacing.base,
-    alignSelf: 'center',
-    width: '100%',
-    maxWidth: FORM_MAX_WIDTH,
-  },
-  footerWrap: {
-    alignItems: 'center',
-    marginTop: spacing.lg,
-  },
-  footer: {
-    fontSize: typography.sizes.sm,
-    color: colors.textMuted,
-  },
+  top: { alignItems: 'center', marginTop: spacing['2xl'] },
+  form: { gap: spacing.base, alignSelf: 'center', width: '100%', maxWidth: FORM_MAX_WIDTH },
+  footerWrap: { alignItems: 'center', marginTop: spacing.lg },
+  footer: { fontSize: typography.sizes.sm, color: colors.textMuted },
 });

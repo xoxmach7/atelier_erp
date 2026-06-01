@@ -1,166 +1,273 @@
+import { useState } from 'react';
+import {
+  View, Text, FlatList, TouchableOpacity,
+  ActivityIndicator, TextInput, StyleSheet,
+} from 'react-native';
 import { useRouter } from 'expo-router';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { Screen } from '../../src/components/Screen';
 import { OrderListRow } from '../../src/components/OrderListRow';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useOrders } from '../../src/hooks/useOrder';
-import { getOrderIndicator } from '../../src/utils/orderLabels';
+import { useAuthContext } from '../../src/context/AuthContext';
+import { getStatusDotColor, getStatusLabel } from '../../src/utils/orderLabels';
 import type { Order } from '../../src/types/order';
 import { colors } from '../../src/theme/colors';
-import { spacing, radius } from '../../src/theme/spacing';
+import { spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 
-const STATUS_COLOR: Record<string, string> = {
-  neutral: colors.neutral[400],
-  primary: colors.primary[500],
-  warning: colors.warning.DEFAULT,
-  success: colors.success.DEFAULT,
-  danger: colors.danger.DEFAULT,
-};
+const STATUS_FILTERS = [
+  { key: undefined,              label: 'Все' },
+  { key: 'new',                  label: 'Новые' },
+  { key: 'in_work',              label: 'В работе' },
+  { key: 'in_production',        label: 'Пошив' },
+  { key: 'ready',                label: 'Готовы' },
+  { key: 'on_installation',      label: 'Установка' },
+  { key: 'waiting_final_payment',label: 'Оплата' },
+] as const;
 
-const DEMO_DESIGNERS: Record<string, string> = {
-  'demo-1': 'Ибраева',
-  'demo-2': 'Кенесова',
-  'demo-3': 'Алиева',
-  'demo-4': 'Смагулова',
-  'demo-5': 'Тулегенова',
-};
-
-function IconButton({ icon, onPress }: { icon: string; onPress?: () => void }) {
-  return (
-    <TouchableOpacity style={styles.iconBtn} onPress={onPress} activeOpacity={0.7}>
-      <Text style={styles.iconText}>{icon}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function formatOrderTitle(order: Order): string {
-  const numMatch = order.orderNumber?.match(/\d+$/);
-  const num = numMatch ? numMatch[0] : order.orderNumber ?? '—';
-  const surname = order.customerName?.split(' ')[0] ?? '';
-  return `№${num} [${surname}]`;
-}
-
-function formatDate(dateStr?: string): string {
+function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '';
-  const parts = dateStr.split('-');
+  const parts = dateStr.split('T')[0].split('-');
   if (parts.length !== 3) return dateStr;
   const [year, month, day] = parts;
   return `${day}.${month}.${year.slice(2)}`;
 }
 
-function formatDesigner(order: Order): string {
-  const name = DEMO_DESIGNERS[order.id];
-  return name ? `Дизайнер: ${name}` : 'Дизайнер: —';
+function orderTitle(order: Order): string {
+  const numMatch = order.order_number?.match(/\d+$/);
+  const num = numMatch ? numMatch[0] : order.order_number ?? '—';
+  const surname = order.customer_name?.split(' ')[0] ?? '';
+  return `№${num} [${surname}]`;
+}
+
+function orderSubtitle(order: Order): string {
+  const date = formatDate(order.planned_completion ?? order.created_at);
+  const status = getStatusLabel(order.status);
+  return date ? `${date} · ${status}` : status;
 }
 
 export default function OrdersScreen() {
   const router = useRouter();
-  const { data, loading, error, isDemo } = useOrders();
+  const { primaryRole } = useAuthContext();
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [search, setSearch] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+
+  const { data, total, loading, error, refetch } = useOrders(statusFilter);
+
+  const filtered = search.trim()
+    ? data.filter(o =>
+        o.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
+        o.order_number?.toLowerCase().includes(search.toLowerCase())
+      )
+    : data;
+
+  const canCreate = primaryRole === 'owner' || primaryRole === 'designer' || primaryRole === 'quotes';
 
   return (
-    <Screen>
-      <View style={styles.topBar}>
-        <Text style={styles.pageTitle}>Управление заказами</Text>
-        <View style={styles.actions}>
-          <IconButton icon="+" />
-          <IconButton icon="⌕" />
-          <IconButton icon="≡" />
+    <Screen scrollable={false} withPadding={false}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Управление заказами</Text>
+        <View style={styles.headerActions}>
+          {canCreate && (
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={() => router.push('/orders/new')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.iconText}>＋</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => setShowSearch(v => !v)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.iconText}>⌕</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
-      {isDemo && (
-        <View style={styles.demoBanner}>
-          <Text style={styles.demoBannerText}>Демо-данные: backend требует авторизацию</Text>
+      {/* Search */}
+      {showSearch && (
+        <View style={styles.searchWrap}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Поиск по клиенту или номеру"
+            placeholderTextColor={colors.textMuted}
+            value={search}
+            onChangeText={setSearch}
+            autoFocus
+          />
         </View>
       )}
 
+      {/* Status filter pills */}
+      <FlatList
+        data={STATUS_FILTERS}
+        keyExtractor={item => item.key ?? 'all'}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterList}
+        contentContainerStyle={styles.filterContent}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={[styles.pill, statusFilter === item.key && styles.pillActive]}
+            onPress={() => setStatusFilter(item.key as string | undefined)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.pillText, statusFilter === item.key && styles.pillTextActive]}>
+              {item.label}
+            </Text>
+          </TouchableOpacity>
+        )}
+      />
+
+      {/* Count */}
+      {!loading && !error && (
+        <Text style={styles.countText}>{total} заказов</Text>
+      )}
+
+      {/* List */}
       {loading && (
-        <ActivityIndicator size="large" color={colors.primary[500]} />
+        <View style={styles.centered}>
+          <ActivityIndicator color={colors.primary[500]} />
+        </View>
       )}
 
-      {error && (
-        <Text style={styles.error}>{error}</Text>
+      {Boolean(error) && !loading && (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity onPress={refetch}>
+            <Text style={styles.retryText}>Повторить</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
-      {!loading && !error && data.length === 0 && (
-        <EmptyState
-          title="Нет заказов"
-          subtitle="Заказы пока не созданы"
+      {!loading && !error && (
+        <FlatList
+          data={filtered}
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => (
+            <OrderListRow
+              title={orderTitle(item)}
+              date={formatDate(item.planned_completion ?? item.created_at)}
+              subtitle={getStatusLabel(item.status)}
+              statusColor={getStatusDotColor(item.status)}
+              onPress={() => router.push(`/orders/${item.id}`)}
+            />
+          )}
+          ListEmptyComponent={
+            <EmptyState
+              title="Заказов нет"
+              subtitle={search ? 'Ничего не найдено по запросу' : 'Заказы появятся здесь'}
+            />
+          }
+          onRefresh={refetch}
+          refreshing={loading}
+          showsVerticalScrollIndicator={false}
         />
       )}
-
-      <View style={styles.list}>
-        {!loading &&
-          !error &&
-          data.map((order) => {
-            const indicator = getOrderIndicator(order.status);
-            return (
-              <OrderListRow
-                key={order.id}
-                title={formatOrderTitle(order)}
-                date={formatDate(order.dueDate)}
-                designer={formatDesigner(order)}
-                statusColor={STATUS_COLOR[indicator.variant]}
-                onPress={() => router.push(`/orders/${order.id}`)}
-              />
-            );
-          })}
-      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  topBar: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.base,
+    paddingBottom: spacing.sm,
   },
-  pageTitle: {
+  title: {
     fontSize: typography.sizes['2xl'],
-    fontWeight: typography.weights.bold,
+    fontWeight: typography.weights.medium,
     color: colors.text,
+    flex: 1,
   },
-  actions: {
+  headerActions: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: spacing.sm,
   },
   iconBtn: {
     width: 32,
     height: 32,
-    borderRadius: radius.md,
-    backgroundColor: colors.neutral[100],
+    borderRadius: 8,
+    backgroundColor: colors.primary[500],
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconText: {
+    fontSize: 18,
+    color: colors.white,
+    lineHeight: 22,
+  },
+  searchWrap: {
+    paddingHorizontal: spacing.base,
+    paddingBottom: spacing.sm,
+  },
+  searchInput: {
+    backgroundColor: '#f4f4f4',
+    borderRadius: 10,
+    height: 40,
+    paddingHorizontal: spacing.base,
+    fontSize: typography.sizes.base,
+    color: colors.text,
+  },
+  filterList: {
+    flexGrow: 0,
+  },
+  filterContent: {
+    paddingHorizontal: spacing.base,
+    paddingBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  pill: {
+    paddingHorizontal: spacing.base,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#f4f4f4',
+  },
+  pillActive: {
+    backgroundColor: colors.primary[500],
+  },
+  pillText: {
+    fontSize: typography.sizes.base,
+    color: colors.textMuted,
+    fontWeight: typography.weights.medium,
+  },
+  pillTextActive: {
+    color: colors.white,
+  },
+  countText: {
     fontSize: typography.sizes.sm,
     color: colors.textMuted,
-    lineHeight: 18,
-  },
-  error: {
-    color: colors.danger.DEFAULT,
-    fontSize: typography.sizes.base,
-    textAlign: 'center',
-    marginTop: spacing.lg,
-  },
-  demoBanner: {
-    backgroundColor: colors.neutral[100],
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.base,
-    marginBottom: spacing.base,
+    paddingBottom: spacing.sm,
   },
-  demoBannerText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.medium,
-    color: colors.textMuted,
-    textAlign: 'center',
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: spacing['2xl'],
   },
-  list: {
-    paddingBottom: spacing['2xl'],
+  errorBox: {
+    margin: spacing.base,
+    padding: spacing.base,
+    backgroundColor: '#fff3f3',
+    borderRadius: 8,
+    gap: spacing.sm,
+  },
+  errorText: {
+    fontSize: typography.sizes.sm,
+    color: '#e53935',
+  },
+  retryText: {
+    fontSize: typography.sizes.sm,
+    color: colors.text,
+    textDecorationLine: 'underline',
   },
 });

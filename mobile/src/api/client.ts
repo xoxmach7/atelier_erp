@@ -1,11 +1,10 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 const DEFAULT_API_BASE_URL = 'http://10.0.2.2:8000';
 
 function getBaseUrl(): string {
-  // Expo public env var
   const envUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
-  if (envUrl) {
-    return envUrl;
-  }
+  if (envUrl) return envUrl;
   return DEFAULT_API_BASE_URL;
 }
 
@@ -22,10 +21,7 @@ export class ApiClient {
     this.baseUrl = getBaseUrl();
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const token = await this.getToken();
 
@@ -37,24 +33,17 @@ export class ApiClient {
 
     let response: Response;
     try {
-      response = await fetch(url, {
-        ...options,
-        headers,
-      });
+      response = await fetch(url, { ...options, headers });
     } catch (networkErr) {
-      const base = this.baseUrl;
       throw {
         status: 0,
-        message: `Не удалось подключиться к серверу (${base}). Убедитесь, что backend запущен и baseURL указан верно.`,
+        message: `Не удалось подключиться к серверу (${this.baseUrl}).`,
         detail: networkErr instanceof Error ? networkErr.message : String(networkErr),
       } as ApiError;
     }
 
     if (response.status === 401) {
-      throw {
-        status: 401,
-        message: 'Требуется авторизация. Войдите в систему.',
-      } as ApiError;
+      throw { status: 401, message: 'Требуется авторизация. Войдите в систему.' } as ApiError;
     }
 
     if (!response.ok) {
@@ -66,16 +55,12 @@ export class ApiClient {
       } as ApiError;
     }
 
-    if (response.status === 204) {
-      return {} as T;
-    }
-
+    if (response.status === 204) return {} as T;
     return response.json() as Promise<T>;
   }
 
   private async getToken(): Promise<string | null> {
-    // Placeholder — заменить на AsyncStorage или SecureStore
-    return null;
+    return AsyncStorage.getItem('atelier_access_token');
   }
 
   public async get<T>(endpoint: string): Promise<T> {
@@ -83,17 +68,11 @@ export class ApiClient {
   }
 
   public async post<T>(endpoint: string, body: unknown): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
+    return this.request<T>(endpoint, { method: 'POST', body: JSON.stringify(body) });
   }
 
   public async patch<T>(endpoint: string, body: unknown): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: 'PATCH',
-      body: JSON.stringify(body),
-    });
+    return this.request<T>(endpoint, { method: 'PATCH', body: JSON.stringify(body) });
   }
 
   public getBaseUrl(): string {

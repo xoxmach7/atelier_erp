@@ -1,71 +1,34 @@
 """
-Management command to create default user groups
+Management command to create default user groups for Atelier ERP MVP
 """
 
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import Group, Permission
 
 
+MVP_GROUPS = {
+    'Admin': {'description': 'Full system access', 'all_permissions': True},
+    'Manager': {'description': 'Owner/manager — full order management'},
+    'Designer': {'description': 'Designer/measurer — orders, measurements, quotes'},
+    'Warehouse': {'description': 'Warehouse — material readiness'},
+    'Seamstress': {'description': 'Production/seamstress — sewing queue'},
+    'Installer': {'description': 'Installer — installation/handover queue'},
+    'Finance': {'description': 'Finance — payments'},
+}
+
+
 class Command(BaseCommand):
-    help = 'Create default user groups for Atelier ERP'
+    help = 'Create default user groups for Atelier ERP MVP'
 
     def handle(self, *args, **options):
-        groups_data = {
-            'Admin': {
-                'description': 'Full system access',
-                'permissions': [],  # All permissions
-            },
-            'Manager': {
-                'description': 'Order management, customer management',
-                'permissions': [
-                    'view_order', 'add_order', 'change_order', 'delete_order',
-                    'view_customer', 'add_customer', 'change_customer',
-                    'view_fabric', 'change_fabric',
-                    'view_productionassignment', 'change_productionassignment',
-                    'view_payment', 'add_payment',
-                    'view_task', 'change_task',
-                ],
-            },
-            'Worker': {
-                'description': 'Read access, task updates',
-                'permissions': [
-                    'view_order',
-                    'view_customer',
-                    'view_fabric',
-                    'view_task', 'change_task',
-                    'view_productionassignment',
-                ],
-            },
-            'Seamstress': {
-                'description': 'Production work, own assignments only',
-                'permissions': [
-                    'view_order',
-                    'view_fabric',
-                    'view_productionassignment',
-                ],
-            },
-        }
-        
-        for group_name, data in groups_data.items():
+        for group_name, data in MVP_GROUPS.items():
             group, created = Group.objects.get_or_create(name=group_name)
-            
-            if created:
-                self.stdout.write(self.style.SUCCESS(f'Created group: {group_name}'))
-            else:
-                self.stdout.write(f'Group already exists: {group_name}')
-            
-            # For Admin, add all permissions
-            if group_name == 'Admin':
-                all_perms = Permission.objects.all()
-                group.permissions.set(all_perms)
-                self.stdout.write(f'  → Added all {all_perms.count()} permissions')
-            else:
-                # Add specific permissions
-                for perm_codename in data['permissions']:
-                    try:
-                        perm = Permission.objects.get(codename=perm_codename)
-                        group.permissions.add(perm)
-                    except Permission.DoesNotExist:
-                        self.stdout.write(self.style.WARNING(f'  → Permission not found: {perm_codename}'))
-        
-        self.stdout.write(self.style.SUCCESS('\nAll groups created successfully!'))
+            status = 'Created' if created else 'Exists'
+            self.stdout.write(f'{status}: {group_name} — {data["description"]}')
+
+            if data.get('all_permissions'):
+                group.permissions.set(Permission.objects.all())
+                self.stdout.write(f'  → All permissions added')
+
+        self.stdout.write(self.style.SUCCESS('\nAll MVP groups ready.'))
+        self.stdout.write('Run: python manage.py seed_pilot --atelier "Name" to create pilot accounts')

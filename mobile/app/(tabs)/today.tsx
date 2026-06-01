@@ -1,68 +1,118 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Screen } from '../../src/components/Screen';
-import { SegmentControl } from '../../src/components/SegmentControl';
-import { SimpleBarChart } from '../../src/components/SimpleBarChart';
 import { SummaryRow } from '../../src/components/SummaryRow';
 import { PrimaryButton } from '../../src/components/PrimaryButton';
+import { useAuthContext } from '../../src/context/AuthContext';
+import { apiClient } from '../../src/api/client';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 
-const SEGMENTS = ['Прибыль', 'Выручка', 'Расходы'];
+interface OwnerCounters {
+  new_orders: number;
+  needs_measurement: number;
+  needs_quote: number;
+  materials_not_ready: number;
+  in_sewing: number;
+  on_installation: number;
+  waiting_payment: number;
+  paid_needs_completion: number;
+  overdue: number;
+}
 
-const CHART_DATA = [
-  { label: 'Сен', value: 1.2 },
-  { label: 'Окт', value: -0.3 },
-  { label: 'Ноя', value: 5.0 },
-  { label: 'Дек', value: 9.5 },
-  { label: 'Янв', value: 8.8 },
-  { label: 'Фев', value: 6.5 },
-];
+interface OwnerQueueResponse {
+  counters: OwnerCounters;
+}
 
-const SUMMARY_DATA = [
-  { label: 'Все заказы (за период)', value: '843' },
-  { label: 'В работе', value: '97' },
-  { label: 'Ожидают оплаты', value: '10' },
-  { label: 'Просрочено', value: '1', warning: 'danger' as const },
-  { label: 'Материалы на исходе', value: '8', warning: 'warning' as const },
-];
+type WarningLevel = 'warning' | 'danger' | undefined;
+
+function warn(n: number, level: 'warning' | 'danger' = 'warning'): WarningLevel {
+  return n > 0 ? level : undefined;
+}
 
 export default function TodayScreen() {
-  const [activeSegment, setActiveSegment] = useState(1);
-  const router = useRouter();
+  const { user, logout } = useAuthContext();
+  const [counters, setCounters] = useState<OwnerCounters | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchCounters = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiClient.get<OwnerQueueResponse>('/api/v1/work/owner/');
+      setCounters(data.counters);
+    } catch (err) {
+      const msg =
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: string }).message)
+          : 'Не удалось загрузить данные';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCounters();
+  }, [fetchCounters]);
+
+  const displayName = user
+    ? [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username
+    : 'Sheber ERP';
+
+  const summaryRows = counters
+    ? [
+        { label: 'Новые заказы', value: String(counters.new_orders) },
+        { label: 'Нужен замер', value: String(counters.needs_measurement), warning: warn(counters.needs_measurement) },
+        { label: 'Нужно КП', value: String(counters.needs_quote), warning: warn(counters.needs_quote) },
+        { label: 'В производстве', value: String(counters.in_sewing) },
+        { label: 'На установке', value: String(counters.on_installation) },
+        { label: 'Ждут финального платежа', value: String(counters.waiting_payment), warning: warn(counters.waiting_payment) },
+        { label: 'Материалы не готовы', value: String(counters.materials_not_ready), warning: warn(counters.materials_not_ready) },
+        { label: 'Просрочено', value: String(counters.overdue), warning: warn(counters.overdue, 'danger') },
+      ]
+    : [];
 
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.orgName}>Sheber Atelier</Text>
+        <Text style={styles.orgName}>{displayName}</Text>
         <View style={styles.underline} />
         <View style={styles.periodRow}>
-          <Text style={styles.period}>01.09.2025 - н.в.</Text>
-          <Text style={styles.periodAction}>Выбрать период</Text>
+          <Text style={styles.period}>Текущие заказы</Text>
+          <TouchableOpacity onPress={fetchCounters}>
+            <Text style={styles.periodAction}>Обновить</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
-      <SegmentControl
-        segments={SEGMENTS}
-        activeIndex={activeSegment}
-        onSelect={setActiveSegment}
-      />
+      {loading && (
+        <View style={styles.centered}>
+          <ActivityIndicator color={colors.text} />
+        </View>
+      )}
 
-      <SimpleBarChart data={CHART_DATA} />
+      {Boolean(error) && !loading && (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity onPress={fetchCounters} style={styles.retryBtn}>
+            <Text style={styles.retryText}>Повторить</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
-      <View style={styles.summaryList}>
-        {SUMMARY_DATA.map((item) => (
-          <SummaryRow key={item.label} {...item} />
-        ))}
-      </View>
+      {!loading && !error && counters && (
+        <View style={styles.summaryList}>
+          {summaryRows.map((item) => (
+            <SummaryRow key={item.label} {...item} />
+          ))}
+        </View>
+      )}
 
       <View style={styles.bottomAction}>
-        <PrimaryButton
-          title="Выйти из профиля"
-          onPress={() => router.replace('/login')}
-        />
+        <PrimaryButton title="Выйти" onPress={() => logout()} variant="secondary" />
       </View>
     </Screen>
   );
@@ -98,9 +148,33 @@ const styles = StyleSheet.create({
   periodAction: {
     fontSize: typography.sizes.sm,
     color: colors.textMuted,
+    textDecorationLine: 'underline',
+  },
+  centered: {
+    marginTop: spacing['2xl'],
+    alignItems: 'center',
+  },
+  errorBox: {
+    marginTop: spacing.lg,
+    padding: spacing.base,
+    backgroundColor: '#fff3f3',
+    borderRadius: 8,
+    gap: spacing.sm,
+  },
+  errorText: {
+    fontSize: typography.sizes.sm,
+    color: '#e53935',
+  },
+  retryBtn: {
+    alignSelf: 'flex-start',
+  },
+  retryText: {
+    fontSize: typography.sizes.sm,
+    color: colors.text,
+    textDecorationLine: 'underline',
   },
   summaryList: {
-    marginTop: spacing.lg,
+    marginTop: spacing.sm,
   },
   bottomAction: {
     marginTop: spacing.lg,

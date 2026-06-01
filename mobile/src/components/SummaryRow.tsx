@@ -1,8 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
-import { radius } from '../theme/spacing';
-import { typography } from '../theme/typography';
 
 interface SummaryRowProps {
   label: string;
@@ -13,13 +11,15 @@ interface SummaryRowProps {
 export function SummaryRow({ label, value, warning }: SummaryRowProps) {
   return (
     <View style={styles.row}>
-      <View style={styles.left}>
-        <Text style={styles.label}>{label}</Text>
-        {warning === 'danger' && <Text style={styles.warningDanger}>▲</Text>}
-        {warning === 'warning' && <Text style={styles.warningWarning}>▲</Text>}
-      </View>
+      <Text style={styles.label}>{label}</Text>
       <View style={styles.right}>
         <Text style={styles.value}>{value}</Text>
+        {warning === 'danger' && (
+          <Text style={styles.warnDanger}>⚠</Text>
+        )}
+        {warning === 'warning' && (
+          <Text style={styles.warnWarning}>⚠</Text>
+        )}
         <Text style={styles.chevron}>›</Text>
       </View>
     </View>
@@ -31,41 +31,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.base,
-    marginBottom: spacing.xs,
-  },
-  left: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
+    backgroundColor: '#f4f4f4',
+    borderRadius: 16,
+    height: 53,
+    paddingHorizontal: 18,
+    marginBottom: spacing.sm,
   },
   label: {
-    fontSize: typography.sizes.base,
-    color: colors.text,
-  },
-  warningDanger: {
-    fontSize: typography.sizes.sm,
-    color: colors.danger.DEFAULT,
-  },
-  warningWarning: {
-    fontSize: typography.sizes.sm,
-    color: colors.warning.DEFAULT,
+    fontSize: 16,
+    fontWeight: '400',
+    color: '#0f172a',
+    flex: 1,
   },
   right: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: 8,
   },
   value: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.semibold,
-    color: colors.primary[500],
+    fontSize: 24,
+    fontWeight: '500',
+    color: '#60cced',
+    lineHeight: 28,
+  },
+  warnDanger: {
+    fontSize: 14,
+    color: '#ef4444',
+  },
+  warnWarning: {
+    fontSize: 14,
+    color: '#eab308',
   },
   chevron: {
-    fontSize: typography.sizes.base,
-    color: colors.textMuted,
+    fontSize: 18,
+    color: '#64748b',
+    lineHeight: 20,
   },
 });

@@ -322,16 +322,18 @@ class Order(UUIDModel, AuditedModel):
         COMPLETED = 'completed', _('Завершён')
         CANCELLED = 'cancelled', _('Отменён')
         
-        # Legacy statuses (to be removed in Sprint 3+)
-        DRAFT = 'draft', _('Draft')
-        MEASUREMENT = 'measurement', _('Measurement Scheduled')
-        DESIGN = 'design', _('Design in Progress')
-        QUOTED = 'quoted', _('Quote Generated')
-        APPROVED = 'approved', _('Approved by Customer')
-        PREPAYMENT_RECEIVED = 'prepayment_received', _('Prepayment Received')
-        FABRIC_RESERVED = 'fabric_reserved', _('Fabric Reserved')
-        PRODUCTION = 'production', _('In Production')
-        INSTALLATION = 'installation', _('Installation Scheduled')
+        # DEPRECATED — used only in old OrderService (atelier_erp/services/order_service.py)
+        # v1 API and mobile use the MVP statuses above exclusively
+        # Remove after old OrderService and related tests are deleted (post-pilot)
+        DRAFT = 'draft', _('[DEPRECATED] Draft')
+        MEASUREMENT = 'measurement', _('[DEPRECATED] Measurement Scheduled')
+        DESIGN = 'design', _('[DEPRECATED] Design in Progress')
+        QUOTED = 'quoted', _('[DEPRECATED] Quote Generated')
+        APPROVED = 'approved', _('[DEPRECATED] Approved by Customer')
+        PREPAYMENT_RECEIVED = 'prepayment_received', _('[DEPRECATED] Prepayment Received')
+        FABRIC_RESERVED = 'fabric_reserved', _('[DEPRECATED] Fabric Reserved')
+        PRODUCTION = 'production', _('[DEPRECATED] In Production')
+        INSTALLATION = 'installation', _('[DEPRECATED] Installation Scheduled')
     
     # Identity
     order_number = models.CharField(

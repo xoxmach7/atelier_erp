@@ -6,6 +6,7 @@ import { RoleSwitcher } from '../../src/components/RoleSwitcher';
 import { WorkTaskRow, type TaskIconType } from '../../src/components/WorkTaskRow';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useWorkQueue } from '../../src/hooks/useWorkQueues';
+import { useAuthContext } from '../../src/context/AuthContext';
 import type { RoleKey, WorkQueueItem } from '../../src/types/work';
 import { colors } from '../../src/theme/colors';
 import { spacing, radius } from '../../src/theme/spacing';
@@ -50,12 +51,6 @@ function getTaskIcon(item: WorkQueueItem, role: RoleKey): TaskIconType {
     return 'neutral';
   }
 
-  if (role === 'quotes') {
-    if (item.status === 'new') return 'warning';
-    if (item.status === 'in_work') return 'primary';
-    return 'neutral';
-  }
-
   if (role === 'production') {
     if (item.status === 'in_production') return 'primary';
     return 'neutral';
@@ -79,7 +74,8 @@ function getTaskSubtitle(item: WorkQueueItem, _role: RoleKey): string {
 
 export default function WorkScreen() {
   const router = useRouter();
-  const [activeRole, setActiveRole] = useState<RoleKey>('designer');
+  const { primaryRole } = useAuthContext();
+  const [activeRole, setActiveRole] = useState<RoleKey>(primaryRole);
   const { data, loading, error, isDemo } = useWorkQueue(activeRole);
 
   return (
@@ -187,6 +183,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.lg,
   },
+  list: {
+    paddingBottom: 40,
+  },
   demoBanner: {
     backgroundColor: colors.neutral[100],
     borderRadius: radius.md,
@@ -199,8 +198,5 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.medium,
     color: colors.textMuted,
     textAlign: 'center',
-  },
-  list: {
-    paddingBottom: spacing['2xl'],
   },
 });

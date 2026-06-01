@@ -1,14 +1,21 @@
+// Font family constants — replace 'System' with 'TTNormsPro-Regular' etc
+// once font files are added to assets/fonts/ and loaded via useFonts()
+export const fontFamily = {
+  regular: 'System',
+  medium: 'System',
+} as const;
+
 export const typography = {
   sizes: {
     xs: 10,
     sm: 12,
     base: 14,
-    md: 16,
-    lg: 18,
-    xl: 20,
-    '2xl': 24,
-    '3xl': 30,
-    '4xl': 36,
+    md: 15,
+    lg: 16,
+    xl: 18,
+    '2xl': 22,
+    '3xl': 26,
+    '4xl': 32,
   },
   weights: {
     normal: '400' as const,

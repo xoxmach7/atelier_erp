@@ -10,9 +10,10 @@ interface PrimaryButtonProps {
   title: string;
   onPress?: () => void;
   variant?: 'primary' | 'secondary';
+  disabled?: boolean;
 }
 
-export function PrimaryButton({ title, onPress, variant = 'primary' }: PrimaryButtonProps) {
+export function PrimaryButton({ title, onPress, variant = 'primary', disabled = false }: PrimaryButtonProps) {
   const isPrimary = variant === 'primary';
   return (
     <TouchableOpacity
@@ -22,6 +23,7 @@ export function PrimaryButton({ title, onPress, variant = 'primary' }: PrimaryBu
       ]}
       onPress={onPress}
       activeOpacity={0.8}
+      disabled={disabled}
     >
       <Text style={[styles.text, isPrimary ? styles.textPrimary : styles.textSecondary]}>
         {title}
