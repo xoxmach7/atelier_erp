@@ -1,67 +1,69 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen } from '../../src/components/Screen';
-import { StatusDot } from '../../src/components/StatusDot';
+import { SegmentControl } from '../../src/components/SegmentControl';
+import { SimpleBarChart } from '../../src/components/SimpleBarChart';
+import { SummaryRow } from '../../src/components/SummaryRow';
+import { PrimaryButton } from '../../src/components/PrimaryButton';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
-import { radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 
-const KPI_ITEMS = [
-  { label: 'Всего заказов', value: '0', color: colors.primary[500] },
-  { label: 'В работе', value: '0', color: colors.primary[500] },
-  { label: 'Ожидают оплаты', value: '0', color: colors.warning.DEFAULT },
-  { label: 'Просрочено', value: '0', color: colors.danger.DEFAULT },
-  { label: 'Материалы', value: '0', color: colors.danger.DEFAULT },
+const SEGMENTS = ['Прибыль', 'Выручка', 'Расходы'];
+
+const CHART_DATA = [
+  { label: 'Сен', value: 1.2 },
+  { label: 'Окт', value: -0.3 },
+  { label: 'Ноя', value: 5.0 },
+  { label: 'Дек', value: 9.5 },
+  { label: 'Янв', value: 8.8 },
+  { label: 'Фев', value: 6.5 },
 ];
 
-const ATTENTION_ITEMS = [
-  { label: 'Просроченные заказы', value: '0', dot: 'danger' as const },
-  { label: 'Ожидают оплаты', value: '0', dot: 'warning' as const },
-  { label: 'Материалы на исходе', value: '0', dot: 'danger' as const },
+const SUMMARY_DATA = [
+  { label: 'Все заказы (за период)', value: '843' },
+  { label: 'В работе', value: '97' },
+  { label: 'Ожидают оплаты', value: '10' },
+  { label: 'Просрочено', value: '1', warning: 'danger' as const },
+  { label: 'Материалы на исходе', value: '8', warning: 'warning' as const },
 ];
 
 export default function TodayScreen() {
+  const [activeSegment, setActiveSegment] = useState(1);
   const router = useRouter();
 
   return (
     <Screen>
       <View style={styles.header}>
         <Text style={styles.orgName}>Sheber Atelier</Text>
+        <View style={styles.underline} />
         <View style={styles.periodRow}>
-          <Text style={styles.period}>Май 2026</Text>
-          <Text style={styles.periodMuted}>1 – 31 мая</Text>
+          <Text style={styles.period}>01.09.2025 - н.в.</Text>
+          <Text style={styles.periodAction}>Выбрать период</Text>
         </View>
       </View>
 
-      <View style={styles.kpiGrid}>
-        {KPI_ITEMS.map((item) => (
-          <View key={item.label} style={styles.kpiCard}>
-            <Text style={[styles.kpiValue, { color: item.color }]}>{item.value}</Text>
-            <Text style={styles.kpiLabel}>{item.label}</Text>
-          </View>
+      <SegmentControl
+        segments={SEGMENTS}
+        activeIndex={activeSegment}
+        onSelect={setActiveSegment}
+      />
+
+      <SimpleBarChart data={CHART_DATA} />
+
+      <View style={styles.summaryList}>
+        {SUMMARY_DATA.map((item) => (
+          <SummaryRow key={item.label} {...item} />
         ))}
       </View>
 
-      <Text style={styles.sectionTitle}>Что требует внимания</Text>
-
-      {ATTENTION_ITEMS.map((item) => (
-        <View key={item.label} style={styles.row}>
-          <View style={styles.rowLeft}>
-            <StatusDot variant={item.dot} />
-            <Text style={styles.rowLabel}>{item.label}</Text>
-          </View>
-          <Text style={styles.rowValue}>{item.value}</Text>
-        </View>
-      ))}
-
-      <TouchableOpacity
-        style={styles.linkButton}
-        onPress={() => router.push('/(tabs)/orders')}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.linkButtonText}>Все заказы →</Text>
-      </TouchableOpacity>
+      <View style={styles.bottomAction}>
+        <PrimaryButton
+          title="Выйти из профиля"
+          onPress={() => router.replace('/login')}
+        />
+      </View>
     </Screen>
   );
 }
@@ -76,89 +78,32 @@ const styles = StyleSheet.create({
     color: colors.text,
     letterSpacing: -0.5,
   },
+  underline: {
+    height: 1,
+    backgroundColor: colors.text,
+    marginTop: 4,
+    opacity: 0.15,
+  },
   periodRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginTop: spacing.xs,
+    marginTop: spacing.sm,
   },
   period: {
     fontSize: typography.sizes.sm,
     color: colors.textMuted,
     fontWeight: typography.weights.medium,
   },
-  periodMuted: {
+  periodAction: {
     fontSize: typography.sizes.sm,
     color: colors.textMuted,
   },
-  kpiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.base,
-    marginBottom: spacing.lg,
-  },
-  kpiCard: {
-    flex: 1,
-    flexBasis: '46%',
-    backgroundColor: colors.white,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    shadowColor: colors.text,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
-    elevation: 1,
-    minHeight: 80,
-    justifyContent: 'center',
-  },
-  kpiValue: {
-    fontSize: typography.sizes['2xl'],
-    fontWeight: typography.weights.bold,
-    marginBottom: spacing.xs,
-  },
-  kpiLabel: {
-    fontSize: typography.sizes.sm,
-    color: colors.textMuted,
-  },
-  sectionTitle: {
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.semibold,
-    color: colors.text,
-    marginBottom: spacing.base,
-    marginTop: spacing.sm,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    marginBottom: spacing.xs,
-    borderRadius: radius.md,
-    backgroundColor: colors.white,
-  },
-  rowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  rowLabel: {
-    fontSize: typography.sizes.base,
-    color: colors.text,
-  },
-  rowValue: {
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.semibold,
-    color: colors.text,
-  },
-  linkButton: {
+  summaryList: {
     marginTop: spacing.lg,
-    paddingVertical: spacing.lg,
-    alignItems: 'center',
   },
-  linkButtonText: {
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.semibold,
-    color: colors.primary[500],
+  bottomAction: {
+    marginTop: spacing.lg,
+    marginBottom: spacing['2xl'],
   },
 });
