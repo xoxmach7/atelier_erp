@@ -20,6 +20,7 @@ export interface WorkQueueItem {
   stage?: string;
   materialReadiness?: 'not_ready' | 'partially_ready' | 'ready';
   actions?: string[];
+  context?: string;
   items?: WorkItem[];
   measurements?: MeasurementSummary;
 }

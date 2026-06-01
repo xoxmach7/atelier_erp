@@ -3,36 +3,13 @@ import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'rea
 import { useRouter } from 'expo-router';
 import { Screen } from '../../src/components/Screen';
 import { RoleSwitcher } from '../../src/components/RoleSwitcher';
-import { RoleOrderRow } from '../../src/components/RoleOrderRow';
+import { WorkTaskRow, type TaskIconType } from '../../src/components/WorkTaskRow';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useWorkQueue } from '../../src/hooks/useWorkQueues';
-import { getOrderIndicator } from '../../src/utils/orderLabels';
+import type { RoleKey, WorkQueueItem } from '../../src/types/work';
 import { colors } from '../../src/theme/colors';
 import { spacing, radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
-import type { RoleKey } from '../../src/types/work';
-
-function getNextStep(role: RoleKey, status: string): string {
-  const map: Record<string, string> = {
-    designer: 'Замер / КП',
-    quotes: 'Согласование КП',
-    warehouse: 'Сбор материалов',
-    production: 'Пошив',
-    installation: 'Установка',
-  };
-  return map[role] || 'В работе';
-}
-
-function getRoleTitle(role: RoleKey): string {
-  const map: Record<string, string> = {
-    designer: 'Дизайнер',
-    quotes: 'КП',
-    warehouse: 'Склад',
-    production: 'Пошив',
-    installation: 'Установка',
-  };
-  return map[role] || 'Рабочие';
-}
 
 function IconButton({ icon, onPress }: { icon: string; onPress?: () => void }) {
   return (
@@ -42,16 +19,81 @@ function IconButton({ icon, onPress }: { icon: string; onPress?: () => void }) {
   );
 }
 
+function formatTaskTitle(orderNumber: string, clientName: string): string {
+  const numMatch = orderNumber?.match(/\d+$/);
+  const num = numMatch ? numMatch[0] : orderNumber ?? '—';
+  const surname = clientName?.split(' ')[0] ?? '';
+  return `№${num} [${surname}]`;
+}
+
+function formatDate(dateStr?: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const [year, month, day] = parts;
+  return `${day}.${month}.${year.slice(2)}`;
+}
+
+function getTaskIcon(item: WorkQueueItem, role: RoleKey): TaskIconType {
+  if (item.priority === 'urgent') return 'danger';
+
+  if (role === 'warehouse') {
+    if (item.materialReadiness === 'not_ready') return 'danger';
+    if (item.materialReadiness === 'partially_ready') return 'warning';
+    if (item.materialReadiness === 'ready') return 'success';
+    return 'neutral';
+  }
+
+  if (role === 'designer') {
+    if (item.status === 'new') return 'primary';
+    if (item.status === 'in_work') return 'warning';
+    return 'neutral';
+  }
+
+  if (role === 'quotes') {
+    if (item.status === 'new') return 'warning';
+    if (item.status === 'in_work') return 'primary';
+    return 'neutral';
+  }
+
+  if (role === 'production') {
+    if (item.status === 'in_production') return 'primary';
+    return 'neutral';
+  }
+
+  if (role === 'installation') {
+    if (item.status === 'ready') return 'warning';
+    if (item.status === 'installation') return 'primary';
+    return 'neutral';
+  }
+
+  return 'neutral';
+}
+
+function getTaskSubtitle(item: WorkQueueItem, _role: RoleKey): string {
+  if (item.actions && item.actions.length > 0) {
+    return item.actions[0];
+  }
+  return 'В работе';
+}
+
 export default function WorkScreen() {
   const router = useRouter();
   const [activeRole, setActiveRole] = useState<RoleKey>('designer');
-  const { data, count, loading, error, isDemo } = useWorkQueue(activeRole);
+  const { data, loading, error, isDemo } = useWorkQueue(activeRole);
 
   return (
     <Screen>
-      <View style={styles.topBar}>
-        <Text style={styles.pageTitle}>{getRoleTitle(activeRole)}</Text>
-        <View style={styles.actions}>
+      <View style={styles.headerRow}>
+        <TouchableOpacity
+          style={styles.leftAction}
+          onPress={() => router.replace('/login')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.leftActionText}>Выйти</Text>
+        </TouchableOpacity>
+        <Text style={styles.centerTitle}>Заказы</Text>
+        <View style={styles.rightActions}>
           <IconButton icon="⌕" />
           <IconButton icon="≡" />
         </View>
@@ -76,44 +118,53 @@ export default function WorkScreen() {
       {!loading && !error && data.length === 0 && (
         <EmptyState
           title="Нет заказов"
-          subtitle={`В очереди пока нет задач`}
+          subtitle="В очереди пока нет задач"
         />
       )}
 
-      {!loading &&
-        !error &&
-        data.map((item) => {
-          const indicator = getOrderIndicator(item.status, item.materialReadiness);
-          return (
-            <RoleOrderRow
+      <View style={styles.list}>
+        {!loading &&
+          !error &&
+          data.map((item) => (
+            <WorkTaskRow
               key={item.id}
-              orderNumber={item.orderNumber}
-              client={item.clientName}
-              date={item.dueDate}
-              subtitle={getNextStep(activeRole, item.status)}
-              statusColor={indicator.variant}
+              title={formatTaskTitle(item.orderNumber, item.clientName)}
+              date={formatDate(item.dueDate)}
+              subtitle={getTaskSubtitle(item, activeRole)}
+              context={item.context}
+              icon={getTaskIcon(item, activeRole)}
               onPress={() => router.push(`/orders/${item.orderId}`)}
             />
-          );
-        })}
+          ))}
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  topBar: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: spacing.lg,
   },
-  pageTitle: {
-    fontSize: typography.sizes.lg,
+  leftAction: {
+    width: 60,
+  },
+  leftActionText: {
+    fontSize: typography.sizes.sm,
+    color: colors.textMuted,
+  },
+  centerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: typography.sizes['2xl'],
     fontWeight: typography.weights.bold,
     color: colors.text,
   },
-  actions: {
+  rightActions: {
+    width: 80,
     flexDirection: 'row',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     gap: spacing.sm,
   },
@@ -137,7 +188,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   demoBanner: {
-    backgroundColor: colors.warning.light,
+    backgroundColor: colors.neutral[100],
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.base,
@@ -146,7 +197,10 @@ const styles = StyleSheet.create({
   demoBannerText: {
     fontSize: typography.sizes.xs,
     fontWeight: typography.weights.medium,
-    color: colors.warning.dark,
+    color: colors.textMuted,
     textAlign: 'center',
+  },
+  list: {
+    paddingBottom: spacing['2xl'],
   },
 });
