@@ -1,13 +1,30 @@
 import { useRouter } from 'expo-router';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { Screen } from '../../src/components/Screen';
-import { RoleOrderRow } from '../../src/components/RoleOrderRow';
+import { OrderListRow } from '../../src/components/OrderListRow';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useOrders } from '../../src/hooks/useOrder';
 import { getOrderIndicator } from '../../src/utils/orderLabels';
+import type { Order } from '../../src/types/order';
 import { colors } from '../../src/theme/colors';
 import { spacing, radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
+
+const STATUS_COLOR: Record<string, string> = {
+  neutral: colors.neutral[400],
+  primary: colors.primary[500],
+  warning: colors.warning.DEFAULT,
+  success: colors.success.DEFAULT,
+  danger: colors.danger.DEFAULT,
+};
+
+const DEMO_DESIGNERS: Record<string, string> = {
+  'demo-1': 'Ибраева',
+  'demo-2': 'Кенесова',
+  'demo-3': 'Алиева',
+  'demo-4': 'Смагулова',
+  'demo-5': 'Тулегенова',
+};
 
 function IconButton({ icon, onPress }: { icon: string; onPress?: () => void }) {
   return (
@@ -15,6 +32,26 @@ function IconButton({ icon, onPress }: { icon: string; onPress?: () => void }) {
       <Text style={styles.iconText}>{icon}</Text>
     </TouchableOpacity>
   );
+}
+
+function formatOrderTitle(order: Order): string {
+  const numMatch = order.orderNumber?.match(/\d+$/);
+  const num = numMatch ? numMatch[0] : order.orderNumber ?? '—';
+  const surname = order.customerName?.split(' ')[0] ?? '';
+  return `№${num} [${surname}]`;
+}
+
+function formatDate(dateStr?: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const [year, month, day] = parts;
+  return `${day}.${month}.${year.slice(2)}`;
+}
+
+function formatDesigner(order: Order): string {
+  const name = DEMO_DESIGNERS[order.id];
+  return name ? `Дизайнер: ${name}` : 'Дизайнер: —';
 }
 
 export default function OrdersScreen() {
@@ -26,9 +63,9 @@ export default function OrdersScreen() {
       <View style={styles.topBar}>
         <Text style={styles.pageTitle}>Управление заказами</Text>
         <View style={styles.actions}>
+          <IconButton icon="+" />
           <IconButton icon="⌕" />
           <IconButton icon="≡" />
-          <IconButton icon="+" />
         </View>
       </View>
 
@@ -53,22 +90,23 @@ export default function OrdersScreen() {
         />
       )}
 
-      {!loading &&
-        !error &&
-        data.map((order) => {
-          const indicator = getOrderIndicator(order.status);
-          return (
-            <RoleOrderRow
-              key={order.id}
-              orderNumber={order.orderNumber}
-              client={order.customerName}
-              date={order.dueDate}
-              subtitle={indicator.label}
-              statusColor={indicator.variant}
-              onPress={() => router.push(`/orders/${order.id}`)}
-            />
-          );
-        })}
+      <View style={styles.list}>
+        {!loading &&
+          !error &&
+          data.map((order) => {
+            const indicator = getOrderIndicator(order.status);
+            return (
+              <OrderListRow
+                key={order.id}
+                title={formatOrderTitle(order)}
+                date={formatDate(order.dueDate)}
+                designer={formatDesigner(order)}
+                statusColor={STATUS_COLOR[indicator.variant]}
+                onPress={() => router.push(`/orders/${order.id}`)}
+              />
+            );
+          })}
+      </View>
     </Screen>
   );
 }
@@ -81,7 +119,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   pageTitle: {
-    fontSize: typography.sizes.lg,
+    fontSize: typography.sizes['2xl'],
     fontWeight: typography.weights.bold,
     color: colors.text,
   },
@@ -110,7 +148,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   demoBanner: {
-    backgroundColor: colors.warning.light,
+    backgroundColor: colors.neutral[100],
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.base,
@@ -119,7 +157,10 @@ const styles = StyleSheet.create({
   demoBannerText: {
     fontSize: typography.sizes.xs,
     fontWeight: typography.weights.medium,
-    color: colors.warning.dark,
+    color: colors.textMuted,
     textAlign: 'center',
+  },
+  list: {
+    paddingBottom: spacing['2xl'],
   },
 });
