@@ -9,7 +9,7 @@ from .views import (
     OrderViewSet, TaskViewSet, InventoryAvailabilityViewSet, QuoteViewSet,
     DesignerWorkQueueView, QuotesWorkQueueView, WarehouseWorkQueueView,
     ProductionWorkQueueView, InstallationWorkQueueView, OwnerWorkQueueView,
-    FinanceWorkQueueView,
+    FinanceWorkQueueView, DashboardView,
 )
 
 router = DefaultRouter()
@@ -26,5 +26,6 @@ urlpatterns = [
     path('work/installation/', InstallationWorkQueueView.as_view(), name='v1-work-installation'),
     path('work/owner/', OwnerWorkQueueView.as_view(), name='v1-work-owner'),
     path('work/finance/', FinanceWorkQueueView.as_view(), name='v1-work-finance'),
+    path('dashboard/', DashboardView.as_view(), name='v1-dashboard'),
     path('', include(router.urls)),
 ]

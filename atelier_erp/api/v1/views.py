@@ -6,7 +6,8 @@ All state changes go through services
 
 from decimal import Decimal
 
-from django.db.models import Q
+from django.db.models import Q, F
+from dateutil.relativedelta import relativedelta
 from rest_framework import viewsets, status, filters
 from rest_framework.views import APIView
 from rest_framework.decorators import action
@@ -1573,6 +1574,94 @@ class FinanceWorkQueueView(BaseWorkQueueView):
             'waiting_payment': waiting_payment,
             'paid_needs_completion': paid_needs_completion,
             'recent_payments': recent_payments,
+        })
+
+
+class DashboardView(APIView):
+    """
+    Owner/Manager dashboard metrics
+    GET /api/v1/dashboard/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not request.user.groups.filter(name__in=['Owner', 'Manager', 'Admin']).exists() and not request.user.is_superuser:
+            return Response({'detail': 'Доступ только для владельцев и менеджеров'}, status=403)
+
+        today = timezone.localdate()
+        first_of_month = today.replace(day=1)
+
+        # --- Orders stats ---
+        total = Order.objects.count()
+        in_work = Order.objects.filter(
+            status__in=[
+                Order.Status.IN_WORK,
+                Order.Status.IN_PRODUCTION,
+                Order.Status.READY,
+                Order.Status.ON_INSTALLATION,
+                Order.Status.WAITING_FINAL_PAYMENT,
+            ]
+        ).count()
+        completed = Order.objects.filter(status=Order.Status.COMPLETED).count()
+        cancelled = Order.objects.filter(status=Order.Status.CANCELLED).count()
+        overdue = Order.objects.filter(
+            planned_completion__lt=today,
+        ).exclude(
+            status__in=[Order.Status.COMPLETED, Order.Status.CANCELLED]
+        ).count()
+        awaiting_payment = Order.objects.filter(
+            status=Order.Status.WAITING_FINAL_PAYMENT,
+            paid_amount__lt=F('total_amount'),
+        ).count()
+
+        # --- Finance aggregates ---
+        from django.db.models import Sum
+        revenue_agg = Order.objects.aggregate(total_revenue=Sum('total_amount'), total_paid=Sum('paid_amount'))
+        total_revenue = revenue_agg['total_revenue'] or Decimal('0')
+        total_paid = revenue_agg['total_paid'] or Decimal('0')
+        total_debt = total_revenue - total_paid
+
+        this_month_revenue = (
+            Order.objects.filter(created_at__date__gte=first_of_month).aggregate(v=Sum('total_amount'))['v']
+            or Decimal('0')
+        )
+        this_month_paid = (
+            Order.objects.filter(created_at__date__gte=first_of_month).aggregate(v=Sum('paid_amount'))['v']
+            or Decimal('0')
+        )
+
+        # --- 6-month chart ---
+        chart = []
+        for i in range(5, -1, -1):
+            month_date = (today.replace(day=1) - relativedelta(months=i))
+            month_start = month_date
+            month_end = (month_date + relativedelta(months=1))
+            month_orders = Order.objects.filter(created_at__date__gte=month_start, created_at__date__lt=month_end)
+            month_revenue = month_orders.aggregate(v=Sum('total_amount'))['v'] or Decimal('0')
+            month_paid = month_orders.aggregate(v=Sum('paid_amount'))['v'] or Decimal('0')
+            chart.append({
+                'month': month_start.strftime('%Y-%m'),
+                'revenue': int(month_revenue),
+                'paid': int(month_paid),
+            })
+
+        return Response({
+            'orders': {
+                'total': total,
+                'in_work': in_work,
+                'completed': completed,
+                'cancelled': cancelled,
+                'overdue': overdue,
+                'awaiting_payment': awaiting_payment,
+            },
+            'finance': {
+                'total_revenue': int(total_revenue),
+                'total_paid': int(total_paid),
+                'total_debt': int(total_debt),
+                'this_month_revenue': int(this_month_revenue),
+                'this_month_paid': int(this_month_paid),
+            },
+            'chart': chart,
         })
 
 
