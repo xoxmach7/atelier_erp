@@ -4,15 +4,18 @@ Core business logic for order lifecycle management
 Implements strict FSM and inventory integration
 """
 
+import logging
 from datetime import date, datetime
 from decimal import Decimal
+
+logger = logging.getLogger(__name__)
 from typing import List, Optional, Dict, Any, Tuple
 from uuid import UUID, uuid4
 
 from django.db import models
 from django.utils import timezone
 
-from ..models import Order, OrderItem, Customer, Measurement, Payment, Quote
+from ..models import Order, OrderItem, Customer, Measurement, Payment, Quote, OrderMaterial
 from ..constants import OrderFSMRules, FinancialConfig
 from ..events import (
     OrderCreated, OrderStatusChanged, OrderConfirmed, OrderMaterialsReserved,
@@ -771,6 +774,194 @@ class OrderService:
         
         return order
     
+    def transition_status_mvp(
+        self,
+        order_id: UUID,
+        new_status: str,
+        changed_by: Optional[UUID] = None,
+        notes: str = ""
+    ) -> Order:
+        """
+        Status transition with MVP workflow business rules.
+        Encapsulates all validation previously in the view layer.
+        """
+        from ..models import Quote, OrderCompletionAct
+        from ..constants import MaterialReadiness, ProductionStage, HandoverStage
+
+        order = self._get_order_for_update(order_id)
+
+        # Cannot modify cancelled order
+        if order.status == Order.Status.CANCELLED:
+            raise OrderValidationError(
+                "Нельзя изменить статус отменённого заказа.",
+                code="cancelled_order"
+            )
+
+        # Cannot modify completed order
+        if order.status == Order.Status.COMPLETED:
+            raise OrderValidationError(
+                "Нельзя изменить статус завершённого заказа.",
+                code="completed_order"
+            )
+
+        # Check for accepted quote and order items for in_work transition
+        if new_status == Order.Status.IN_WORK:
+            has_accepted_quote = (
+                (order.quote and order.quote.status == Quote.Status.APPROVED) or
+                order.related_quotes.filter(status=Quote.Status.APPROVED).exists()
+            )
+            if not has_accepted_quote:
+                raise OrderValidationError(
+                    "Сначала примите КП и сформируйте позиции заказа.",
+                    code="quote_not_accepted"
+                )
+            if order.items.count() == 0:
+                raise OrderValidationError(
+                    "Сначала сформируйте позиции заказа из КП.",
+                    code="no_order_items"
+                )
+
+        # Cannot start production without materials and order items
+        if new_status == Order.Status.IN_PRODUCTION:
+            if order.material_readiness == MaterialReadiness.NOT_READY:
+                raise OrderValidationError(
+                    "Нельзя начать производство: материалы не обеспечены.",
+                    code="material_not_ready"
+                )
+            if order.items.count() == 0:
+                raise OrderValidationError(
+                    "Сначала сформируйте позиции заказа из КП.",
+                    code="no_order_items"
+                )
+
+        # Cannot mark ready if production not done
+        if new_status == Order.Status.READY:
+            if order.production_stage != ProductionStage.DONE:
+                raise OrderValidationError(
+                    "Нельзя отметить готовность: производство не завершено.",
+                    code="production_not_done"
+                )
+
+        # Cannot complete if production not done, handover not done, no signed act, or not paid
+        if new_status == Order.Status.COMPLETED:
+            if order.production_stage != ProductionStage.DONE:
+                raise OrderValidationError(
+                    "Нельзя завершить заказ: производство не завершено.",
+                    code="production_not_done"
+                )
+            if order.handover_stage not in [HandoverStage.DONE, HandoverStage.NOT_REQUIRED]:
+                raise OrderValidationError(
+                    "Нельзя завершить заказ: установка/выдача не завершена.",
+                    code="handover_not_done"
+                )
+            try:
+                act = order.completion_act
+                if not act.is_active or act.status != OrderCompletionAct.Status.SIGNED:
+                    raise OrderValidationError(
+                        "Нельзя завершить заказ: требуется подписанный АВР.",
+                        code="signed_act_required"
+                    )
+            except OrderCompletionAct.DoesNotExist:
+                raise OrderValidationError(
+                    "Нельзя завершить заказ: требуется подписанный АВР.",
+                    code="act_required"
+                )
+            balance_due = order.total_amount - order.paid_amount
+            if balance_due > 0:
+                exc = OrderValidationError(
+                    f"Нельзя завершить заказ: требуется оплата {balance_due}.",
+                    code="payment_required"
+                )
+                exc.balance_due = balance_due
+                raise exc
+
+        # Create materials from approved quote when transitioning to in_work
+        if new_status == Order.Status.IN_WORK:
+            try:
+                order = self._get_order_for_update(order_id)
+                self.create_materials_from_quote(order)
+                order = self._get_order_for_update(order_id)
+                self.recalculate_material_readiness(order)
+            except Exception:
+                pass
+
+        return self.transition_status(
+            order_id=order_id,
+            new_status=new_status,
+            changed_by=changed_by,
+            notes=notes
+        )
+
+    def create_materials_from_quote(self, order: Order) -> None:
+        """
+        Create OrderMaterial records from approved quote items.
+        Skips if materials already exist for this order.
+        """
+        if order.materials.exists():
+            return
+
+        approved_quote = order.related_quotes.filter(status=Quote.Status.APPROVED).order_by('-created_at').first()
+        if not approved_quote:
+            logger.warning(f"Order {order.id} ({order.order_number}): no approved quote found, materials not created")
+            return
+
+        materials_to_create = []
+        for item in approved_quote.items.all():
+            if item.fabric and item.fabric_meters and item.fabric_meters > 0:
+                materials_to_create.append(OrderMaterial(
+                    order=order,
+                    name=item.fabric.name or 'Ткань',
+                    material_type='fabric',
+                    quantity=item.fabric_meters,
+                    unit='м',
+                    status=OrderMaterial.Status.TO_BUY,
+                    source_quote_item=item,
+                ))
+            if item.tulle_fabric and item.tulle_meters and item.tulle_meters > 0:
+                materials_to_create.append(OrderMaterial(
+                    order=order,
+                    name=item.tulle_fabric.name or 'Тюль',
+                    material_type='tulle',
+                    quantity=item.tulle_meters,
+                    unit='м',
+                    status=OrderMaterial.Status.TO_BUY,
+                    source_quote_item=item,
+                ))
+            if item.cornice and item.cornice_length_m and item.cornice_length_m > 0:
+                materials_to_create.append(OrderMaterial(
+                    order=order,
+                    name=item.cornice.name or 'Карниз',
+                    material_type='cornice',
+                    quantity=item.cornice_length_m,
+                    unit='м',
+                    status=OrderMaterial.Status.TO_BUY,
+                    source_quote_item=item,
+                ))
+
+        if materials_to_create:
+            OrderMaterial.objects.bulk_create(materials_to_create)
+
+    def recalculate_material_readiness(self, order: Order) -> None:
+        """
+        Recalculate order.material_readiness based on OrderMaterial statuses.
+        All READY => ready, all TO_BUY => not_ready, mixed => partially_ready
+        """
+        if not order.materials.exists():
+            order.material_readiness = MaterialReadiness.NOT_READY
+            order.save(update_fields=['material_readiness'])
+            return
+
+        statuses = set(order.materials.values_list('status', flat=True))
+
+        if statuses == {OrderMaterial.Status.READY}:
+            order.material_readiness = MaterialReadiness.READY
+        elif statuses == {OrderMaterial.Status.TO_BUY}:
+            order.material_readiness = MaterialReadiness.NOT_READY
+        else:
+            order.material_readiness = MaterialReadiness.PARTIALLY_READY
+
+        order.save(update_fields=['material_readiness'])
+
     def record_payment(
         self,
         order_id: UUID,

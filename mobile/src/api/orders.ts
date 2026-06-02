@@ -1,6 +1,18 @@
 import { apiClient } from './client';
 import type { Order, OrdersPage } from '../types/order';
 
+export interface CreateOrderPayload {
+  client_name: string;
+  client_phone: string;
+  address: string;
+  deadline: string;
+  comment?: string;
+}
+
+export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
+  return apiClient.post<Order>('/api/v1/orders/', payload);
+}
+
 export async function fetchOrders(status?: string, page = 1): Promise<OrdersPage> {
   let endpoint = `/api/v1/orders/?page=${page}&page_size=50`;
   if (status) endpoint += `&status=${status}`;
@@ -29,6 +41,153 @@ export async function changeHandoverStage(id: string, stage: string): Promise<un
 
 export async function cancelOrder(id: string, reason: string): Promise<unknown> {
   return apiClient.post(`/api/v1/orders/${id}/cancel/`, { reason });
+}
+
+export interface MeasurementPayload {
+  room_name: string;
+  window_number?: string;
+  width: number | string;
+  height: number | string;
+  fabric_type?: 'curtain' | 'tulle' | '';
+  fabric_meters?: number | string;
+  fabric_name?: string;
+  mounting_type?: string;
+  comment?: string;
+}
+
+export interface MeasurementsList {
+  count: number;
+  results: Array<{
+    id: string;
+    room_name: string;
+    window_name: string;
+    width_cm: number;
+    height_cm: number;
+    mounting_type?: string;
+    curtain_fabric?: string | null;
+    curtain_meters?: string;
+    tulle_fabric?: string | null;
+    tulle_meters?: string;
+    notes?: string;
+    measured_at?: string;
+  }>;
+}
+
+export async function fetchMeasurements(orderId: string): Promise<MeasurementsList> {
+  return apiClient.get<MeasurementsList>(`/api/v1/orders/${orderId}/measurements/`);
+}
+
+export async function createMeasurement(orderId: string, payload: MeasurementPayload): Promise<unknown> {
+  return apiClient.post(`/api/v1/orders/${orderId}/measurements/`, payload);
+}
+
+export interface QuoteItemPayload {
+  room_name: string;
+  window_name?: string;
+  window_width_cm: number;
+  window_height_cm: number;
+  fabric_meters?: number | string;
+  fabric_cost?: number | string;
+  tulle_meters?: number | string;
+  tulle_cost?: number | string;
+  sewing_cost?: number | string;
+  installation_price?: number | string;
+  accessories_cost?: number | string;
+  line_total: number | string;
+}
+
+export interface CreateQuotePayload {
+  order_id: string;
+  valid_until?: string;
+  discount_amount?: number | string;
+  installation_cost?: number | string;
+  delivery_cost?: number | string;
+  prepayment_percent?: number | string;
+  items: QuoteItemPayload[];
+}
+
+export interface QuoteDTO {
+  id: string;
+  quote_number: string;
+  status: string;
+  status_label: string;
+  customer_name: string;
+  customer_phone: string;
+  order: string;
+  order_number: string;
+  subtotal: string;
+  discount_amount: string;
+  installation_cost: string;
+  delivery_cost: string;
+  total: string;
+  prepayment_percent: string;
+  valid_until: string | null;
+  pdf_generated: boolean;
+  pdf_url: string;
+  items: Array<{
+    id: string;
+    room_name: string;
+    window_name: string;
+    window_width_cm: number;
+    window_height_cm: number;
+    fabric_meters: string;
+    fabric_cost: string;
+    tulle_meters: string;
+    tulle_cost: string;
+    sewing_cost: string;
+    installation_price: string;
+    accessories_cost: string;
+    line_total: string;
+  }>;
+  created_at: string;
+}
+
+export interface QuotesList {
+  count: number;
+  results: QuoteDTO[];
+}
+
+export async function fetchQuotes(orderId: string): Promise<QuotesList> {
+  return apiClient.get<QuotesList>(`/api/v1/quotes/?order=${orderId}`);
+}
+
+export async function createQuote(payload: CreateQuotePayload): Promise<QuoteDTO> {
+  return apiClient.post<QuoteDTO>('/api/v1/quotes/', payload);
+}
+
+export async function generateQuotePdf(quoteId: string): Promise<{ pdf_url: string; pdf_generated: boolean; path: string }> {
+  return apiClient.post<{ pdf_url: string; pdf_generated: boolean; path: string }>(`/api/v1/quotes/${quoteId}/generate-pdf/`, {});
+}
+
+export interface OrderMaterialDTO {
+  id: string;
+  order: string;
+  name: string;
+  material_type: string;
+  quantity: string;
+  unit: string;
+  status: 'to_buy' | 'partial' | 'ready';
+  status_display: string;
+  source_quote_item: string | null;
+  comment: string;
+  updated_at: string;
+}
+
+export interface MaterialsList {
+  count: number;
+  results: OrderMaterialDTO[];
+}
+
+export async function fetchMaterials(orderId: string): Promise<MaterialsList> {
+  return apiClient.get<MaterialsList>(`/api/v1/orders/${orderId}/materials/`);
+}
+
+export async function updateMaterial(
+  orderId: string,
+  materialId: string,
+  payload: { status: string; comment?: string }
+): Promise<{ material: OrderMaterialDTO; order_material_readiness: string; order_material_readiness_label: string }> {
+  return apiClient.patch<{ material: OrderMaterialDTO; order_material_readiness: string; order_material_readiness_label: string }>(`/api/v1/orders/${orderId}/materials/${materialId}/`, payload);
 }
 
 // Execution summary shape (partial — only what mobile needs)

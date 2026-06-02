@@ -1246,6 +1246,54 @@ class QuoteItem(UUIDModel):
         verbose_name_plural = 'Quote Items'
 
 
+class OrderMaterial(UUIDModel):
+    """Material line item for order — created from approved quote items"""
+
+    class Status(models.TextChoices):
+        TO_BUY = 'to_buy', 'Закупить'
+        PARTIAL = 'partial', 'Есть частично'
+        READY = 'ready', 'Готово'
+
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='materials',
+        db_index=True
+    )
+    name = models.CharField(max_length=200)
+    material_type = models.CharField(max_length=50)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    unit = models.CharField(max_length=20, default='м')
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.TO_BUY,
+        db_index=True
+    )
+    source_quote_item = models.ForeignKey(
+        QuoteItem,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='order_materials'
+    )
+    comment = models.TextField(blank=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='updated_materials'
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'order_materials'
+        ordering = ['name']
+        verbose_name = 'Order Material'
+        verbose_name_plural = 'Order Materials'
+
+
 # ============================================
 # PRODUCTION CONTEXT
 # ============================================

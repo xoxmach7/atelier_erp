@@ -14,15 +14,15 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 
-from atelier_erp.api.permissions import IsManagerOrAdmin
+from atelier_erp.api.permissions import IsManagerOrAdmin, IsOwnerOrDesigner, IsWarehouseOrOwner
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 
 from atelier_erp.models import (
     Order, Task, Fabric, PhotoReport, OrderItem, OrderCompletionAct,
-    Measurement, Quote, Payment
+    Measurement, Quote, Payment, Customer, OrderMaterial
 )
-from atelier_erp.services import OrderService, TaskService, UnitOfWork
+from atelier_erp.services import OrderService, TaskService, UnitOfWork, QuoteService
 from atelier_erp.services.exceptions import (
     OrderNotFoundError, InvalidOrderStatusTransition,
     TaskNotFoundError, InvalidTaskStatusTransition
@@ -30,6 +30,9 @@ from atelier_erp.services.exceptions import (
 
 from .serializers import (
     OrderListSerializer, OrderDetailSerializer, OrderCreateSerializer, OrderStatusUpdateSerializer,
+    MeasurementSerializer, MeasurementCreateSerializer,
+    QuoteSerializer, QuoteCreateSerializer,
+    OrderMaterialSerializer, OrderMaterialUpdateSerializer,
     ChangeStatusSerializer, ChangeMaterialReadinessSerializer, ChangeProductionStageSerializer,
     ChangeHandoverStageSerializer, CancelOrderSerializer,
     TaskListSerializer, TaskDetailSerializer, TaskCreateSerializer, TaskStatusUpdateSerializer,
@@ -51,9 +54,9 @@ class OrderViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        """Create requires Manager/Admin role"""
+        """Create requires Owner/Designer/Manager/Admin role"""
         if self.action == 'create':
-            return [IsAuthenticated(), IsManagerOrAdmin()]
+            return [IsAuthenticated(), IsOwnerOrDesigner()]
         return super().get_permissions()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'customer']
@@ -84,45 +87,84 @@ class OrderViewSet(viewsets.ModelViewSet):
         """Create order via OrderService - supports direct creation without quote"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         # Generate order number: О-YYYY-NNN
         year = timezone.now().year
         count = Order.objects.filter(created_at__year=year).count() + 1
         order_number = f"О-{year}-{count:03d}"
 
-        # Build installation address dict from validated data
-        installation_address = {
-            'city': serializer.validated_data.get('installation_address_city', ''),
-            'street': serializer.validated_data.get('installation_address_street', ''),
-            'building': serializer.validated_data.get('installation_address_building', ''),
-            'apartment': serializer.validated_data.get('installation_address_apartment', ''),
-            'notes': serializer.validated_data.get('installation_address_notes', ''),
-        }
+        validated = serializer.validated_data
+
+        # --- Resolve customer ---
+        customer_id = validated.get('customer_id')
+        if not customer_id:
+            # Simplified mode: find or create customer from name + phone
+            client_name = validated.get('client_name', '').strip()
+            client_phone = validated.get('client_phone', '').strip()
+            try:
+                customer = Customer.objects.get(phone=client_phone, is_active=True)
+            except Customer.DoesNotExist:
+                customer = Customer.objects.create(
+                    full_name=client_name,
+                    phone=client_phone,
+                    address_city='',
+                )
+            customer_id = customer.id
+
+        # --- Build installation address ---
+        address = validated.get('address', '')
+        if address:
+            # Simplified mode: stuff full address into street field
+            installation_address = {
+                'city': '',
+                'street': address,
+                'building': '',
+                'apartment': '',
+                'notes': '',
+            }
+        else:
+            installation_address = {
+                'city': validated.get('installation_address_city', ''),
+                'street': validated.get('installation_address_street', ''),
+                'building': validated.get('installation_address_building', ''),
+                'apartment': validated.get('installation_address_apartment', ''),
+                'notes': validated.get('installation_address_notes', ''),
+            }
+
+        # --- Resolve notes / comment ---
+        notes = validated.get('notes', '')
+        comment = validated.get('comment', '')
+        final_notes = comment if comment else notes
+
+        # --- Resolve planned_completion / deadline ---
+        planned_completion = validated.get('planned_completion')
+        deadline = validated.get('deadline')
+        final_deadline = deadline if deadline else planned_completion
 
         with UnitOfWork() as uow:
             service = OrderService(uow)
             try:
                 order = service.create_order(
-                    customer_id=serializer.validated_data['customer_id'],
+                    customer_id=customer_id,
                     order_number=order_number,
                     installation_address=installation_address,
                     created_by=request.user.id,
-                    notes=serializer.validated_data.get('notes', ''),
-                    planned_completion=serializer.validated_data.get('planned_completion'),
+                    notes=final_notes,
+                    planned_completion=final_deadline,
                     measurements=None  # Measurements added separately
                 )
-                
+
                 # Set measurement_date if provided
-                measurement_date = serializer.validated_data.get('measurement_date')
+                measurement_date = validated.get('measurement_date')
                 if measurement_date:
                     order.measurement_date = measurement_date
                     order.save(update_fields=['measurement_date'])
-                
+
                 uow.commit()
-                
+
                 # Refresh to get related data
                 order.refresh_from_db()
-                
+
                 response_serializer = OrderDetailSerializer(order)
                 return Response(response_serializer.data, status=status.HTTP_201_CREATED)
             except Exception as e:
@@ -566,113 +608,22 @@ class OrderViewSet(viewsets.ModelViewSet):
         order = self.get_object()
         serializer = ChangeStatusSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         new_status = serializer.validated_data['status']
-        
-        # Business rule checks
-        from atelier_erp.constants import MaterialReadiness, ProductionStage
-        
-        # Cannot modify cancelled order
-        if order.status == Order.Status.CANCELLED:
-            return Response(
-                {'detail': 'Нельзя изменить статус отменённого заказа.', 'code': 'cancelled_order'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Cannot modify completed order
-        if order.status == Order.Status.COMPLETED:
-            return Response(
-                {'detail': 'Нельзя изменить статус завершённого заказа.', 'code': 'completed_order'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Check for accepted quote and order items for in_work transition
-        if new_status == Order.Status.IN_WORK:
-            from atelier_erp.models import Quote
-            has_accepted_quote = (
-                (order.quote and order.quote.status == Quote.Status.APPROVED) or
-                order.related_quotes.filter(status=Quote.Status.APPROVED).exists()
-            )
-            if not has_accepted_quote:
-                return Response(
-                    {'detail': 'Сначала примите КП и сформируйте позиции заказа.', 'code': 'quote_not_accepted'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            if order.items.count() == 0:
-                return Response(
-                    {'detail': 'Сначала сформируйте позиции заказа из КП.', 'code': 'no_order_items'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        
-        # Cannot start production without materials and order items
-        if new_status == Order.Status.IN_PRODUCTION:
-            if order.material_readiness == MaterialReadiness.NOT_READY:
-                return Response(
-                    {'detail': 'Нельзя начать производство: материалы не обеспечены.', 'code': 'material_not_ready'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            if order.items.count() == 0:
-                return Response(
-                    {'detail': 'Сначала сформируйте позиции заказа из КП.', 'code': 'no_order_items'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        
-        # Cannot mark ready if production not done
-        if new_status == Order.Status.READY:
-            if order.production_stage != ProductionStage.DONE:
-                return Response(
-                    {'detail': 'Нельзя отметить готовность: производство не завершено.', 'code': 'production_not_done'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        
-        # TODO: Move completed transition validation fully into service layer to avoid duplicated business rules.
-        # Cannot complete if production not done, handover not done, no signed act, or not paid
-        if new_status == Order.Status.COMPLETED:
-            if order.production_stage != ProductionStage.DONE:
-                return Response(
-                    {'detail': 'Нельзя завершить заказ: производство не завершено.', 'code': 'production_not_done'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            if order.handover_stage not in [HandoverStage.DONE, HandoverStage.NOT_REQUIRED]:
-                return Response(
-                    {'detail': 'Нельзя завершить заказ: установка/выдача не завершена.', 'code': 'handover_not_done'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            # Check for signed completion act
-            try:
-                act = order.completion_act
-                if not act.is_active or act.status != OrderCompletionAct.Status.SIGNED:
-                    return Response(
-                        {'detail': 'Нельзя завершить заказ: требуется подписанный АВР.', 'code': 'signed_act_required'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-            except OrderCompletionAct.DoesNotExist:
-                return Response(
-                    {'detail': 'Нельзя завершить заказ: требуется подписанный АВР.', 'code': 'act_required'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            balance_due = order.total_amount - order.paid_amount
-            if balance_due > 0:
-                return Response(
-                    {
-                        'detail': f'Нельзя завершить заказ: требуется оплата {balance_due}.',
-                        'code': 'payment_required',
-                        'balance_due': str(balance_due)
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        
+
+        from atelier_erp.services.exceptions import OrderValidationError
+
         with UnitOfWork() as uow:
             service = OrderService(uow)
             try:
-                order = service.transition_status(
+                order = service.transition_status_mvp(
                     order_id=order.id,
                     new_status=new_status,
                     changed_by=request.user.id if request.user else None,
                     notes=""
                 )
                 uow.commit()
-                
+
                 response_serializer = OrderDetailSerializer(order)
                 return Response({'order': response_serializer.data})
             except InvalidOrderStatusTransition as e:
@@ -680,6 +631,11 @@ class OrderViewSet(viewsets.ModelViewSet):
                     {'detail': str(e), 'code': 'invalid_transition', 'allowed_transitions': e.allowed},
                     status=status.HTTP_409_CONFLICT
                 )
+            except OrderValidationError as e:
+                resp = {'detail': str(e), 'code': e.code}
+                if e.code == 'payment_required' and hasattr(e, 'balance_due'):
+                    resp['balance_due'] = str(e.balance_due)
+                return Response(resp, status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
                 return Response(
                     {'detail': str(e), 'code': 'status_change_error'},
@@ -1426,6 +1382,148 @@ class FinanceWorkQueueView(BaseWorkQueueView):
             'recent_payments': recent_payments,
         })
 
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='measurements',
+        url_name='measurements',
+        permission_classes=[IsAuthenticated, IsOwnerOrDesigner]
+    )
+    def measurements(self, request, pk=None):
+        """
+        Order measurements management.
+
+        GET  /api/v1/orders/{id}/measurements/  — list measurements
+        POST /api/v1/orders/{id}/measurements/  — add measurement
+        """
+        order = self.get_object()
+
+        if request.method == 'GET':
+            measurements = order.measurements.all().order_by('room_name', 'window_name')
+            serializer = MeasurementSerializer(measurements, many=True)
+            return Response({
+                'count': measurements.count(),
+                'results': serializer.data,
+            })
+
+        # POST — create measurement
+        serializer = MeasurementCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Map simplified fields to model fields
+        measurement = Measurement.objects.create(
+            order=order,
+            room_name=data['room_name'],
+            window_name=data.get('window_number', ''),
+            width_cm=int(data['width']),
+            height_cm=int(data['height']),
+            mounting_type=data.get('mounting_type', ''),
+            notes=data.get('comment', ''),
+            measured_by=request.user if request.user.is_authenticated else None,
+        )
+
+        # Map fabric_type + fabric_meters to curtain/tulle fields
+        fabric_type = data.get('fabric_type')
+        fabric_meters = data.get('fabric_meters')
+        fabric_name = data.get('fabric_name', '')
+
+        if fabric_type and fabric_meters:
+            if fabric_type == 'curtain':
+                measurement.curtain_meters = fabric_meters
+                if fabric_name:
+                    fabric = Fabric.objects.filter(name__iexact=fabric_name).first()
+                    if fabric:
+                        measurement.curtain_fabric = fabric
+            elif fabric_type == 'tulle':
+                measurement.tulle_meters = fabric_meters
+                if fabric_name:
+                    fabric = Fabric.objects.filter(name__iexact=fabric_name).first()
+                    if fabric:
+                        measurement.tulle_fabric = fabric
+
+        measurement.save()
+
+        response_serializer = MeasurementSerializer(measurement)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='quotes',
+        url_name='quotes',
+        permission_classes=[IsAuthenticated]
+    )
+    def quotes(self, request, pk=None):
+        """
+        List quotes for an order.
+        GET /api/v1/orders/{id}/quotes/
+        """
+        order = self.get_object()
+        quotes = order.related_quotes.all().order_by('-created_at')
+        serializer = QuoteSerializer(quotes, many=True)
+        return Response({
+            'count': quotes.count(),
+            'results': serializer.data,
+        })
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='materials',
+        url_name='materials',
+        permission_classes=[IsAuthenticated]
+    )
+    def materials(self, request, pk=None):
+        """
+        List materials for an order.
+        GET /api/v1/orders/{id}/materials/
+        """
+        order = self.get_object()
+        materials = order.materials.all().order_by('name')
+        serializer = OrderMaterialSerializer(materials, many=True)
+        return Response({
+            'count': materials.count(),
+            'results': serializer.data,
+        })
+
+    @action(
+        detail=True,
+        methods=['patch'],
+        url_path=r'materials/(?P<material_id>[^/.]+)',
+        url_name='update-material',
+        permission_classes=[IsAuthenticated, IsWarehouseOrOwner]
+    )
+    def update_material(self, request, pk=None, material_id=None):
+        """
+        Update material status.
+        PATCH /api/v1/orders/{id}/materials/{material_id}/
+        Body: {"status": "ready", "comment": "..."}
+        """
+        order = self.get_object()
+        try:
+            material = order.materials.get(pk=material_id)
+        except OrderMaterial.DoesNotExist:
+            return Response(
+                {'error': f'Material {material_id} not found for this order'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = OrderMaterialUpdateSerializer(material, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(updated_by=request.user)
+
+        # Recalculate order material readiness
+        service = OrderService(unit_of_work=None)
+        service.recalculate_material_readiness(order)
+        order.refresh_from_db()
+
+        return Response({
+            'material': OrderMaterialSerializer(material).data,
+            'order_material_readiness': order.material_readiness,
+            'order_material_readiness_label': order.get_material_readiness_display(),
+        })
+
 
 class TaskViewSet(viewsets.ModelViewSet):
     """
@@ -1607,3 +1705,103 @@ class InventoryAvailabilityViewSet(viewsets.ReadOnlyModelViewSet):
                 {'error': f'Fabric with id {fabric_id} not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+class QuoteViewSet(viewsets.ModelViewSet):
+    """
+    Quote (Commercial Proposal) API v1
+
+    List/Retrieve: GET /api/v1/quotes/
+    Create: POST /api/v1/quotes/
+    Update: PATCH /api/v1/quotes/{id}/
+    Generate PDF: POST /api/v1/quotes/{id}/generate-pdf/
+    """
+    queryset = Quote.objects.all().order_by('-created_at')
+    permission_classes = [IsAuthenticated, IsOwnerOrDesigner]
+    serializer_class = QuoteSerializer
+
+    def get_queryset(self):
+        queryset = Quote.objects.all().order_by('-created_at')
+        order_id = self.request.query_params.get('order')
+        if order_id:
+            queryset = queryset.filter(order_id=order_id)
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        """Create quote for an existing order"""
+        serializer = QuoteCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        service = QuoteService(unit_of_work=None)
+        quote_number = service._generate_quote_number()
+
+        try:
+            quote = service.create_quote_for_order(
+                order_id=data['order_id'],
+                items=data['items'],
+                quote_number=quote_number,
+                installation_cost=data.get('installation_cost', Decimal('0')),
+                delivery_cost=data.get('delivery_cost', Decimal('0')),
+                discount_amount=data.get('discount_amount', Decimal('0')),
+                prepayment_percent=data.get('prepayment_percent', Decimal('0.5')),
+                valid_until=data.get('valid_until'),
+                created_by=request.user.id if request.user.is_authenticated else None
+            )
+            response_serializer = QuoteSerializer(quote)
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def update(self, request, *args, **kwargs):
+        """Update existing quote (partial)"""
+        partial = kwargs.pop('partial', False)
+        quote = self.get_object()
+
+        serializer = QuoteCreateSerializer(data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        service = QuoteService(unit_of_work=None)
+        try:
+            updated = service.update_quote(
+                quote_id=quote.id,
+                items=data.get('items'),
+                installation_cost=data.get('installation_cost'),
+                delivery_cost=data.get('delivery_cost'),
+                discount_amount=data.get('discount_amount'),
+                prepayment_percent=data.get('prepayment_percent'),
+                valid_until=data.get('valid_until'),
+                updated_by=request.user.id if request.user.is_authenticated else None
+            )
+            response_serializer = QuoteSerializer(updated)
+            return Response(response_serializer.data)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='generate-pdf', url_name='generate-pdf')
+    def generate_pdf(self, request, pk=None):
+        """
+        Generate PDF for quote.
+        POST /api/v1/quotes/{id}/generate-pdf/
+        """
+        quote = self.get_object()
+        service = QuoteService(unit_of_work=None)
+
+        try:
+            from django.conf import settings
+            media_root = getattr(settings, 'MEDIA_ROOT', '')
+            pdf_path = service.generate_pdf(quote.id, media_root=media_root)
+            quote.refresh_from_db()
+            return Response({
+                'pdf_url': quote.pdf_url,
+                'pdf_generated': quote.pdf_generated,
+                'path': pdf_path,
+            })
+        except ImportError as e:
+            return Response(
+                {'error': str(e), 'hint': 'Run: pip install weasyprint'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)

@@ -36,6 +36,34 @@ class IsWorkerOrManagerOrAdmin(permissions.BasePermission):
         )
 
 
+class IsOwnerOrDesigner(permissions.BasePermission):
+    """Allow only owners, designers, managers and admins"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return (
+            request.user.is_superuser or
+            request.user.groups.filter(
+                name__in=['Owner', 'Designer', 'Manager', 'Admin']
+            ).exists()
+        )
+
+
+class IsWarehouseOrOwner(permissions.BasePermission):
+    """Allow only warehouse staff, owners, managers and admins"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return (
+            request.user.is_superuser or
+            request.user.groups.filter(
+                name__in=['Warehouse', 'Owner', 'Manager', 'Admin']
+            ).exists()
+        )
+
+
 class IsSeamstressOwner(permissions.BasePermission):
     """Allow only the assigned seamstress or managers"""
     

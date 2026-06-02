@@ -21,15 +21,20 @@ const fetchers: Record<RoleKey, () => Promise<WorkQueueResponse>> = {
   finance: fetchOwnerQueue,
 };
 
-function getErrorInfo(err: unknown): { message: string; isDemoEligible: boolean } {
+function getErrorInfo(err: unknown): { message: string; isDemoEligible: boolean; isNetworkError: boolean } {
   if (err && typeof err === 'object') {
     const apiErr = err as ApiError;
     const status = typeof apiErr.status === 'number' ? apiErr.status : 0;
     const message = typeof apiErr.message === 'string' ? apiErr.message : 'Не удалось загрузить задачи.';
-    return { message, isDemoEligible: status === 401 || status === 0 };
+    const isNetworkError = status === 0;
+    const isDemoEligible = status === 401;
+    return { message: isNetworkError ? 'Нет соединения. Потяните чтобы обновить.' : message, isDemoEligible, isNetworkError };
   }
-  if (err instanceof Error) return { message: err.message, isDemoEligible: true };
-  return { message: 'Не удалось загрузить задачи.', isDemoEligible: true };
+  if (err instanceof Error) {
+    const isNetworkError = err.message.toLowerCase().includes('network') || err.message.toLowerCase().includes('failed to fetch');
+    return { message: isNetworkError ? 'Нет соединения. Потяните чтобы обновить.' : err.message, isDemoEligible: false, isNetworkError };
+  }
+  return { message: 'Не удалось загрузить задачи.', isDemoEligible: false, isNetworkError: false };
 }
 
 export function useWorkQueue(role: RoleKey) {
@@ -52,14 +57,19 @@ export function useWorkQueue(role: RoleKey) {
       setData(response.items || []);
       setCount(response.count || 0);
     } catch (err) {
-      const { message, isDemoEligible } = getErrorInfo(err);
-      if (isDemoEligible) {
+      const { message, isDemoEligible, isNetworkError } = getErrorInfo(err);
+      if (isNetworkError) {
+        setError(message);
+        setIsDemo(false);
+      } else if (isDemoEligible) {
         const demo = DEMO_WORK_QUEUES[role];
         setData(demo?.items || []);
         setCount(demo?.count || 0);
         setIsDemo(true);
+        setError(null);
       } else {
         setError(message);
+        setIsDemo(false);
       }
     } finally {
       setLoading(false);

@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen } from '../../src/components/Screen';
-import { RoleSwitcher } from '../../src/components/RoleSwitcher';
 import { WorkTaskRow, type TaskIconType } from '../../src/components/WorkTaskRow';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useWorkQueue } from '../../src/hooks/useWorkQueues';
@@ -75,8 +74,14 @@ function getTaskSubtitle(item: WorkQueueItem, _role: RoleKey): string {
 export default function WorkScreen() {
   const router = useRouter();
   const { primaryRole } = useAuthContext();
-  const [activeRole, setActiveRole] = useState<RoleKey>(primaryRole);
-  const { data, loading, error, isDemo } = useWorkQueue(activeRole);
+  const { data, loading, error, isDemo, refetch } = useWorkQueue(primaryRole);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
 
   return (
     <Screen>
@@ -95,20 +100,20 @@ export default function WorkScreen() {
         </View>
       </View>
 
-      <RoleSwitcher activeRole={activeRole} onRoleChange={setActiveRole} />
-
       {isDemo && (
         <View style={styles.demoBanner}>
           <Text style={styles.demoBannerText}>Демо-данные: backend требует авторизацию</Text>
         </View>
       )}
 
-      {loading && (
+      {loading && !refreshing && (
         <ActivityIndicator size="large" color={colors.primary[500]} />
       )}
 
       {error && (
-        <Text style={styles.error}>{error}</Text>
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
       )}
 
       {!loading && !error && data.length === 0 && (
@@ -118,7 +123,12 @@ export default function WorkScreen() {
         />
       )}
 
-      <View style={styles.list}>
+      <ScrollView
+        style={styles.list}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {!loading &&
           !error &&
           data.map((item) => (
@@ -126,13 +136,13 @@ export default function WorkScreen() {
               key={item.id}
               title={formatTaskTitle(item.orderNumber, item.clientName)}
               date={formatDate(item.dueDate)}
-              subtitle={getTaskSubtitle(item, activeRole)}
+              subtitle={getTaskSubtitle(item, primaryRole)}
               context={item.context}
-              icon={getTaskIcon(item, activeRole)}
+              icon={getTaskIcon(item, primaryRole)}
               onPress={() => router.push(`/orders/${item.orderId}`)}
             />
           ))}
-      </View>
+      </ScrollView>
     </Screen>
   );
 }
@@ -177,11 +187,18 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     lineHeight: 18,
   },
-  error: {
+  errorBox: {
+    backgroundColor: colors.danger.light,
+    borderRadius: radius.md,
+    paddingVertical: spacing.base,
+    paddingHorizontal: spacing.lg,
+    marginVertical: spacing.lg,
+    alignItems: 'center',
+  },
+  errorText: {
     color: colors.danger.DEFAULT,
     fontSize: typography.sizes.base,
     textAlign: 'center',
-    marginTop: spacing.lg,
   },
   list: {
     paddingBottom: 40,
