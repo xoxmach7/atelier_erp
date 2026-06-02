@@ -166,6 +166,18 @@ export default function OrderDetailScreen() {
           </TouchableOpacity>
         )}
 
+        {/* Complete order link — owner only */}
+        {primaryRole === 'owner' && data.actions?.can_complete && (
+          <TouchableOpacity
+            style={[styles.measurementsLink, { backgroundColor: '#ecfdf5' }]}
+            onPress={() => router.push(`/orders/${idStr}/complete`)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.measurementsLinkText, { color: '#059669' }]}>✓ Завершить заказ</Text>
+            <Text style={styles.measurementsLinkArrow}>→</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Warnings */}
         {data.warnings?.length > 0 && (
           <View style={styles.warningsBox}>

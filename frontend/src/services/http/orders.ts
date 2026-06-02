@@ -382,3 +382,18 @@ export async function uploadSignedCompletionAct(
     formData
   );
 }
+
+export interface CompletionChecklistItem {
+  key: string;
+  label: string;
+  done: boolean;
+}
+
+export interface CompletionChecklistDTO {
+  checklist: CompletionChecklistItem[];
+  can_complete: boolean;
+}
+
+export async function getCompletionChecklist(orderId: string): Promise<CompletionChecklistDTO> {
+  return get<CompletionChecklistDTO>(`/v1/orders/${orderId}/completion-checklist/`);
+}

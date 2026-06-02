@@ -242,6 +242,21 @@ export async function uploadSignedAct(orderId: string, formData: FormData): Prom
   return apiClient.postMultipart<{ act: CompletionActResponse['act']; created: boolean; message: string }>(`/api/v1/orders/${orderId}/completion-act/upload-signed/`, formData);
 }
 
+export interface CompletionChecklistItem {
+  key: string;
+  label: string;
+  done: boolean;
+}
+
+export interface CompletionChecklist {
+  checklist: CompletionChecklistItem[];
+  can_complete: boolean;
+}
+
+export async function fetchCompletionChecklist(orderId: string): Promise<CompletionChecklist> {
+  return apiClient.get<CompletionChecklist>(`/api/v1/orders/${orderId}/completion-checklist/`);
+}
+
 // Execution summary shape (partial — only what mobile needs)
 export interface OrderExecution {
   order_id: string;

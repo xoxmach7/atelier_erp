@@ -542,6 +542,68 @@ class OrderViewSet(viewsets.ModelViewSet):
             'message': 'Подписанный АВР успешно загружен'
         })
 
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='completion-checklist',
+        url_name='completion-checklist',
+        permission_classes=[IsAuthenticated]
+    )
+    def completion_checklist(self, request, pk=None):
+        """
+        Return completion checklist for order.
+        GET /api/v1/orders/{id}/completion-checklist/
+        """
+        from ..constants import ProductionStage, HandoverStage
+        order = self.get_object()
+
+        installation_done = order.handover_stage in [HandoverStage.DONE, HandoverStage.NOT_REQUIRED]
+        has_photos = order.photo_reports.filter(is_active=True).exists()
+        has_act = False
+        act_signed = False
+        try:
+            act = order.completion_act
+            has_act = act.is_active
+            act_signed = act.status == OrderCompletionAct.Status.SIGNED
+        except OrderCompletionAct.DoesNotExist:
+            pass
+        fully_paid = order.paid_amount >= order.total_amount
+
+        checklist = [
+            {
+                "key": "installation",
+                "label": "Установка/выдача завершена",
+                "done": installation_done,
+            },
+            {
+                "key": "photos",
+                "label": "Фотоотчёт загружен",
+                "done": has_photos,
+            },
+            {
+                "key": "act_created",
+                "label": "АВР создан",
+                "done": has_act,
+            },
+            {
+                "key": "act_signed",
+                "label": "Подписанный АВР загружен",
+                "done": act_signed,
+            },
+            {
+                "key": "payment",
+                "label": "Оплата закрыта",
+                "done": fully_paid,
+            },
+        ]
+
+        can_complete = all(item["done"] for item in checklist)
+
+        return Response({
+            "checklist": checklist,
+            "can_complete": can_complete,
+        })
+
     @action(detail=True, methods=['post'])
     def change_status(self, request, pk=None):
         """
