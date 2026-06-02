@@ -13,7 +13,7 @@ export interface WorkQueueItem {
   orderNumber: string;
   clientName: string;
   clientPhone: string;
-  address: string;
+  address: string | { city?: string; street?: string; building?: string; apartment?: string };
   status: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   dueDate?: string;

@@ -18,7 +18,9 @@
       },
       "package": "com.sheber.mobile"
     },
-    "plugins": [],
+    "plugins": [
+      "expo-font"
+    ],
     "extra": {
       "apiBaseUrl": "${EXPO_PUBLIC_API_BASE_URL}"
     }

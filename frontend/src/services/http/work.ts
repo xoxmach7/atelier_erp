@@ -19,7 +19,7 @@ export interface WorkOrderTask {
   order_number: string;
   customer_name: string;
   customer_phone: string;
-  installation_address: string;
+  installation_address: string | { city?: string; street?: string; building?: string; apartment?: string };
   status: string;
   status_label: string;
   planned_completion_date: string | null;

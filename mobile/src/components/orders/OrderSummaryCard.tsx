@@ -3,6 +3,7 @@ import { spacing, radius } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 import { colors } from '../../theme/colors';
 import type { OrderExecution } from '../../api/orders';
+import { formatAddress } from '../../utils/formatAddress';
 
 function fmt(d?: string | null): string {
   if (!d) return '—';
@@ -40,7 +41,7 @@ export function OrderSummaryCard({ data }: { data: OrderExecution }) {
       <Card>
         <Text style={{ fontSize: typography.sizes.xl, fontWeight: '500', color: colors.text, marginBottom: 2 }}>{data.customer.full_name}</Text>
         <Text style={{ fontSize: typography.sizes.base, color: colors.textMuted, marginBottom: 2 }}>{data.customer.phone}</Text>
-        {data.customer.address ? <Text style={{ fontSize: typography.sizes.sm, color: colors.textMuted }}>{data.customer.address}</Text> : null}
+        {data.customer.address ? <Text style={{ fontSize: typography.sizes.sm, color: colors.textMuted }}>{formatAddress(data.customer.address)}</Text> : null}
         <View style={{ height: 0.5, backgroundColor: '#e2e8f0', marginVertical: spacing.sm }} />
         <InfoRow label="Статус" value={data.status_label} accent />
         <InfoRow label="Материалы" value={data.material_readiness_label} />

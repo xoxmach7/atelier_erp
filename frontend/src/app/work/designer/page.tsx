@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useDesignerQueue } from "@/hooks/useWorkQueues";
 import type { DesignerTask } from "@/services/http/work";
+import { formatAddress } from "@/utils/formatAddress";
 import { EmptyRoleState, MaterialsList, StatusPill, TaskSection, WorkOrderHeader, WorkspaceHeader } from "@/components/layout/role-workspace";
 
 function DesignerCard({ task, mode }: { task: DesignerTask; mode: "measurement" | "quote" | "progress" }) {
@@ -16,7 +17,7 @@ function DesignerCard({ task, mode }: { task: DesignerTask; mode: "measurement" 
     <Card className="border-slate-200 bg-white shadow-sm">
       <CardContent className="space-y-3 p-4">
         <WorkOrderHeader task={task} right={<StatusPill label={task.status_label} tone="sky" />} />
-        {task.installation_address ? <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">Адрес: {task.installation_address}</div> : null}
+        {task.installation_address ? <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">Адрес: {formatAddress(task.installation_address)}</div> : null}
         {mode !== "measurement" ? <MaterialsList items={task.measurement_summary} emptyText="Замер есть, но детали пока не попали в очередь." /> : null}
         <div className="flex flex-wrap gap-2">
           {mode === "measurement" ? <Button asChild size="sm"><Link href={task.measurements_url}>{nextStep}</Link></Button> : null}

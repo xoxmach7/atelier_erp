@@ -6,6 +6,7 @@ import { spacing } from '../theme/spacing';
 import { radius } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import type { WorkQueueItem } from '../types/work';
+import { formatAddress } from '../utils/formatAddress';
 
 interface TaskCardProps {
   item: WorkQueueItem;
@@ -25,7 +26,7 @@ export function TaskCard({ item, onPress }: TaskCardProps) {
         <Text style={styles.meta}>{item.clientPhone}</Text>
       )}
       {item.address && (
-        <Text style={styles.meta}>{item.address}</Text>
+        <Text style={styles.meta}>{formatAddress(item.address)}</Text>
       )}
 
       <View style={styles.footer}>

@@ -265,7 +265,7 @@ export interface OrderExecution {
     id: string;
     full_name: string;
     phone: string;
-    address?: string;
+    address?: string | { city?: string; street?: string; building?: string; apartment?: string };
   };
   status: string;
   status_label: string;
