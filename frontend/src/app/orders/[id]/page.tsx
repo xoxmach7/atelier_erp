@@ -33,6 +33,7 @@ import {
 } from "@/hooks/useOrders";
 import { useCreateMeasurement, useUpdateMeasurement } from "@/hooks/useMeasurements";
 import { useFabrics } from "@/hooks/useFabrics";
+import { useRole } from "@/hooks/useRole";
 import type { OrderDetailDTO, OrderItemDTO, MeasurementDTO, PaymentDTO, TaskStatus, OrderExecutionDTO, AvailableActionDTO, WarningDTO, OrderStatus, DesignerMeasurementDTO, SelectedMaterialDTO, MaterialRequirementDTO, ProductionItemDTO, ProductionAssignmentDTO, PhotoReportDTO, PhotoReportStatus, PhotoReportSummaryDTO, CompletionActStatus, CompletionActSummaryDTO } from "@/types";
 import {
   ArrowLeft,
@@ -3710,6 +3711,7 @@ export default function OrderDetailPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const orderId = params.id as string;
+  const { role } = useRole();
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
@@ -3988,6 +3990,14 @@ export default function OrderDetailPage() {
               К заказам
             </Link>
           </Button>
+          {(role === "owner" || role === "designer") && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/orders/${orderId}/edit`}>
+                <Edit className="mr-2 h-4 w-4" />
+                Редактировать
+              </Link>
+            </Button>
+          )}
           <Button variant="outline" size="sm" asChild>
             <Link href={`/measurements?order=${order.id}`}>
               <Ruler className="mr-2 h-4 w-4" />

@@ -3,6 +3,7 @@
     "name": "Sheber Mobile",
     "slug": "sheber-mobile",
     "version": "1.0.0",
+    "scheme": "sheber",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "assetBundlePatterns": [
@@ -22,7 +23,10 @@
       "expo-font"
     ],
     "extra": {
-      "apiBaseUrl": "${EXPO_PUBLIC_API_BASE_URL}"
+      "apiBaseUrl": "${EXPO_PUBLIC_API_BASE_URL}",
+      "eas": {
+        "projectId": "7de865fd-e055-4401-a799-649ff3cee117"
+      }
     }
   }
 }

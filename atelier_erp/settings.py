@@ -20,6 +20,7 @@ ALLOWED_HOSTS = [
     for host in os.environ.get(
         'ALLOWED_HOSTS',
         'localhost,127.0.0.1,192.168.15.53,172.28.41.204,0.0.0.0'
+        'rebate-phantom-washing.ngrok-free.dev'
     ).split(',')
     if host.strip()
 ]

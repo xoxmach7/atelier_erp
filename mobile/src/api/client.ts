@@ -74,6 +74,7 @@ export class ApiClient {
 
     const isFormData = options.body instanceof FormData;
     const headers: Record<string, string> = {
+      'ngrok-skip-browser-warning': 'true',
       ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...((options.headers as Record<string, string>) || {}),

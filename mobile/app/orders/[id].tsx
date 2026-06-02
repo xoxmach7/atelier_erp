@@ -108,6 +108,18 @@ export default function OrderDetailScreen() {
         <OrderSummaryCard data={data} />
         <OrderMeasurements data={data} />
 
+        {/* Edit link — owner and designer */}
+        {(primaryRole === 'owner' || primaryRole === 'designer') && (
+          <TouchableOpacity
+            style={styles.measurementsLink}
+            onPress={() => router.push(`/orders/${idStr}/edit`)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.measurementsLinkText}>✏️ Редактировать</Text>
+            <Text style={styles.measurementsLinkArrow}>→</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Measurements link */}
         {(primaryRole === 'owner' || primaryRole === 'designer') && (
           <TouchableOpacity

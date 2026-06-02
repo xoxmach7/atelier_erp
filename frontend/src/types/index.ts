@@ -216,6 +216,26 @@ export interface OrderCreateDTO {
   notes?: string;
 }
 
+/**
+ * Order update payload - matches backend OrderUpdateSerializer
+ * Backend fields: client_name, client_phone, address, deadline, comment,
+ * installation_address_*, notes, planned_completion
+ */
+export interface OrderUpdateDTO {
+  client_name?: string;
+  client_phone?: string;
+  address?: string;
+  deadline?: string | null;
+  comment?: string;
+  installation_address_city?: string;
+  installation_address_street?: string;
+  installation_address_building?: string;
+  installation_address_apartment?: string;
+  installation_address_notes?: string;
+  notes?: string;
+  planned_completion?: string | null;
+}
+
 // ============================================================================
 // Fabric DTOs - API Response Types
 // ============================================================================

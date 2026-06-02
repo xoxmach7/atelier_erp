@@ -9,6 +9,7 @@ import type {
   OrderDetailDTO,
   OrderExecutionDTO,
   OrderCreateDTO,
+  OrderUpdateDTO,
   ChangeStatusRequest,
   ChangeMaterialReadinessRequest,
   ChangeProductionStageRequest,
@@ -56,6 +57,13 @@ export async function fetchOrderById(id: string): Promise<OrderDetailDTO> {
  */
 export async function createOrder(data: OrderCreateDTO): Promise<OrderDetailDTO> {
   return post<OrderDetailDTO>("/v1/orders/", data);
+}
+
+/**
+ * Update order
+ */
+export async function updateOrder(orderId: string, data: OrderUpdateDTO): Promise<OrderDetailDTO> {
+  return patch<OrderDetailDTO>(`/v1/orders/${orderId}/`, data);
 }
 
 // ============================================================================

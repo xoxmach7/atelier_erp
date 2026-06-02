@@ -29,7 +29,7 @@ from atelier_erp.services.exceptions import (
 )
 
 from .serializers import (
-    OrderListSerializer, OrderDetailSerializer, OrderCreateSerializer, OrderStatusUpdateSerializer,
+    OrderListSerializer, OrderDetailSerializer, OrderCreateSerializer, OrderUpdateSerializer, OrderStatusUpdateSerializer,
     MeasurementSerializer, MeasurementCreateSerializer,
     QuoteSerializer, QuoteCreateSerializer,
     OrderMaterialSerializer, OrderMaterialUpdateSerializer,
@@ -54,8 +54,8 @@ class OrderViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        """Create requires Owner/Designer/Manager/Admin role"""
-        if self.action == 'create':
+        """Create and update require Owner/Designer role"""
+        if self.action in ['create', 'update', 'partial_update']:
             return [IsAuthenticated(), IsOwnerOrDesigner()]
         return super().get_permissions()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -68,6 +68,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             return OrderListSerializer
         if self.action == 'create':
             return OrderCreateSerializer
+        if self.action in ['update', 'partial_update']:
+            return OrderUpdateSerializer
         if self.action == 'change_status':
             return OrderStatusUpdateSerializer
         # New MVP action serializers
@@ -171,30 +173,14 @@ class OrderViewSet(viewsets.ModelViewSet):
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     def update(self, request, *args, **kwargs):
-        """Update order notes and material_readiness via service layer"""
-        order = self.get_object()
-        
-        # Handle material_readiness update directly on model
-        material_readiness = request.data.get('material_readiness')
-        if material_readiness:
-            if material_readiness in [choice[0] for choice in MaterialReadiness.choices]:
-                order.material_readiness = material_readiness
-                order.save(update_fields=['material_readiness', 'updated_at'])
-        
-        with UnitOfWork() as uow:
-            service = OrderService(uow)
-            try:
-                updated_order = service.update_order(
-                    order_id=order.id,
-                    notes=request.data.get('notes'),
-                    updated_by=request.user
-                )
-                uow.commit()
-                
-                response_serializer = OrderDetailSerializer(updated_order)
-                return Response(response_serializer.data)
-            except Exception as e:
-                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        """Update order via OrderUpdateSerializer - customer, address, deadline, notes"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        updated = serializer.save()
+        response_serializer = OrderDetailSerializer(updated)
+        return Response(response_serializer.data)
     
     @action(detail=True, methods=['get'])
     def execution(self, request, pk=None):

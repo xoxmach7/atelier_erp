@@ -13,6 +13,10 @@ export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
   return apiClient.post<Order>('/api/v1/orders/', payload);
 }
 
+export async function updateOrder(id: string, payload: Partial<CreateOrderPayload>): Promise<Order> {
+  return apiClient.patch<Order>(`/api/v1/orders/${id}/`, payload);
+}
+
 export async function fetchOrders(status?: string, page = 1): Promise<OrdersPage> {
   let endpoint = `/api/v1/orders/?page=${page}&page_size=50`;
   if (status) endpoint += `&status=${status}`;

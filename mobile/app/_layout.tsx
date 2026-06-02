@@ -2,21 +2,24 @@ import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuthContext } from '../src/context/AuthContext';
-// import { useFonts } from 'expo-font';
-// Uncomment and add font files to assets/fonts/ to enable TT Norms Pro:
-// import TTNormsProRegular from '../assets/fonts/TTNormsPro-Regular.ttf';
-// import TTNormsProMedium from '../assets/fonts/TTNormsPro-Medium.ttf';
+import { useFonts } from 'expo-font';
 
 function RootNavigator() {
   const { isAuthenticated, isLoading } = useAuthContext();
   const segments = useSegments();
   const router = useRouter();
 
-  // Uncomment to load custom fonts:
-  // const [fontsLoaded] = useFonts({
-  //   'TTNormsPro-Regular': TTNormsProRegular,
-  //   'TTNormsPro-Medium': TTNormsProMedium,
-  // });
+  const [fontsLoaded] = useFonts({
+    'TTNormsPro-Regular': require('../assets/fonts/TTNORMSPRO-REGULAR.TTF'),
+    'TTNormsPro-Medium': require('../assets/fonts/ttnormspro-medium.ttf'),
+    'TTNormsPro-Bold': require('../assets/fonts/TTNORMSPRO-BOLD.TTF'),
+    'TTNormsPro-Light': require('../assets/fonts/TTNORMSPRO-LIGHT.TTF'),
+    'TTNormsPro-Thin': require('../assets/fonts/TTNORMSPRO-THIN.TTF'),
+    'TTNormsPro-ExtraBold': require('../assets/fonts/TTNORMSPRO-EXTRABOLD.TTF'),
+    'TTNormsPro-Black': require('../assets/fonts/TTNORMSPRO-BLACK.TTF'),
+    'TTNormsPro-Italic': require('../assets/fonts/TTNORMSPRO-ITALIC.TTF'),
+    'TTNormsPro-BoldItalic': require('../assets/fonts/TTNORMSPRO-BOLDITALIC.TTF'),
+  });
 
   useEffect(() => {
     if (isLoading) return;

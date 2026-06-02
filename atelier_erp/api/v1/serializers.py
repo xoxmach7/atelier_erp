@@ -360,6 +360,76 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         return data
 
 
+class OrderUpdateSerializer(serializers.ModelSerializer):
+    """Order update - editable fields for owner/designer
+
+    Fields:
+    - client_name / client_phone: update customer info
+    - address: simplified full address string
+    - deadline: planned completion date
+    - comment: order notes
+    - installation_address_*: granular address fields
+    """
+    client_name = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    client_phone = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    address = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    deadline = serializers.DateField(required=False, allow_null=True, write_only=True)
+    comment = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    # Granular address fields
+    installation_address_city = serializers.CharField(required=False, allow_blank=True)
+    installation_address_street = serializers.CharField(required=False, allow_blank=True)
+    installation_address_building = serializers.CharField(required=False, allow_blank=True)
+    installation_address_apartment = serializers.CharField(required=False, allow_blank=True)
+    installation_address_notes = serializers.CharField(required=False, allow_blank=True)
+
+    class Meta:
+        model = Order
+        fields = [
+            'client_name', 'client_phone', 'address', 'deadline', 'comment',
+            'notes', 'planned_completion',
+            'installation_address_city', 'installation_address_street',
+            'installation_address_building', 'installation_address_apartment',
+            'installation_address_notes',
+        ]
+
+    def update(self, instance, validated_data):
+        # Update customer info if provided
+        client_name = validated_data.pop('client_name', None)
+        client_phone = validated_data.pop('client_phone', None)
+        if client_name or client_phone:
+            customer = instance.customer
+            if client_name:
+                customer.full_name = client_name
+            if client_phone:
+                customer.phone = client_phone
+            customer.save(update_fields=['full_name', 'phone', 'updated_at'])
+
+        # Handle simplified address
+        address = validated_data.pop('address', None)
+        if address:
+            instance.installation_address_street = address
+            instance.installation_address_city = ''
+            instance.installation_address_building = ''
+            instance.installation_address_apartment = ''
+
+        # Handle deadline -> planned_completion
+        deadline = validated_data.pop('deadline', None)
+        if deadline is not None:
+            instance.planned_completion = deadline
+
+        # Handle comment -> notes
+        comment = validated_data.pop('comment', None)
+        if comment is not None:
+            instance.notes = comment
+
+        # Update remaining fields directly
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+        return instance
+
+
 class OrderStatusUpdateSerializer(serializers.Serializer):
     """Order status transition - service layer will handle FSM"""
     new_status = serializers.ChoiceField(choices=Order.Status.choices)
