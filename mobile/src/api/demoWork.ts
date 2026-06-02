@@ -188,10 +188,9 @@ const installationItems: WorkQueueItem[] = [
 export const DEMO_WORK_QUEUES: Record<RoleKey, WorkQueueResponse> = {
   owner: {
     role: 'owner',
-    count: 10,
+    count: 8,
     items: [
       ...designerItems,
-      ...quotesItems,
       ...warehouseItems,
       ...productionItems,
       ...installationItems,
@@ -204,8 +203,8 @@ export const DEMO_WORK_QUEUES: Record<RoleKey, WorkQueueResponse> = {
   },
   quotes: {
     role: 'quotes',
-    count: quotesItems.length,
-    items: quotesItems,
+    count: 0,
+    items: [],
   },
   warehouse: {
     role: 'warehouse',

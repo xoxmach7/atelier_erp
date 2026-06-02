@@ -14,16 +14,63 @@ export interface ApiError {
   detail?: string;
 }
 
+const STORAGE = {
+  access: 'atelier_access_token',
+  refresh: 'atelier_refresh_token',
+} as const;
+
+// AuthContext registers this callback so client can trigger logout on 401
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedCallback(cb: () => void) {
+  onUnauthorized = cb;
+}
+
 export class ApiClient {
   private baseUrl: string;
+  // Prevent multiple simultaneous refresh requests
+  private refreshPromise: Promise<string | null> | null = null;
 
   constructor() {
     this.baseUrl = getBaseUrl();
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async refreshAccessToken(): Promise<string | null> {
+    // If already refreshing, wait for that promise
+    if (this.refreshPromise) return this.refreshPromise;
+
+    this.refreshPromise = (async () => {
+      try {
+        const refreshToken = await AsyncStorage.getItem(STORAGE.refresh);
+        if (!refreshToken) return null;
+
+        const res = await fetch(`${this.baseUrl}/api/auth/token/refresh/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh: refreshToken }),
+        });
+
+        if (!res.ok) return null;
+
+        const { access } = await res.json() as { access: string };
+        await AsyncStorage.setItem(STORAGE.access, access);
+        return access;
+      } catch {
+        return null;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
+  }
+
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {},
+    retry = true,
+  ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    const token = await this.getToken();
+    const token = await AsyncStorage.getItem(STORAGE.access);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -42,8 +89,24 @@ export class ApiClient {
       } as ApiError;
     }
 
+    // 401 → try to refresh token once, then retry request
+    if (response.status === 401 && retry) {
+      const newToken = await this.refreshAccessToken();
+      if (newToken) {
+        // Retry with new token
+        return this.request<T>(endpoint, options, false);
+      }
+      // Refresh failed — force logout
+      await Promise.all([AsyncStorage.removeItem(STORAGE.access), AsyncStorage.removeItem(STORAGE.refresh), AsyncStorage.removeItem('atelier_user')]);
+      onUnauthorized?.();
+      throw {
+        status: 401,
+        message: 'Сессия истекла. Войдите снова.',
+      } as ApiError;
+    }
+
     if (response.status === 401) {
-      throw { status: 401, message: 'Требуется авторизация. Войдите в систему.' } as ApiError;
+      throw { status: 401, message: 'Требуется авторизация.' } as ApiError;
     }
 
     if (!response.ok) {
@@ -57,10 +120,6 @@ export class ApiClient {
 
     if (response.status === 204) return {} as T;
     return response.json() as Promise<T>;
-  }
-
-  private async getToken(): Promise<string | null> {
-    return AsyncStorage.getItem('atelier_access_token');
   }
 
   public async get<T>(endpoint: string): Promise<T> {

@@ -8,7 +8,6 @@ import type { RoleKey } from '../types/work';
 
 const ROLES: { key: RoleKey; label: string }[] = [
   { key: 'designer', label: 'Дизайнер' },
-  { key: 'quotes', label: 'КП' },
   { key: 'warehouse', label: 'Склад' },
   { key: 'production', label: 'Пошив' },
   { key: 'installation', label: 'Установка' },

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setUnauthorizedCallback } from '../api/client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -162,6 +163,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
+    });
+  }, []);
+
+  // Register logout callback so ApiClient can force logout on failed refresh
+  React.useEffect(() => {
+    setUnauthorizedCallback(() => {
+      setState({
+        user: null,
+        accessToken: null,
+        refreshToken: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
     });
   }, []);
 
