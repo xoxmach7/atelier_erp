@@ -946,6 +946,148 @@ class OrderViewSet(viewsets.ModelViewSet):
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='measurements',
+        url_name='measurements',
+        permission_classes=[IsAuthenticated, IsOwnerOrDesigner]
+    )
+    def measurements(self, request, pk=None):
+        """
+        Order measurements management.
+
+        GET  /api/v1/orders/{id}/measurements/  — list measurements
+        POST /api/v1/orders/{id}/measurements/  — add measurement
+        """
+        order = self.get_object()
+
+        if request.method == 'GET':
+            measurements = order.measurements.all().order_by('room_name', 'window_name')
+            serializer = MeasurementSerializer(measurements, many=True)
+            return Response({
+                'count': measurements.count(),
+                'results': serializer.data,
+            })
+
+        # POST — create measurement
+        serializer = MeasurementCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Map simplified fields to model fields
+        measurement = Measurement.objects.create(
+            order=order,
+            room_name=data['room_name'],
+            window_name=data.get('window_number', ''),
+            width_cm=int(data['width']),
+            height_cm=int(data['height']),
+            mounting_type=data.get('mounting_type', ''),
+            notes=data.get('comment', ''),
+            measured_by=request.user if request.user.is_authenticated else None,
+        )
+
+        # Map fabric_type + fabric_meters to curtain/tulle fields
+        fabric_type = data.get('fabric_type')
+        fabric_meters = data.get('fabric_meters')
+        fabric_name = data.get('fabric_name', '')
+
+        if fabric_type and fabric_meters:
+            if fabric_type == 'curtain':
+                measurement.curtain_meters = fabric_meters
+                if fabric_name:
+                    fabric = Fabric.objects.filter(name__iexact=fabric_name).first()
+                    if fabric:
+                        measurement.curtain_fabric = fabric
+            elif fabric_type == 'tulle':
+                measurement.tulle_meters = fabric_meters
+                if fabric_name:
+                    fabric = Fabric.objects.filter(name__iexact=fabric_name).first()
+                    if fabric:
+                        measurement.tulle_fabric = fabric
+
+        measurement.save()
+
+        response_serializer = MeasurementSerializer(measurement)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='quotes',
+        url_name='quotes',
+        permission_classes=[IsAuthenticated]
+    )
+    def quotes(self, request, pk=None):
+        """
+        List quotes for an order.
+        GET /api/v1/orders/{id}/quotes/
+        """
+        order = self.get_object()
+        quotes = order.related_quotes.all().order_by('-created_at')
+        serializer = QuoteSerializer(quotes, many=True)
+        return Response({
+            'count': quotes.count(),
+            'results': serializer.data,
+        })
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='materials',
+        url_name='materials',
+        permission_classes=[IsAuthenticated]
+    )
+    def materials(self, request, pk=None):
+        """
+        List materials for an order.
+        GET /api/v1/orders/{id}/materials/
+        """
+        order = self.get_object()
+        materials = order.materials.all().order_by('name')
+        serializer = OrderMaterialSerializer(materials, many=True)
+        return Response({
+            'count': materials.count(),
+            'results': serializer.data,
+        })
+
+    @action(
+        detail=True,
+        methods=['patch'],
+        url_path=r'materials/(?P<material_id>[^/.]+)',
+        url_name='update-material',
+        permission_classes=[IsAuthenticated, IsWarehouseOrOwner]
+    )
+    def update_material(self, request, pk=None, material_id=None):
+        """
+        Update material status.
+        PATCH /api/v1/orders/{id}/materials/{material_id}/
+        Body: {"status": "ready", "comment": "..."}
+        """
+        order = self.get_object()
+        try:
+            material = order.materials.get(pk=material_id)
+        except OrderMaterial.DoesNotExist:
+            return Response(
+                {'error': f'Material {material_id} not found for this order'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = OrderMaterialUpdateSerializer(material, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(updated_by=request.user)
+
+        # Recalculate order material readiness
+        service = OrderService(unit_of_work=None)
+        service.recalculate_material_readiness(order)
+        order.refresh_from_db()
+
+        return Response({
+            'material': OrderMaterialSerializer(material).data,
+            'order_material_readiness': order.material_readiness,
+            'order_material_readiness_label': order.get_material_readiness_display(),
+        })
+
 STATUS_LABELS = {
     'new': 'Новый',
     'in_work': 'В работе',
@@ -1445,148 +1587,6 @@ class FinanceWorkQueueView(BaseWorkQueueView):
             'waiting_payment': waiting_payment,
             'paid_needs_completion': paid_needs_completion,
             'recent_payments': recent_payments,
-        })
-
-    @action(
-        detail=True,
-        methods=['get', 'post'],
-        url_path='measurements',
-        url_name='measurements',
-        permission_classes=[IsAuthenticated, IsOwnerOrDesigner]
-    )
-    def measurements(self, request, pk=None):
-        """
-        Order measurements management.
-
-        GET  /api/v1/orders/{id}/measurements/  — list measurements
-        POST /api/v1/orders/{id}/measurements/  — add measurement
-        """
-        order = self.get_object()
-
-        if request.method == 'GET':
-            measurements = order.measurements.all().order_by('room_name', 'window_name')
-            serializer = MeasurementSerializer(measurements, many=True)
-            return Response({
-                'count': measurements.count(),
-                'results': serializer.data,
-            })
-
-        # POST — create measurement
-        serializer = MeasurementCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-
-        # Map simplified fields to model fields
-        measurement = Measurement.objects.create(
-            order=order,
-            room_name=data['room_name'],
-            window_name=data.get('window_number', ''),
-            width_cm=int(data['width']),
-            height_cm=int(data['height']),
-            mounting_type=data.get('mounting_type', ''),
-            notes=data.get('comment', ''),
-            measured_by=request.user if request.user.is_authenticated else None,
-        )
-
-        # Map fabric_type + fabric_meters to curtain/tulle fields
-        fabric_type = data.get('fabric_type')
-        fabric_meters = data.get('fabric_meters')
-        fabric_name = data.get('fabric_name', '')
-
-        if fabric_type and fabric_meters:
-            if fabric_type == 'curtain':
-                measurement.curtain_meters = fabric_meters
-                if fabric_name:
-                    fabric = Fabric.objects.filter(name__iexact=fabric_name).first()
-                    if fabric:
-                        measurement.curtain_fabric = fabric
-            elif fabric_type == 'tulle':
-                measurement.tulle_meters = fabric_meters
-                if fabric_name:
-                    fabric = Fabric.objects.filter(name__iexact=fabric_name).first()
-                    if fabric:
-                        measurement.tulle_fabric = fabric
-
-        measurement.save()
-
-        response_serializer = MeasurementSerializer(measurement)
-        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
-
-    @action(
-        detail=True,
-        methods=['get'],
-        url_path='quotes',
-        url_name='quotes',
-        permission_classes=[IsAuthenticated]
-    )
-    def quotes(self, request, pk=None):
-        """
-        List quotes for an order.
-        GET /api/v1/orders/{id}/quotes/
-        """
-        order = self.get_object()
-        quotes = order.related_quotes.all().order_by('-created_at')
-        serializer = QuoteSerializer(quotes, many=True)
-        return Response({
-            'count': quotes.count(),
-            'results': serializer.data,
-        })
-
-    @action(
-        detail=True,
-        methods=['get'],
-        url_path='materials',
-        url_name='materials',
-        permission_classes=[IsAuthenticated]
-    )
-    def materials(self, request, pk=None):
-        """
-        List materials for an order.
-        GET /api/v1/orders/{id}/materials/
-        """
-        order = self.get_object()
-        materials = order.materials.all().order_by('name')
-        serializer = OrderMaterialSerializer(materials, many=True)
-        return Response({
-            'count': materials.count(),
-            'results': serializer.data,
-        })
-
-    @action(
-        detail=True,
-        methods=['patch'],
-        url_path=r'materials/(?P<material_id>[^/.]+)',
-        url_name='update-material',
-        permission_classes=[IsAuthenticated, IsWarehouseOrOwner]
-    )
-    def update_material(self, request, pk=None, material_id=None):
-        """
-        Update material status.
-        PATCH /api/v1/orders/{id}/materials/{material_id}/
-        Body: {"status": "ready", "comment": "..."}
-        """
-        order = self.get_object()
-        try:
-            material = order.materials.get(pk=material_id)
-        except OrderMaterial.DoesNotExist:
-            return Response(
-                {'error': f'Material {material_id} not found for this order'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        serializer = OrderMaterialUpdateSerializer(material, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(updated_by=request.user)
-
-        # Recalculate order material readiness
-        service = OrderService(unit_of_work=None)
-        service.recalculate_material_readiness(order)
-        order.refresh_from_db()
-
-        return Response({
-            'material': OrderMaterialSerializer(material).data,
-            'order_material_readiness': order.material_readiness,
-            'order_material_readiness_label': order.get_material_readiness_display(),
         })
 
 
