@@ -842,7 +842,7 @@ class OrderService:
                     code="production_not_done"
                 )
 
-        # Cannot complete if production not done, handover not done, no signed act, or not paid
+        # Cannot complete if production not done, handover not done, no signed act, no photos, or not paid
         if new_status == Order.Status.COMPLETED:
             if order.production_stage != ProductionStage.DONE:
                 raise OrderValidationError(
@@ -853,6 +853,11 @@ class OrderService:
                 raise OrderValidationError(
                     "Нельзя завершить заказ: установка/выдача не завершена.",
                     code="handover_not_done"
+                )
+            if not order.photo_reports.filter(is_active=True).exists():
+                raise OrderValidationError(
+                    "Нельзя завершить заказ: требуется хотя бы один фотоотчёт.",
+                    code="photo_report_required"
                 )
             try:
                 act = order.completion_act

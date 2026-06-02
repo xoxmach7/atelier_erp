@@ -190,6 +190,58 @@ export async function updateMaterial(
   return apiClient.patch<{ material: OrderMaterialDTO; order_material_readiness: string; order_material_readiness_label: string }>(`/api/v1/orders/${orderId}/materials/${materialId}/`, payload);
 }
 
+export interface PhotoReportDTO {
+  id: string;
+  order: string;
+  order_item?: string | null;
+  file_url: string;
+  caption: string;
+  uploaded_by_name?: string;
+  created_at: string;
+}
+
+export interface PhotoReportsList {
+  count: number;
+  photo_reports: PhotoReportDTO[];
+}
+
+export async function fetchPhotoReports(orderId: string): Promise<PhotoReportsList> {
+  return apiClient.get<PhotoReportsList>(`/api/v1/orders/${orderId}/photo-reports/`);
+}
+
+export async function uploadPhotoReport(orderId: string, formData: FormData): Promise<PhotoReportDTO> {
+  return apiClient.postMultipart<PhotoReportDTO>(`/api/v1/orders/${orderId}/photo-reports/`, formData);
+}
+
+export interface CompletionActResponse {
+  exists: boolean;
+  status: string;
+  message?: string;
+  act?: {
+    id: string;
+    order: string;
+    act_number: string;
+    status: string;
+    status_label: string;
+    signed_file_url?: string;
+    signed_at?: string;
+    notes: string;
+    created_at: string;
+  };
+}
+
+export async function fetchCompletionAct(orderId: string): Promise<CompletionActResponse> {
+  return apiClient.get<CompletionActResponse>(`/api/v1/orders/${orderId}/completion-act/`);
+}
+
+export async function createCompletionAct(orderId: string): Promise<CompletionActResponse> {
+  return apiClient.post<CompletionActResponse>(`/api/v1/orders/${orderId}/completion-act/`, {});
+}
+
+export async function uploadSignedAct(orderId: string, formData: FormData): Promise<{ act: CompletionActResponse['act']; created: boolean; message: string }> {
+  return apiClient.postMultipart<{ act: CompletionActResponse['act']; created: boolean; message: string }>(`/api/v1/orders/${orderId}/completion-act/upload-signed/`, formData);
+}
+
 // Execution summary shape (partial — only what mobile needs)
 export interface OrderExecution {
   order_id: string;

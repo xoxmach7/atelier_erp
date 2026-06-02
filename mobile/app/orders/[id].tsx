@@ -142,6 +142,30 @@ export default function OrderDetailScreen() {
           <Text style={styles.measurementsLinkArrow}>→</Text>
         </TouchableOpacity>
 
+        {/* Photos link — installation and owner */}
+        {(primaryRole === 'installation' || primaryRole === 'owner') && (
+          <TouchableOpacity
+            style={styles.measurementsLink}
+            onPress={() => router.push(`/orders/${idStr}/photos`)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.measurementsLinkText}>📷 Фотоотчёт</Text>
+            <Text style={styles.measurementsLinkArrow}>→</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Act link — installation and owner */}
+        {(primaryRole === 'installation' || primaryRole === 'owner') && (
+          <TouchableOpacity
+            style={styles.measurementsLink}
+            onPress={() => router.push(`/orders/${idStr}/act`)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.measurementsLinkText}>📄 АВР</Text>
+            <Text style={styles.measurementsLinkArrow}>→</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Warnings */}
         {data.warnings?.length > 0 && (
           <View style={styles.warningsBox}>

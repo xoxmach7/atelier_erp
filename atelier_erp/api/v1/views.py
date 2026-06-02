@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 
-from atelier_erp.api.permissions import IsManagerOrAdmin, IsOwnerOrDesigner, IsWarehouseOrOwner
+from atelier_erp.api.permissions import IsManagerOrAdmin, IsOwnerOrDesigner, IsWarehouseOrOwner, IsInstallationOrOwner, IsInstallationOrOwnerOrReadOnly
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 
@@ -252,7 +252,8 @@ class OrderViewSet(viewsets.ModelViewSet):
         methods=['get', 'post'],
         url_path='photo-reports',
         url_name='photo-reports',
-        parser_classes=[MultiPartParser, FormParser]
+        parser_classes=[MultiPartParser, FormParser],
+        permission_classes=[IsAuthenticated, IsInstallationOrOwnerOrReadOnly]
     )
     def photo_reports(self, request, pk=None):
         """
@@ -360,7 +361,8 @@ class OrderViewSet(viewsets.ModelViewSet):
         methods=['get', 'post'],
         url_path='completion-act',
         url_name='completion-act',
-        parser_classes=[MultiPartParser, FormParser]
+        parser_classes=[MultiPartParser, FormParser],
+        permission_classes=[IsAuthenticated, IsInstallationOrOwnerOrReadOnly]
     )
     def completion_act(self, request, pk=None):
         """
@@ -457,7 +459,8 @@ class OrderViewSet(viewsets.ModelViewSet):
         methods=['post'],
         url_path='completion-act/upload-signed',
         url_name='completion-act-upload-signed',
-        parser_classes=[MultiPartParser, FormParser]
+        parser_classes=[MultiPartParser, FormParser],
+        permission_classes=[IsAuthenticated, IsInstallationOrOwner]
     )
     def upload_signed_completion_act(self, request, pk=None):
         """

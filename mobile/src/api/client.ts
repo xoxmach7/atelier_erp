@@ -72,8 +72,9 @@ export class ApiClient {
     const url = `${this.baseUrl}${endpoint}`;
     const token = await AsyncStorage.getItem(STORAGE.access);
 
+    const isFormData = options.body instanceof FormData;
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...((options.headers as Record<string, string>) || {}),
     };
@@ -128,6 +129,10 @@ export class ApiClient {
 
   public async post<T>(endpoint: string, body: unknown): Promise<T> {
     return this.request<T>(endpoint, { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  public async postMultipart<T>(endpoint: string, formData: FormData): Promise<T> {
+    return this.request<T>(endpoint, { method: 'POST', body: formData });
   }
 
   public async patch<T>(endpoint: string, body: unknown): Promise<T> {

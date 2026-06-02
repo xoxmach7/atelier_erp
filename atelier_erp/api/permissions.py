@@ -64,6 +64,36 @@ class IsWarehouseOrOwner(permissions.BasePermission):
         )
 
 
+class IsInstallationOrOwner(permissions.BasePermission):
+    """Allow only installation workers, owners, managers and admins"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return (
+            request.user.is_superuser or
+            request.user.groups.filter(
+                name__in=['Installation', 'Owner', 'Manager', 'Admin']
+            ).exists()
+        )
+
+
+class IsInstallationOrOwnerOrReadOnly(permissions.BasePermission):
+    """Read for any authenticated, write only for installation/owner/manager/admin"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return (
+            request.user.is_superuser or
+            request.user.groups.filter(
+                name__in=['Installation', 'Owner', 'Manager', 'Admin']
+            ).exists()
+        )
+
+
 class IsSeamstressOwner(permissions.BasePermission):
     """Allow only the assigned seamstress or managers"""
     
