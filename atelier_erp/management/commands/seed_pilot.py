@@ -8,18 +8,21 @@ from django.contrib.auth.models import User, Group
 import random
 import string
 
+from atelier_erp.roles import Roles
+
 
 def rand_password(n=12):
     chars = string.ascii_letters + string.digits
     return ''.join(random.choices(chars, k=n))
 
 
+# Имена групп берутся из единого реестра Roles (канонично).
 PILOT_ROLES = [
-    ('owner',       'Manager',   'Владелец',   'owner'),
-    ('designer',    'Designer',  'Дизайнер',   'designer'),
-    ('warehouse',   'Warehouse', 'Склад',       'warehouse'),
-    ('seamstress',  'Seamstress','Швея',        'seamstress'),
-    ('installer',   'Installer', 'Установщик',  'installer'),
+    ('owner',       Roles.OWNER,      'Владелец',   'owner'),
+    ('designer',    Roles.DESIGNER,   'Дизайнер',   'designer'),
+    ('warehouse',   Roles.WAREHOUSE,  'Склад',       'warehouse'),
+    ('seamstress',  Roles.SEAMSTRESS, 'Швея',        'seamstress'),
+    ('installer',   Roles.INSTALLER,  'Установщик',  'installer'),
 ]
 
 

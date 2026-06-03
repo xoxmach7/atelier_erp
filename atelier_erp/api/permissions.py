@@ -1,115 +1,83 @@
 """
 Atelier ERP - Custom API Permissions
+
+Все имена групп берутся из единого реестра atelier_erp.roles.Roles.
+Не хардкодить строки групп здесь — иначе снова разъедутся с сидером и фронтом.
+Суперпользователь везде приравнивается к Owner (полный доступ).
 """
 
 from rest_framework import permissions
 
+from atelier_erp.roles import Roles, user_in
+
 
 class IsManagerOrAdmin(permissions.BasePermission):
-    """Allow only managers and admins"""
-    
+    """Только владелец/админ (полное управление)."""
+
     def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        return (
-            request.user.is_superuser or 
-            request.user.groups.filter(name='Manager').exists() or
-            request.user.groups.filter(name='Admin').exists()
-        )
+        return user_in(request.user, Roles.OWNER)
 
 
 class IsWorkerOrManagerOrAdmin(permissions.BasePermission):
-    """Allow workers, managers, and admins (read + limited write)"""
-    
+    """Чтение — всем авторизованным; запись — любой рабочей роли."""
+
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
-        
-        # Safe methods allowed for all authenticated users
         if request.method in permissions.SAFE_METHODS:
             return True
-        
-        # Write operations only for workers, managers, admins
-        return (
-            request.user.is_superuser or 
-            request.user.groups.filter(name__in=['Worker', 'Manager', 'Admin']).exists()
-        )
+        return user_in(request.user, *Roles.ALL)
 
 
 class IsOwnerOrDesigner(permissions.BasePermission):
-    """Allow only owners, designers, managers and admins"""
+    """Только владелец/админ и дизайнер."""
 
     def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        return (
-            request.user.is_superuser or
-            request.user.groups.filter(
-                name__in=['Owner', 'Designer', 'Manager', 'Admin']
-            ).exists()
-        )
+        return user_in(request.user, Roles.OWNER, Roles.DESIGNER)
 
 
 class IsWarehouseOrOwner(permissions.BasePermission):
-    """Allow only warehouse staff, owners, managers and admins"""
+    """Только склад и владелец/админ."""
 
     def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        return (
-            request.user.is_superuser or
-            request.user.groups.filter(
-                name__in=['Warehouse', 'Owner', 'Manager', 'Admin']
-            ).exists()
-        )
+        return user_in(request.user, Roles.WAREHOUSE, Roles.OWNER)
 
 
 class IsInstallationOrOwner(permissions.BasePermission):
-    """Allow only installation workers, owners, managers and admins"""
+    """Только монтажник и владелец/админ."""
 
     def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        return (
-            request.user.is_superuser or
-            request.user.groups.filter(
-                name__in=['Installation', 'Owner', 'Manager', 'Admin']
-            ).exists()
-        )
+        return user_in(request.user, Roles.INSTALLER, Roles.OWNER)
 
 
 class IsInstallationOrOwnerOrReadOnly(permissions.BasePermission):
-    """Read for any authenticated, write only for installation/owner/manager/admin"""
+    """Чтение — всем авторизованным; запись — монтажник/владелец."""
 
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
         if request.method in permissions.SAFE_METHODS:
             return True
-        return (
-            request.user.is_superuser or
-            request.user.groups.filter(
-                name__in=['Installation', 'Owner', 'Manager', 'Admin']
-            ).exists()
-        )
+        return user_in(request.user, Roles.INSTALLER, Roles.OWNER)
+
+
+class IsSeamstressOrOwner(permissions.BasePermission):
+    """Только швейный цех и владелец/админ (для очереди производства)."""
+
+    def has_permission(self, request, view):
+        return user_in(request.user, Roles.SEAMSTRESS, Roles.OWNER)
 
 
 class IsSeamstressOwner(permissions.BasePermission):
-    """Allow only the assigned seamstress or managers"""
-    
+    """Только назначенная швея (по объекту) или владелец/админ."""
+
     def has_object_permission(self, request, view, obj):
         if not request.user or not request.user.is_authenticated:
             return False
-        
-        # Managers and admins can access all
-        if (
-            request.user.is_superuser or 
-            request.user.groups.filter(name__in=['Manager', 'Admin']).exists()
-        ):
+        # Владелец/админ — доступ ко всему
+        if user_in(request.user, Roles.OWNER):
             return True
-        
-        # Seamstresses can only access their own assignments
-        if request.user.groups.filter(name='Seamstress').exists():
+        # Швея — только свои назначения
+        if request.user.groups.filter(name=Roles.SEAMSTRESS).exists():
             return obj.assigned_to == request.user
-        
         return False

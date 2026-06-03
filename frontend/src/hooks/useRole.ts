@@ -3,27 +3,37 @@
 import { useAuth } from "@/contexts/auth-context";
 
 export type WebRole =
-  | "owner"     // Manager, Admin, superuser — full access
+  | "none"      // нет подходящей группы — доступ запрещён (default deny)
+  | "owner"     // Owner (Manager/Admin/superuser) — full access
   | "designer"  // Designer — orders, measurements, quotes
   | "warehouse" // Warehouse — orders (read), inventory
   | "production"// Seamstress — orders (limited), production queue
   | "installation" // Installer — orders (limited), installation queue
-  | "finance";  // Finance — payments, finance queue
+  | "finance";  // Finance (legacy) — payments, finance queue
 
+// Каноничные имена групп задаются на бэке в atelier_erp/roles.py (Roles).
+// Держать в синхроне. Старые имена оставлены как алиасы на случай, если
+// миграция канонизации (0012) ещё не раскатана на стенде. Owner идёт первым —
+// при нескольких группах приоритет у владельца.
 const GROUP_TO_ROLE: Record<string, WebRole> = {
-  Manager: "owner",
-  Admin: "owner",
+  // canonical
+  Owner: "owner",
   Designer: "designer",
   Warehouse: "warehouse",
   Seamstress: "production",
   Installer: "installation",
-  Finance: "finance",
+  // legacy aliases
+  Manager: "owner",
+  Admin: "owner",
+  Finance: "owner",
+  Installation: "installation",
 };
 
 export function useRole(): { role: WebRole; isOwner: boolean; groups: string[] } {
   const { user } = useAuth();
 
-  if (!user) return { role: "owner", isOwner: false, groups: [] };
+  // Не загружен / не авторизован — без доступа.
+  if (!user) return { role: "none", isOwner: false, groups: [] };
 
   if (user.is_superuser) return { role: "owner", isOwner: true, groups: user.groups };
 
@@ -36,12 +46,13 @@ export function useRole(): { role: WebRole; isOwner: boolean; groups: string[] }
     }
   }
 
-  // Default: owner if no group set (dev accounts)
-  return { role: "owner", isOwner: true, groups };
+  // Default DENY: нет подходящей группы → нет доступа (раньше тут был owner).
+  return { role: "none", isOwner: false, groups };
 }
 
 /** Routes accessible per role (others redirect to /dashboard) */
 export const ROLE_ALLOWED_PATHS: Record<WebRole, string[]> = {
+  none: [], // default deny — никуда
   owner: ["*"], // all
   designer: ["/dashboard", "/orders", "/quotes", "/estimates", "/estimate", "/measurements", "/work/designer", "/work/quotes", "/settings"],
   warehouse: ["/dashboard", "/orders", "/inventory", "/work/warehouse", "/settings"],

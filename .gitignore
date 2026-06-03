@@ -50,6 +50,12 @@ htmlcov/
 *.swo
 *~
 
+# Node / Expo / Next build caches
+node_modules/
+.expo/
+.next/
+frontend/.expo/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -53,7 +53,9 @@ const API_BASE_URL =
 // ─── Role mapping (backend group name → RoleKey) ─────────────────────────────
 
 function groupsToRole(groups: string[], isSuperuser: boolean): RoleKey {
-  if (isSuperuser || groups.includes('Manager') || groups.includes('Admin')) {
+  // 'Owner' — каноничное имя группы (см. бэкенд atelier_erp/roles.py).
+  // 'Manager'/'Admin' оставлены как легаси-алиасы на случай нераскатанной канонизации.
+  if (isSuperuser || groups.includes('Owner') || groups.includes('Manager') || groups.includes('Admin')) {
     return 'owner';
   }
   if (groups.includes('Designer')) return 'designer';

@@ -14,14 +14,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'change-this-in-production')
-DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
+
+# DEBUG по умолчанию ВЫКЛЮЧЕН. Для локальной разработки явно укажите DEBUG=True в .env.
+# В проде DEBUG=True отдаёт стектрейсы с кодом и секретами — никогда не включать.
+DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
+
+# Запущены ли тесты. Под тестами прод-настройки безопасности (SSL-redirect,
+# secure cookies) отключаются, иначе тестовый http-клиент получает 301 redirect.
+TESTING = ('test' in sys.argv) or ('pytest' in sys.modules)
+
+# Хосты только из окружения. Дефолт — локалка для разработки.
+# Прод-домены, LAN-IP и ngrok задавать через переменную ALLOWED_HOSTS (см. .env.example).
 ALLOWED_HOSTS = [
     host.strip()
-    for host in os.environ.get(
-        'ALLOWED_HOSTS',
-        'localhost,127.0.0.1,192.168.15.53,172.28.41.204,0.0.0.0'
-        'rebate-phantom-washing.ngrok-free.dev'
-    ).split(',')
+    for host in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
     if host.strip()
 ]
 
@@ -178,6 +184,33 @@ SIMPLE_JWT = {
     'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
     'JTI_CLAIM': 'jti',
 }
+
+# ============================================
+# PRODUCTION SECURITY
+# Включается только когда DEBUG выключен (т.е. в проде) и не под тестами.
+# Требует работы за HTTPS-прокси (nginx/ingress), пробрасывающим X-Forwarded-Proto.
+# ============================================
+if not DEBUG and not TESTING:
+    # За reverse-proxy: доверять заголовку схемы от прокси
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    # Принудительный HTTPS
+    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'False').lower() == 'true'
+    # Cookie только по HTTPS
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    # HSTS
+    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '31536000'))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    # Прочие заголовки
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    # CSRF доверенные источники (схема обязательна), задаются через env
+    CSRF_TRUSTED_ORIGINS = [
+        o.strip()
+        for o in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
+        if o.strip()
+    ]
 
 # Logging
 LOGGING = {

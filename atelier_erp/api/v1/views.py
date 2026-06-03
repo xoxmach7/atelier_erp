@@ -15,7 +15,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 
-from atelier_erp.api.permissions import IsManagerOrAdmin, IsOwnerOrDesigner, IsWarehouseOrOwner, IsInstallationOrOwner, IsInstallationOrOwnerOrReadOnly
+from atelier_erp.api.permissions import IsManagerOrAdmin, IsOwnerOrDesigner, IsWarehouseOrOwner, IsInstallationOrOwner, IsInstallationOrOwnerOrReadOnly, IsSeamstressOrOwner
+from atelier_erp.roles import Roles, user_in
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 
@@ -59,6 +60,36 @@ class OrderViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update']:
             return [IsAuthenticated(), IsOwnerOrDesigner()]
         return super().get_permissions()
+
+    def get_queryset(self):
+        """Срез заказов по роли.
+
+        Полный список всех заказов компании — только Owner и Designer.
+        Остальные роли видят только свой операционный срез по статусам.
+        Пользователь без подходящей группы не видит ничего (default deny).
+        select_related('customer') убирает N+1 в списке.
+        """
+        qs = Order.objects.select_related('customer').order_by('-created_at')
+        user = self.request.user
+
+        if user_in(user, *Roles.FULL_ORDER_ACCESS):
+            return qs
+        if user_in(user, Roles.WAREHOUSE):
+            return qs.filter(status__in=[
+                Order.Status.IN_WORK,
+                Order.Status.IN_PRODUCTION,
+                Order.Status.READY,
+            ])
+        if user_in(user, Roles.SEAMSTRESS):
+            return qs.filter(status=Order.Status.IN_PRODUCTION)
+        if user_in(user, Roles.INSTALLER):
+            return qs.filter(status__in=[
+                Order.Status.READY,
+                Order.Status.ON_INSTALLATION,
+                Order.Status.WAITING_FINAL_PAYMENT,
+            ])
+        # Нет подходящей роли — ничего не показываем (default deny).
+        return qs.none()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'customer']
     search_fields = ['order_number', 'customer__full_name', 'customer__phone']
@@ -1135,11 +1166,16 @@ def _address(order):
     return ', '.join(part for part in parts if part) or ''
 
 
-def _base_order(order):
+def _base_order(order, include_financial=True):
+    """Базовый payload заказа для рабочих очередей.
+
+    include_financial=False скрывает денежные поля (суммы/оплаты/баланс) —
+    для ролей без финансового доступа (склад/цех/монтаж).
+    """
     balance_due = max(order.remaining_amount, Decimal('0'))
     is_paid = balance_due <= 0
 
-    return {
+    data = {
         'id': str(order.id),
         'order_number': order.order_number,
         'customer_name': order.customer.full_name,
@@ -1156,12 +1192,16 @@ def _base_order(order):
         'production_stage_label': PRODUCTION_LABELS.get(order.production_stage, order.production_stage),
         'handover_stage': order.handover_stage,
         'handover_stage_label': HANDOVER_LABELS.get(order.handover_stage, order.handover_stage),
-        'total_amount': _money(order.total_amount),
-        'paid_amount': _money(order.paid_amount),
-        'balance_due': _money(balance_due),
-        'payment_state': 'paid' if is_paid else 'partial' if order.paid_amount > 0 else 'unpaid',
         'order_url': f'/orders/{order.id}',
     }
+    if include_financial:
+        data.update({
+            'total_amount': _money(order.total_amount),
+            'paid_amount': _money(order.paid_amount),
+            'balance_due': _money(balance_due),
+            'payment_state': 'paid' if is_paid else 'partial' if order.paid_amount > 0 else 'unpaid',
+        })
+    return data
 
 
 def _quote_payload(quote):
@@ -1327,10 +1367,16 @@ class BaseWorkQueueView(APIView):
     def orders(self):
         return _base_order_queryset()
 
+    def include_financial(self):
+        """Видит ли текущий пользователь денежные поля заказа."""
+        return user_in(self.request.user, *Roles.FINANCIAL_ACCESS)
+
 
 class ProductionWorkQueueView(BaseWorkQueueView):
+    permission_classes = [IsAuthenticated, IsSeamstressOrOwner]
+
     def _payload(self, order):
-        data = _base_order(order)
+        data = _base_order(order, self.include_financial())
         data.update({
             'items_to_sew': _items_for_work(order),
             'actions': {
@@ -1368,8 +1414,10 @@ class ProductionWorkQueueView(BaseWorkQueueView):
 
 
 class InstallationWorkQueueView(BaseWorkQueueView):
+    permission_classes = [IsAuthenticated, IsInstallationOrOwner]
+
     def _payload(self, order):
-        data = _base_order(order)
+        data = _base_order(order, self.include_financial())
         data.update({
             'items_to_install': _items_for_work(order),
             **_photo_status(order),
@@ -1395,8 +1443,10 @@ class InstallationWorkQueueView(BaseWorkQueueView):
 
 
 class WarehouseWorkQueueView(BaseWorkQueueView):
+    permission_classes = [IsAuthenticated, IsWarehouseOrOwner]
+
     def _payload(self, order):
-        data = _base_order(order)
+        data = _base_order(order, self.include_financial())
         data.update({'selected_materials': _selected_materials(order)})
         return data
 
@@ -1440,8 +1490,10 @@ class WarehouseWorkQueueView(BaseWorkQueueView):
 
 
 class DesignerWorkQueueView(BaseWorkQueueView):
+    permission_classes = [IsAuthenticated, IsOwnerOrDesigner]
+
     def _payload(self, order):
-        data = _base_order(order)
+        data = _base_order(order, self.include_financial())
         customer_id = str(order.customer_id)
         data.update({
             'measurement_summary': _measurement_summary(order),
@@ -1482,6 +1534,8 @@ class DesignerWorkQueueView(BaseWorkQueueView):
 
 
 class QuotesWorkQueueView(BaseWorkQueueView):
+    permission_classes = [IsAuthenticated, IsOwnerOrDesigner]
+
     def get(self, request):
         orders = self.orders().filter(status__in=[Order.Status.NEW, Order.Status.IN_WORK])
         ready_for_quote = [
@@ -1505,6 +1559,8 @@ class QuotesWorkQueueView(BaseWorkQueueView):
 
 
 class OwnerWorkQueueView(BaseWorkQueueView):
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+
     def get(self, request):
         orders = list(self.orders())
         today = timezone.localdate()
@@ -1547,6 +1603,8 @@ class OwnerWorkQueueView(BaseWorkQueueView):
 
 
 class FinanceWorkQueueView(BaseWorkQueueView):
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+
     def get(self, request):
         waiting_payment = []
         paid_needs_completion = []
@@ -1585,8 +1643,8 @@ class DashboardView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if not request.user.groups.filter(name__in=['Owner', 'Manager', 'Admin']).exists() and not request.user.is_superuser:
-            return Response({'detail': 'Доступ только для владельцев и менеджеров'}, status=403)
+        if not user_in(request.user, Roles.OWNER):
+            return Response({'detail': 'Доступ только для владельца/админа'}, status=403)
 
         today = timezone.localdate()
         first_of_month = today.replace(day=1)

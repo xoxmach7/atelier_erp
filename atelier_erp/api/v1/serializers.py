@@ -8,6 +8,10 @@ from decimal import Decimal
 from rest_framework import serializers
 from atelier_erp.models import Order, Task, Fabric, OrderItem, Customer, Quote, QuoteItem, Measurement, Payment, PhotoReport, OrderMaterial
 from atelier_erp.api.serializers import RelatedQuoteSerializer, FabricListSerializer
+from atelier_erp.roles import Roles, user_in
+
+# Финансовые поля заказа, скрываемые от ролей без финансового доступа
+FINANCIAL_ORDER_FIELDS = ('total_amount', 'paid_amount', 'balance_due')
 
 
 class CustomerMinimalSerializer(serializers.ModelSerializer):
@@ -47,6 +51,20 @@ class OrderListSerializer(serializers.ModelSerializer):
             'created_at', 'planned_completion'
         ]
         read_only_fields = ['order_number', 'created_at']
+
+    def to_representation(self, instance):
+        """Скрыть денежные поля от ролей без финансового доступа.
+
+        Склад/цех/монтаж не должны видеть суммы, оплаты и баланс.
+        Owner и Designer — видят.
+        """
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not user_in(user, *Roles.FINANCIAL_ACCESS):
+            for field in FINANCIAL_ORDER_FIELDS:
+                data.pop(field, None)
+        return data
 
 
 class SourceQuoteSerializer(serializers.ModelSerializer):
