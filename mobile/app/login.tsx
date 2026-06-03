@@ -1,16 +1,8 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen } from '../src/components/Screen';
-import { LogoTitle } from '../src/components/LogoTitle';
 import { AppTextInput } from '../src/components/AppTextInput';
-import { PrimaryButton } from '../src/components/PrimaryButton';
 import { useAuthContext } from '../src/context/AuthContext';
-import { spacing } from '../src/theme/spacing';
-import { colors } from '../src/theme/colors';
-import { typography } from '../src/theme/typography';
-
-const FORM_MAX_WIDTH = 326;
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -37,17 +29,23 @@ export default function LoginScreen() {
   };
 
   return (
-    <Screen scrollable={false} withPadding={false} variant="white">
+    <View style={s.screen}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+        style={s.kav}
       >
-        <View style={styles.container}>
-          <View style={styles.top}>
-            <LogoTitle title="Sheber ERP" subtitle="Единая база" />
+        <View style={s.inner}>
+          {/* Logo */}
+          <View style={s.logoBlock}>
+            <Image
+              source={require('../assets/images/logo.webp')}
+              style={s.logo}
+              resizeMode="contain"
+            />
           </View>
 
-          <View style={styles.form}>
+          {/* Form */}
+          <View style={s.form}>
             <AppTextInput
               placeholder="Логин"
               value={username}
@@ -61,33 +59,76 @@ export default function LoginScreen() {
               onChangeText={setPassword}
               secureTextEntry
             />
-            <PrimaryButton
-              title={loading ? 'Вход...' : 'Войти'}
+            <TouchableOpacity
+              style={[s.btn, loading && s.btnDisabled]}
               onPress={handleLogin}
+              activeOpacity={0.85}
               disabled={loading}
-            />
+            >
+              <Text style={s.btnText}>{loading ? 'Вход...' : 'Войти'}</Text>
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.footerWrap}>
-            <Text style={styles.footer}>SheberSolution</Text>
-          </View>
+          {/* Footer */}
+          <Text style={s.footer}>SheberSolution</Text>
         </View>
       </KeyboardAvoidingView>
-    </Screen>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  keyboardView: { flex: 1 },
-  container: {
+const s = StyleSheet.create({
+  screen: {
     flex: 1,
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing['5xl'],
-    paddingBottom: spacing.lg,
+    backgroundColor: '#FFFFFF',
   },
-  top: { alignItems: 'center', marginTop: spacing['2xl'] },
-  form: { gap: spacing.base, alignSelf: 'center', width: '100%', maxWidth: FORM_MAX_WIDTH },
-  footerWrap: { alignItems: 'center', marginTop: spacing.lg },
-  footer: { fontSize: typography.sizes.sm, color: colors.textMuted },
+  kav: {
+    flex: 1,
+  },
+  inner: {
+    flex: 1,
+    paddingHorizontal: 24,
+    justifyContent: 'space-between',
+    paddingTop: 80,
+    paddingBottom: 40,
+  },
+  logoBlock: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  logo: {
+    width: 100,
+    height: 100,
+  },
+  form: {
+    gap: 12,
+    flex: 1,
+    justifyContent: 'center',
+    maxWidth: 360,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  btn: {
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#60CCED',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  btnDisabled: {
+    opacity: 0.6,
+  },
+  btnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontFamily: 'TTNormsPro-Bold',
+    letterSpacing: 0.3,
+  },
+  footer: {
+    textAlign: 'center',
+    fontSize: 12,
+    color: '#94A3B8',
+    fontFamily: 'TTNormsPro-Regular',
+  },
 });

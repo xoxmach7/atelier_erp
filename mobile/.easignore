@@ -1,0 +1,27 @@
+# node_modules — EAS сам запускает npm install на сервере
+node_modules
+
+# Git history
+.git
+
+# Expo cache
+.expo
+dist
+
+# Tests
+__tests__
+*.test.ts
+*.test.tsx
+*.spec.ts
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Native build artifacts
+android
+ios

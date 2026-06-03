@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Platform, StatusBar } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuthContext } from '../../src/context/AuthContext';
@@ -95,9 +95,10 @@ export default function OrderDetailScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-          <Text style={styles.back}>← Назад</Text>
+          <Text style={styles.back}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.orderNum}>{data.order_number}</Text>
+        <View style={{width:36}}/>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -115,8 +116,8 @@ export default function OrderDetailScreen() {
             onPress={() => router.push(`/orders/${idStr}/edit`)}
             activeOpacity={0.7}
           >
-            <Text style={styles.measurementsLinkText}>✏️ Редактировать</Text>
-            <Text style={styles.measurementsLinkArrow}>→</Text>
+            <Text style={styles.measurementsLinkText}>Редактировать</Text>
+            <Text style={styles.measurementsLinkArrow}>›</Text>
           </TouchableOpacity>
         )}
 
@@ -127,8 +128,8 @@ export default function OrderDetailScreen() {
             onPress={() => router.push(`/orders/${idStr}/measurements`)}
             activeOpacity={0.7}
           >
-            <Text style={styles.measurementsLinkText}>📐 Замеры</Text>
-            <Text style={styles.measurementsLinkArrow}>→</Text>
+            <Text style={styles.measurementsLinkText}>Замеры</Text>
+            <Text style={styles.measurementsLinkArrow}>›</Text>
           </TouchableOpacity>
         )}
 
@@ -139,8 +140,8 @@ export default function OrderDetailScreen() {
             onPress={() => router.push(`/orders/${idStr}/quote`)}
             activeOpacity={0.7}
           >
-            <Text style={styles.measurementsLinkText}>📝 Коммерческое предложение</Text>
-            <Text style={styles.measurementsLinkArrow}>→</Text>
+            <Text style={styles.measurementsLinkText}>Коммерческое предложение</Text>
+            <Text style={styles.measurementsLinkArrow}>›</Text>
           </TouchableOpacity>
         )}
 
@@ -150,8 +151,8 @@ export default function OrderDetailScreen() {
           onPress={() => router.push(`/orders/${idStr}/materials`)}
           activeOpacity={0.7}
         >
-          <Text style={styles.measurementsLinkText}>📦 Материалы</Text>
-          <Text style={styles.measurementsLinkArrow}>→</Text>
+          <Text style={styles.measurementsLinkText}>Материалы</Text>
+          <Text style={styles.measurementsLinkArrow}>›</Text>
         </TouchableOpacity>
 
         {/* Photos link — installation and owner */}
@@ -161,8 +162,8 @@ export default function OrderDetailScreen() {
             onPress={() => router.push(`/orders/${idStr}/photos`)}
             activeOpacity={0.7}
           >
-            <Text style={styles.measurementsLinkText}>📷 Фотоотчёт</Text>
-            <Text style={styles.measurementsLinkArrow}>→</Text>
+            <Text style={styles.measurementsLinkText}>Фотоотчёт</Text>
+            <Text style={styles.measurementsLinkArrow}>›</Text>
           </TouchableOpacity>
         )}
 
@@ -173,8 +174,8 @@ export default function OrderDetailScreen() {
             onPress={() => router.push(`/orders/${idStr}/act`)}
             activeOpacity={0.7}
           >
-            <Text style={styles.measurementsLinkText}>📄 АВР</Text>
-            <Text style={styles.measurementsLinkArrow}>→</Text>
+            <Text style={styles.measurementsLinkText}>АВР (Акт выполненных работ)</Text>
+            <Text style={styles.measurementsLinkArrow}>›</Text>
           </TouchableOpacity>
         )}
 
@@ -185,8 +186,8 @@ export default function OrderDetailScreen() {
             onPress={() => router.push(`/orders/${idStr}/complete`)}
             activeOpacity={0.7}
           >
-            <Text style={[styles.measurementsLinkText, { color: '#059669' }]}>✓ Завершить заказ</Text>
-            <Text style={styles.measurementsLinkArrow}>→</Text>
+            <Text style={[styles.measurementsLinkText, { color: '#059669' }]}>Завершить заказ</Text>
+            <Text style={styles.measurementsLinkArrow}>›</Text>
           </TouchableOpacity>
         )}
 
@@ -219,49 +220,59 @@ export default function OrderDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f8f9fa' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.base },
-  errorText: { fontSize: typography.sizes.base, color: '#e53935', textAlign: 'center' },
-  retryText: { fontSize: typography.sizes.base, color: colors.primary[500], textDecorationLine: 'underline' },
+  root: { flex: 1, backgroundColor: '#F2F4F7' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
+  errorText: { fontSize: 14, color: '#EF4444', textAlign: 'center' },
+  retryText: { fontSize: 14, color: '#60CCED', textDecorationLine: 'underline' },
   header: {
-    backgroundColor: '#fff',
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#e2e8f0',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.base,
-  },
-  back: { fontSize: typography.sizes.base, color: colors.primary[500] },
-  orderNum: { fontSize: typography.sizes.lg, fontWeight: '500', color: colors.text, flex: 1 },
-  scroll: { flex: 1 },
-  scrollContent: { padding: spacing.base, paddingBottom: 60 },
-  blockerRow: {
-    backgroundColor: '#fff3f3',
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  blockerText: { fontSize: typography.sizes.sm, color: '#dc2626' },
-  warningsBox: {
-    backgroundColor: '#fffbeb',
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  warningText: { fontSize: typography.sizes.sm, color: '#92400e', marginBottom: 2 },
-  actionsBox: { paddingVertical: spacing.sm, gap: spacing.sm },
-  measurementsLink: {
-    backgroundColor: '#fff',
-    borderRadius: radius.lg,
-    padding: spacing.base,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 8 : 56,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.sm,
   },
-  measurementsLinkText: { fontSize: typography.sizes.base, fontWeight: '500', color: colors.text },
-  measurementsLinkArrow: { fontSize: typography.sizes.lg, color: colors.primary[500] },
+  back: { fontSize: 26, color: '#60CCED', lineHeight: 30, width: 36 },
+  orderNum: { fontSize: 17, fontFamily: 'TTNormsPro-Bold', color: '#0F172A' },
+  backLabel: { fontSize: 12, color: '#94A3B8', fontFamily: 'TTNormsPro-Regular', width: 36, textAlign: 'right' },
+  scroll: { flex: 1 },
+  scrollContent: { padding: 14, paddingBottom: 60 },
+  blockerRow: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  blockerText: { fontSize: 13, color: '#DC2626', fontFamily: 'TTNormsPro-Regular', flex: 1 },
+  warningsBox: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+  },
+  warningText: { fontSize: 13, color: '#92400E', marginBottom: 2, fontFamily: 'TTNormsPro-Regular' },
+  actionsBox: { paddingVertical: 8, gap: 8 },
+  measurementsLink: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  measurementsLinkText: { fontSize: 15, fontFamily: 'TTNormsPro-Medium', color: '#0F172A' },
+  measurementsLinkArrow: { fontSize: 20, color: '#60CCED' },
 });
