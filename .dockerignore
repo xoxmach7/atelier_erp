@@ -16,8 +16,12 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
-# Environment (keep .env for docker-compose)
-# .env  # Commented out - docker-compose uses .env
+# Environment: НЕ класть .env в образ (секреты/локальные значения перекрыли бы
+# прод-переменные Railway). docker-compose читает .env с хоста через env_file,
+# поэтому это его не ломает.
+.env
+.env.*
+!.env.example
 
 # IDE
 .idea/
