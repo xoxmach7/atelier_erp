@@ -63,6 +63,7 @@ Thumbs.db
 # Backup files
 *.bak
 *.tmp
+*.dump
 
 # Local scripts (keep in repo if needed)
 # setup-local-db.ps1
