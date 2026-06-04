@@ -41,6 +41,7 @@ from .serializers import (
 )
 from .permissions import IsManagerOrAdmin, IsWorkerOrManagerOrAdmin
 from ..roles import Roles, user_in
+from ..services.numbering import next_number
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
@@ -380,10 +381,9 @@ class QuoteViewSet(viewsets.ModelViewSet):
         uow = UnitOfWork()
         order_service = OrderService(uow)
 
-        # Generate order number: О-YYYY-NNN
+        # Generate order number: О-YYYY-NNN (атомарно, без гонки)
         year = timezone.now().year
-        count = Order.objects.filter(created_at__year=year).count() + 1
-        order_number = f"О-{year}-{count:03d}"
+        order_number = next_number('order', year)
 
         try:
             with uow.atomic():

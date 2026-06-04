@@ -17,6 +17,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 from atelier_erp.api.permissions import IsManagerOrAdmin, IsOwnerOrDesigner, IsWarehouseOrOwner, IsInstallationOrOwner, IsInstallationOrOwnerOrReadOnly, IsSeamstressOrOwner
 from atelier_erp.roles import Roles, user_in
+from atelier_erp.services.numbering import next_number
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 
@@ -122,10 +123,9 @@ class OrderViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Generate order number: О-YYYY-NNN
+        # Generate order number: О-YYYY-NNN (атомарно, без гонки)
         year = timezone.now().year
-        count = Order.objects.filter(created_at__year=year).count() + 1
-        order_number = f"О-{year}-{count:03d}"
+        order_number = next_number('order', year)
 
         validated = serializer.validated_data
 

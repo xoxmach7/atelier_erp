@@ -1524,3 +1524,27 @@ class AppConfig(models.Model):
         elif self.value_type == 'json':
             return json.loads(self.value)
         return self.value
+
+
+class NumberSequence(models.Model):
+    """Атомарный счётчик номеров документов (заказы/КП/задачи) по году.
+
+    Используется numbering.next_number() с select_for_update, чтобы избежать
+    гонки и дублей номеров при одновременном создании (раньше — count()+1).
+    """
+
+    prefix = models.CharField(max_length=8)
+    year = models.PositiveIntegerField()
+    last_value = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'number_sequence'
+        verbose_name = 'Number Sequence'
+        verbose_name_plural = 'Number Sequences'
+        constraints = [
+            UniqueConstraint(fields=['prefix', 'year'], name='uniq_number_sequence_prefix_year'),
+        ]
+
+    def __str__(self):
+        return f'{self.prefix}-{self.year}: {self.last_value}'

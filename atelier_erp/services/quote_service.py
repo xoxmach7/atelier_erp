@@ -596,23 +596,6 @@ class QuoteService:
             raise QuoteNotFoundError(f"Quote {quote_id} not found")
     
     def _generate_quote_number(self) -> str:
-        """Generate unique quote number КП-YYYY-NNN"""
-        import re
-        from datetime import datetime
-        
-        year = datetime.now().year
-        
-        latest = Quote.objects.filter(
-            quote_number__regex=f'^КП-{year}-\\d{{3}}$'
-        ).order_by('-quote_number').first()
-        
-        if latest:
-            match = re.match(rf'^КП-{year}-(\d{{3}})$', latest.quote_number)
-            if match:
-                seq = int(match.group(1)) + 1
-            else:
-                seq = 1
-        else:
-            seq = 1
-        
-        return f"КП-{year}-{seq:03d}"
+        """Generate unique quote number КП-YYYY-NNN (атомарно, без гонки)."""
+        from atelier_erp.services.numbering import next_number
+        return next_number('quote')

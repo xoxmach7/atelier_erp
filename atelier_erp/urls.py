@@ -10,12 +10,12 @@ from django.conf.urls.static import static
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
     TokenRefreshView,
     TokenVerifyView,
 )
 
 from atelier_erp.api.views import me
+from atelier_erp.api.auth_views import ThrottledTokenObtainPairView, LogoutView
 
 # Health check endpoint
 @api_view(['GET'])
@@ -34,9 +34,10 @@ urlpatterns = [
     path('api/auth/', include('rest_framework.urls')),
 
     # JWT Authentication endpoints
-    path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/auth/token/', ThrottledTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    path('api/auth/logout/', LogoutView.as_view(), name='logout'),
 
     # Current user endpoint
     path('api/me/', me, name='me'),

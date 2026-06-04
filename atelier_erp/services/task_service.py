@@ -463,24 +463,6 @@ class TaskService:
         )
     
     def _generate_task_number(self) -> str:
-        """Generate unique task number З-YYYY-NNN"""
-        import re
-        from datetime import datetime
-        
-        year = datetime.now().year
-        
-        # Get latest task number for this year
-        latest = Task.objects.filter(
-            task_number__regex=f'^З-{year}-\\d{{3}}$'
-        ).order_by('-task_number').first()
-        
-        if latest:
-            match = re.match(rf'^З-{year}-(\d{{3}})$', latest.task_number)
-            if match:
-                seq = int(match.group(1)) + 1
-            else:
-                seq = 1
-        else:
-            seq = 1
-        
-        return f"З-{year}-{seq:03d}"
+        """Generate unique task number З-YYYY-NNN (атомарно, без гонки)."""
+        from atelier_erp.services.numbering import next_number
+        return next_number('task')
