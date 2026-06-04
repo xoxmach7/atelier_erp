@@ -33,6 +33,7 @@ import {
 } from "@/hooks/useOrders";
 import { useCreateMeasurement, useUpdateMeasurement } from "@/hooks/useMeasurements";
 import { useFabrics } from "@/hooks/useFabrics";
+import { useRole } from "@/hooks/useRole";
 import type { OrderDetailDTO, OrderItemDTO, MeasurementDTO, PaymentDTO, TaskStatus, OrderExecutionDTO, AvailableActionDTO, WarningDTO, OrderStatus, DesignerMeasurementDTO, SelectedMaterialDTO, MaterialRequirementDTO, ProductionItemDTO, ProductionAssignmentDTO, PhotoReportDTO, PhotoReportStatus, PhotoReportSummaryDTO, CompletionActStatus, CompletionActSummaryDTO } from "@/types";
 import {
   ArrowLeft,
@@ -65,125 +66,24 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-
-type OrderRoleView = "admin" | "designer" | "warehouse" | "production" | "installation" | "finance";
-
-const ORDER_ROLE_VIEWS: Array<{ value: OrderRoleView; label: string; helper: string }> = [
-  { value: "admin", label: "Админ", helper: "Полный заказ" },
-  { value: "designer", label: "Дизайнер", helper: "Замеры и КП" },
-  { value: "warehouse", label: "Склад", helper: "Материалы" },
-  { value: "production", label: "Пошив", helper: "Изделия" },
-  { value: "installation", label: "Установка", helper: "Фото и АВР" },
-  { value: "finance", label: "Финансы", helper: "Оплата" },
-];
-
-function formatCurrency(value: string | null): string {
-  const amount = Number.parseFloat(value || "0");
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KZT",
-    maximumFractionDigits: 0,
-  }).format(Number.isFinite(amount) ? amount : 0);
-}
-
-function parseAmount(value: string | number | null | undefined): number {
-  const amount = typeof value === "string" ? Number.parseFloat(value) : value;
-  return amount === null || amount === undefined || Number.isNaN(amount) ? 0 : amount;
-}
-
-function isOrderPaymentClosed(order: OrderDetailDTO, execution?: OrderExecutionDTO): boolean {
-  const total = parseAmount(order.total_amount);
-  const paid = parseAmount(order.paid_amount);
-  const balance = parseAmount(order.balance_due);
-  const executionBalance = execution ? parseAmount(execution.balance_due) : balance;
-  return execution?.payment_state === "paid" || executionBalance <= 0 || balance <= 0 || (total > 0 && paid >= total);
-}
-
-function getDisplayPaymentLabel(order: OrderDetailDTO, execution?: OrderExecutionDTO): string {
-  if (isOrderPaymentClosed(order, execution)) return "Оплачено полностью";
-  return execution?.payment_state_label || "Не оплачен";
-}
-
-function getDisplayStageLabel(order: OrderDetailDTO, execution?: OrderExecutionDTO): string {
-  if (order.status === "waiting_final_payment" && isOrderPaymentClosed(order, execution)) {
-    return "Оплата закрыта";
-  }
-  return execution?.status_label || order.status;
-}
-
-function getDisplayNextStep(order: OrderDetailDTO, execution?: OrderExecutionDTO): string {
-  if (order.status === "waiting_final_payment" && isOrderPaymentClosed(order, execution)) {
-    return "Проверить готовность и завершить заказ";
-  }
-  return execution?.next_step?.description || "Определите следующий этап заказа";
-}
-
-function formatDate(value: string | null): string {
-  if (!value) return "—";
-  return new Date(value).toLocaleDateString("ru-RU");
-}
-
-function formatDateTime(value: string | null): string {
-  if (!value) return "—";
-  return new Date(value).toLocaleString("ru-RU");
-}
-
-// Helper to detect UUID-like strings
-function isUuidLike(value: unknown): boolean {
-  return typeof value === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-}
-
-// Helper to get safe fabric label - never returns UUID
-function getFabricLabel(item: { fabric_name?: string | null; fabric?: string | null }): string | null {
-  if (item.fabric_name) return item.fabric_name;
-  if (typeof item.fabric === "string" && !isUuidLike(item.fabric)) {
-    return item.fabric;
-  }
-  return null;
-}
-
-// Helper to normalize photo report status from backend
-function normalizePhotoReportStatus(value: unknown): PhotoReportStatus {
-  if (value === 'not_uploaded' || value === 'uploaded') return value;
-  return 'not_available';
-}
-
-// Helper to resolve media URLs - handles both absolute and relative URLs
-function resolveMediaUrl(url?: string | null): string | null {
-  if (!url) return null;
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
-  const origin = apiBaseUrl.replace(/\/api\/?$/, '');
-  return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
-}
-
-function OrderItemRow({ item }: { item: OrderItemDTO }) {
-  // Get safe fabric label - never shows UUID
-  const fabricLabel = getFabricLabel(item);
-  return (
-    <div className="flex items-start justify-between py-3 border-b last:border-0">
-      <div className="flex-1">
-        <div className="font-medium">{item.notes || item.item_type}</div>
-        <div className="text-sm text-slate-500 mt-1">
-          {item.item_type}
-          {fabricLabel && ` • ${fabricLabel}`}
-          {item.cornice && ` • ${item.cornice}`}
-          {item.service && ` • ${item.service}`}
-          {item.window_width_cm && item.window_height_cm && ` • ${item.window_width_cm}×${item.window_height_cm}cm`}
-        </div>
-      </div>
-      <div className="text-right ml-4">
-        <div className="font-medium">
-          {item.quantity} × {formatCurrency(item.unit_price)}
-        </div>
-        <div className="text-sm font-semibold text-slate-900">
-          {formatCurrency(item.total_price)}
-        </div>
-      </div>
-    </div>
-  );
-}
+import {
+  formatCurrency,
+  parseAmount,
+  isOrderPaymentClosed,
+  getDisplayPaymentLabel,
+  getDisplayStageLabel,
+  getDisplayNextStep,
+  formatDate,
+  formatDateTime,
+  isUuidLike,
+  getFabricLabel,
+  normalizePhotoReportStatus,
+  resolveMediaUrl,
+  ORDER_ROLE_VIEWS,
+  type OrderRoleView,
+} from "./components/order-helpers";
+import { OrderItemRow } from "./components/OrderItemRow";
+import { OrderRoleViewSwitcher } from "./components/OrderRoleViewSwitcher";
 
 function FinancialSummary({ order }: { order: OrderDetailDTO }) {
   return (
@@ -3402,32 +3302,6 @@ function ProductionStageModal({
   );
 }
 
-function OrderRoleViewSwitcher({ orderId, currentView }: { orderId: string; currentView: OrderRoleView }) {
-  return (
-    <Card className="mb-6 border-slate-200 bg-white shadow-sm">
-      <CardContent className="pt-4">
-        <div className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-500">Режим просмотра заказа</div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {ORDER_ROLE_VIEWS.map((view) => (
-            <Button
-              key={view.value}
-              asChild
-              size="sm"
-              variant={currentView === view.value ? "default" : "outline"}
-              className="shrink-0"
-            >
-              <Link href={`/orders/${orderId}${view.value === "admin" ? "" : `?view=${view.value}`}`}>
-                <span className="font-medium">{view.label}</span>
-                <span className="ml-2 hidden text-xs opacity-70 sm:inline">{view.helper}</span>
-              </Link>
-            </Button>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function RoleFallback({ text }: { text: string }) {
   return (
     <Card className="border-dashed border-slate-300 bg-slate-50/80">
@@ -3837,6 +3711,7 @@ export default function OrderDetailPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const orderId = params.id as string;
+  const { role } = useRole();
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
@@ -4115,6 +3990,14 @@ export default function OrderDetailPage() {
               К заказам
             </Link>
           </Button>
+          {(role === "owner" || role === "designer") && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/orders/${orderId}/edit`}>
+                <Edit className="mr-2 h-4 w-4" />
+                Редактировать
+              </Link>
+            </Button>
+          )}
           <Button variant="outline" size="sm" asChild>
             <Link href={`/measurements?order=${order.id}`}>
               <Ruler className="mr-2 h-4 w-4" />

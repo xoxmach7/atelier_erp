@@ -14,8 +14,22 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'change-this-in-production')
-DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+
+# DEBUG по умолчанию ВЫКЛЮЧЕН. Для локальной разработки явно укажите DEBUG=True в .env.
+# В проде DEBUG=True отдаёт стектрейсы с кодом и секретами — никогда не включать.
+DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
+
+# Запущены ли тесты. Под тестами прод-настройки безопасности (SSL-redirect,
+# secure cookies) отключаются, иначе тестовый http-клиент получает 301 redirect.
+TESTING = ('test' in sys.argv) or ('pytest' in sys.modules)
+
+# Хосты только из окружения. Дефолт — локалка для разработки.
+# Прод-домены, LAN-IP и ngrok задавать через переменную ALLOWED_HOSTS (см. .env.example).
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+    if host.strip()
+]
 
 # Application definition
 INSTALLED_APPS = [
@@ -27,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'django_filters',
     'corsheaders',
     'atelier_erp',
@@ -34,6 +49,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # Отдаёт статику в проде (например, админка) без отдельного веб-сервера.
+    # В dev (DEBUG=True) статику обслуживает Django, whitenoise не мешает.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -77,6 +95,13 @@ if DB_ENGINE == 'postgresql' or os.environ.get('DB_HOST'):
             'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
             'HOST': os.environ.get('DB_HOST', 'localhost'),
             'PORT': os.environ.get('DB_PORT', '5432'),
+            # Переиспользование соединений (сек). 0 = новое соединение на запрос.
+            'CONN_MAX_AGE': int(os.environ.get('DB_CONN_MAX_AGE', '60')),
+            'CONN_HEALTH_CHECKS': True,
+            'OPTIONS': {
+                # require/prefer/disable — для управляемых БД обычно 'require'
+                'sslmode': os.environ.get('DB_SSLMODE', 'prefer'),
+            },
         }
     }
 else:
@@ -124,6 +149,11 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
+    # Лимит частоты на чувствительные эндпоинты (логин). Применяется точечно
+    # через ScopedRateThrottle на вьюхе получения токена.
+    'DEFAULT_THROTTLE_RATES': {
+        'login': '5/min',
+    },
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',
@@ -132,12 +162,20 @@ REST_FRAMEWORK = {
 }
 
 # CORS
-CORS_ALLOWED_ORIGINS = os.environ.get(
-    'CORS_ALLOWED_ORIGINS',
-    'http://localhost:3000,http://127.0.0.1:3000'
-).split(',') if os.environ.get('CORS_ALLOWED_ORIGINS') else [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        'CORS_ALLOWED_ORIGINS',
+        'http://localhost:3000,'
+        'http://127.0.0.1:3000,'
+        'http://localhost:8081,'
+        'http://127.0.0.1:8081,'
+        'http://192.168.15.53:8081,'
+        'http://localhost:8082,'
+        'http://127.0.0.1:8082,'
+        'http://192.168.15.53:8082'
+    ).split(',')
+    if origin.strip()
 ]
 
 # JWT Settings
@@ -146,8 +184,8 @@ from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': False,
-    'BLACKLIST_AFTER_ROTATION': False,
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': False,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
@@ -162,6 +200,33 @@ SIMPLE_JWT = {
     'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
     'JTI_CLAIM': 'jti',
 }
+
+# ============================================
+# PRODUCTION SECURITY
+# Включается только когда DEBUG выключен (т.е. в проде) и не под тестами.
+# Требует работы за HTTPS-прокси (nginx/ingress), пробрасывающим X-Forwarded-Proto.
+# ============================================
+if not DEBUG and not TESTING:
+    # За reverse-proxy: доверять заголовку схемы от прокси
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    # Принудительный HTTPS
+    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'False').lower() == 'true'
+    # Cookie только по HTTPS
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    # HSTS
+    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '31536000'))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    # Прочие заголовки
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    # CSRF доверенные источники (схема обязательна), задаются через env
+    CSRF_TRUSTED_ORIGINS = [
+        o.strip()
+        for o in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
+        if o.strip()
+    ]
 
 # Logging
 LOGGING = {

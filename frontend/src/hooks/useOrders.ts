@@ -8,6 +8,7 @@ import {
   fetchOrderById,
   fetchOrderExecution,
   createOrder,
+  updateOrder,
   changeOrderStatus,
   changeMaterialReadiness,
   changeProductionStage,
@@ -25,6 +26,7 @@ import type {
   OrderDetailDTO,
   OrderExecutionDTO,
   OrderCreateDTO,
+  OrderUpdateDTO,
   ChangeStatusRequest,
   ChangeMaterialReadinessRequest,
   ChangeProductionStageRequest,
@@ -97,6 +99,22 @@ export function useCreateOrder() {
       queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY] });
       // Pre-populate cache with new order details
       queryClient.setQueryData([ORDERS_QUERY_KEY, "detail", data.id], data);
+    },
+  });
+}
+
+/**
+ * Hook for updating an order
+ */
+export function useUpdateOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation<OrderDetailDTO, Error, { orderId: string; data: OrderUpdateDTO }>({
+    mutationFn: ({ orderId, data }) => updateOrder(orderId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [EXECUTION_QUERY_KEY, variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY, "detail", variables.orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY] });
     },
   });
 }

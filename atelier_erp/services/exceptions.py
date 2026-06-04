@@ -40,7 +40,10 @@ class OrderNotFoundError(OrderServiceError):
 
 class OrderValidationError(OrderServiceError):
     """Order data validation failed"""
-    pass
+
+    def __init__(self, message: str = "", code: str = "validation_error"):
+        self.code = code
+        super().__init__(message)
 
 
 class OrderCannotBeModified(OrderServiceError):
@@ -199,3 +202,11 @@ class QuoteNotApprovedError(QuoteServiceError):
 class QuoteExpiredError(QuoteServiceError):
     """Quote has expired"""
     pass
+
+
+class QuoteValidationError(QuoteServiceError):
+    """Quote data validation failed"""
+
+    def __init__(self, message: str = "", code: str = "validation_error"):
+        self.code = code
+        super().__init__(message)

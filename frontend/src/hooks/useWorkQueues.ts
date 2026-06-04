@@ -7,6 +7,7 @@ import {
   fetchProductionQueue,
   fetchQuotesQueue,
   fetchWarehouseQueue,
+  fetchDashboard,
 } from "@/services/http/work";
 
 const WORK_QUEUES_QUERY_KEY = "work-queues";
@@ -63,6 +64,14 @@ export function useFinanceQueue() {
   return useQuery({
     queryKey: [WORK_QUEUES_QUERY_KEY, "finance"],
     queryFn: fetchFinanceQueue,
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useDashboard() {
+  return useQuery({
+    queryKey: [WORK_QUEUES_QUERY_KEY, "dashboard"],
+    queryFn: fetchDashboard,
     staleTime: 30 * 1000,
   });
 }

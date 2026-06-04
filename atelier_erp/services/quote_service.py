@@ -307,6 +307,259 @@ class QuoteService:
         
         return expired
     
+    def create_quote_for_order(
+        self,
+        order_id: UUID,
+        items: List[Dict[str, Any]],
+        quote_number: str,
+        installation_cost: Decimal = Decimal('0'),
+        delivery_cost: Decimal = Decimal('0'),
+        discount_amount: Decimal = Decimal('0'),
+        prepayment_percent: Decimal = Decimal('0.5'),
+        valid_until: Optional[date] = None,
+        created_by: Optional[UUID] = None
+    ) -> Quote:
+        """
+        Create quote linked to an existing order (direct order flow).
+        """
+        from ..models import Order
+        try:
+            order = Order.objects.select_related('customer').get(pk=order_id)
+        except Order.DoesNotExist:
+            raise QuoteServiceError(f"Order {order_id} not found")
+
+        customer = order.customer
+
+        subtotal = sum(item.get('line_total', Decimal('0')) for item in items)
+
+        if discount_amount > subtotal:
+            raise QuoteServiceError("Discount cannot exceed subtotal")
+
+        total = subtotal + installation_cost + delivery_cost - discount_amount
+
+        if valid_until is None:
+            valid_until = timezone.now().date() + timedelta(days=7)
+
+        quote = Quote.objects.create(
+            quote_number=quote_number,
+            task=None,
+            customer=customer,
+            order=order,
+            status=Quote.Status.DRAFT,
+            subtotal=subtotal,
+            discount_amount=discount_amount,
+            installation_cost=installation_cost,
+            delivery_cost=delivery_cost,
+            total=total,
+            prepayment_percent=prepayment_percent,
+            valid_until=valid_until,
+            created_by_id=created_by
+        )
+
+        for item_data in items:
+            QuoteItem.objects.create(
+                quote=quote,
+                room_name=item_data.get('room_name', ''),
+                window_name=item_data.get('window_name', ''),
+                window_width_cm=item_data.get('window_width_cm', 0),
+                window_height_cm=item_data.get('window_height_cm', 0),
+                fabric_id=item_data.get('fabric_id'),
+                fabric_meters=item_data.get('fabric_meters', Decimal('0')),
+                fabric_cost=item_data.get('fabric_cost', Decimal('0')),
+                tulle_fabric_id=item_data.get('tulle_fabric_id'),
+                tulle_meters=item_data.get('tulle_meters', Decimal('0')),
+                tulle_cost=item_data.get('tulle_cost', Decimal('0')),
+                sewing_type=item_data.get('sewing_type', ''),
+                sewing_cost=item_data.get('sewing_cost', Decimal('0')),
+                installation_price=item_data.get('installation_price', Decimal('0')),
+                accessories_cost=item_data.get('accessories_cost', Decimal('0')),
+                line_total=item_data.get('line_total', Decimal('0'))
+            )
+
+        return quote
+
+    def update_quote(
+        self,
+        quote_id: UUID,
+        items: Optional[List[Dict[str, Any]]] = None,
+        installation_cost: Optional[Decimal] = None,
+        delivery_cost: Optional[Decimal] = None,
+        discount_amount: Optional[Decimal] = None,
+        prepayment_percent: Optional[Decimal] = None,
+        valid_until: Optional[date] = None,
+        updated_by: Optional[UUID] = None
+    ) -> Quote:
+        """
+        Update existing quote and recalculate totals.
+        If items provided, replaces all existing items.
+        """
+        quote = self._get_quote_for_update(quote_id)
+
+        if quote.status not in (Quote.Status.DRAFT, Quote.Status.SENT):
+            raise QuoteServiceError(f"Cannot update quote in status {quote.status}")
+
+        if items is not None:
+            quote.items.all().delete()
+            for item_data in items:
+                QuoteItem.objects.create(
+                    quote=quote,
+                    room_name=item_data.get('room_name', ''),
+                    window_name=item_data.get('window_name', ''),
+                    window_width_cm=item_data.get('window_width_cm', 0),
+                    window_height_cm=item_data.get('window_height_cm', 0),
+                    fabric_id=item_data.get('fabric_id'),
+                    fabric_meters=item_data.get('fabric_meters', Decimal('0')),
+                    fabric_cost=item_data.get('fabric_cost', Decimal('0')),
+                    tulle_fabric_id=item_data.get('tulle_fabric_id'),
+                    tulle_meters=item_data.get('tulle_meters', Decimal('0')),
+                    tulle_cost=item_data.get('tulle_cost', Decimal('0')),
+                    sewing_type=item_data.get('sewing_type', ''),
+                    sewing_cost=item_data.get('sewing_cost', Decimal('0')),
+                    installation_price=item_data.get('installation_price', Decimal('0')),
+                    accessories_cost=item_data.get('accessories_cost', Decimal('0')),
+                    line_total=item_data.get('line_total', Decimal('0'))
+                )
+
+        if installation_cost is not None:
+            quote.installation_cost = installation_cost
+        if delivery_cost is not None:
+            quote.delivery_cost = delivery_cost
+        if discount_amount is not None:
+            quote.discount_amount = discount_amount
+        if prepayment_percent is not None:
+            quote.prepayment_percent = prepayment_percent
+        if valid_until is not None:
+            quote.valid_until = valid_until
+
+        # Recalculate totals
+        subtotal = sum(item.line_total for item in quote.items.all())
+        quote.subtotal = subtotal
+
+        if quote.discount_amount > subtotal:
+            raise QuoteServiceError("Discount cannot exceed subtotal")
+
+        quote.total = subtotal + quote.installation_cost + quote.delivery_cost - quote.discount_amount
+        quote.save(update_fields=[
+            'subtotal', 'total', 'installation_cost', 'delivery_cost',
+            'discount_amount', 'prepayment_percent', 'valid_until',
+            'updated_at'
+        ])
+
+        return quote
+
+    def generate_pdf(self, quote_id: UUID, media_root: str = '') -> str:
+        """
+        Generate PDF for quote using weasyprint.
+        Returns path to generated PDF file.
+        """
+        try:
+            from weasyprint import HTML, CSS
+        except ImportError:
+            raise QuoteServiceError(
+                "weasyprint is not installed. Run: pip install weasyprint"
+            )
+
+        try:
+            quote = Quote.objects.select_related('customer', 'order').prefetch_related('items').get(pk=quote_id)
+        except Quote.DoesNotExist:
+            raise QuoteNotFoundError(f"Quote {quote_id} not found")
+
+        # Build HTML
+        items_rows = ""
+        for item in quote.items.all():
+            items_rows += f"""
+            <tr>
+                <td>{item.room_name}</td>
+                <td>{item.window_name or '-'}</td>
+                <td>{item.window_width_cm}×{item.window_height_cm}</td>
+                <td>{item.fabric_meters or '-'} м</td>
+                <td>{item.fabric_cost or '-'}</td>
+                <td>{item.sewing_cost or '-'}</td>
+                <td>{item.installation_price or '-'}</td>
+                <td><strong>{item.line_total}</strong></td>
+            </tr>
+            """
+
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                @page {{ size: A4; margin: 2cm; }}
+                body {{ font-family: 'DejaVu Sans', sans-serif; font-size: 11pt; color: #333; }}
+                h1 {{ font-size: 18pt; text-align: center; margin-bottom: 8px; }}
+                .subtitle {{ text-align: center; color: #666; margin-bottom: 24px; }}
+                .info {{ margin-bottom: 16px; }}
+                .info-row {{ display: flex; justify-content: space-between; margin-bottom: 4px; }}
+                table {{ width: 100%; border-collapse: collapse; margin-top: 16px; }}
+                th, td {{ border: 1px solid #ccc; padding: 6px 8px; text-align: left; font-size: 10pt; }}
+                th {{ background: #f5f5f5; font-weight: 600; }}
+                .total-section {{ margin-top: 20px; text-align: right; }}
+                .total-section p {{ margin: 4px 0; }}
+                .total {{ font-size: 14pt; font-weight: bold; margin-top: 8px; }}
+                .stamp {{ margin-top: 40px; font-size: 9pt; color: #888; text-align: center; }}
+            </style>
+        </head>
+        <body>
+            <h1>Коммерческое предложение</h1>
+            <p class="subtitle">№ {quote.quote_number}</p>
+
+            <div class="info">
+                <div class="info-row"><span>Клиент:</span> <strong>{quote.customer.full_name}</strong></div>
+                <div class="info-row"><span>Телефон:</span> {quote.customer.phone or '-'}</div>
+                {f'<div class="info-row"><span>Заказ:</span> {quote.order.order_number}</div>' if quote.order else ''}
+                <div class="info-row"><span>Дата:</span> {timezone.now().strftime('%d.%m.%Y')}</div>
+                <div class="info-row"><span>Срок действия:</span> {quote.valid_until.strftime('%d.%m.%Y') if quote.valid_until else '-'}</div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Комната</th>
+                        <th>Окно</th>
+                        <th>Размеры, см</th>
+                        <th>Ткань, м</th>
+                        <th>Ткань, ₽</th>
+                        <th>Пошив, ₽</th>
+                        <th>Монтаж, ₽</th>
+                        <th>Итого, ₽</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {items_rows or '<tr><td colspan="8" style="text-align:center;">Нет позиций</td></tr>'}
+                </tbody>
+            </table>
+
+            <div class="total-section">
+                <p>Подытог: {quote.subtotal} ₽</p>
+                {f'<p>Скидка: -{quote.discount_amount} ₽</p>' if quote.discount_amount else ''}
+                {f'<p>Доставка: +{quote.delivery_cost} ₽</p>' if quote.delivery_cost else ''}
+                {f'<p>Монтаж: +{quote.installation_cost} ₽</p>' if quote.installation_cost else ''}
+                <p class="total">Итого: {quote.total} ₽</p>
+                <p>Предоплата ({int(quote.prepayment_percent * 100)}%): {quote.total * quote.prepayment_percent} ₽</p>
+            </div>
+
+            <div class="stamp">
+                Документ сформирован автоматически из системы Atelier ERP
+            </div>
+        </body>
+        </html>
+        """
+
+        import os
+        pdf_dir = os.path.join(media_root, 'quotes')
+        os.makedirs(pdf_dir, exist_ok=True)
+        pdf_path = os.path.join(pdf_dir, f'{quote_id}.pdf')
+
+        HTML(string=html_content).write_pdf(pdf_path)
+
+        quote.pdf_generated = True
+        quote.pdf_url = f'/media/quotes/{quote_id}.pdf'
+        quote.save(update_fields=['pdf_generated', 'pdf_url', 'updated_at'])
+
+        return pdf_path
+
     def get_quote_summary(self, quote_id: UUID) -> Dict[str, Any]:
         """
         Get summary of quote for display.
@@ -315,7 +568,7 @@ class QuoteService:
             quote = Quote.objects.prefetch_related('items').get(pk=quote_id)
         except Quote.DoesNotExist:
             raise QuoteNotFoundError(f"Quote {quote_id} not found")
-        
+
         return {
             'quote_number': quote.quote_number,
             'status': quote.status,
@@ -330,7 +583,7 @@ class QuoteService:
             'valid_until': quote.valid_until,
             'is_expired': quote.valid_until and quote.valid_until < timezone.now().date()
         }
-    
+
     # ============================================
     # HELPER METHODS
     # ============================================
@@ -343,23 +596,6 @@ class QuoteService:
             raise QuoteNotFoundError(f"Quote {quote_id} not found")
     
     def _generate_quote_number(self) -> str:
-        """Generate unique quote number КП-YYYY-NNN"""
-        import re
-        from datetime import datetime
-        
-        year = datetime.now().year
-        
-        latest = Quote.objects.filter(
-            quote_number__regex=f'^КП-{year}-\\d{{3}}$'
-        ).order_by('-quote_number').first()
-        
-        if latest:
-            match = re.match(rf'^КП-{year}-(\d{{3}})$', latest.quote_number)
-            if match:
-                seq = int(match.group(1)) + 1
-            else:
-                seq = 1
-        else:
-            seq = 1
-        
-        return f"КП-{year}-{seq:03d}"
+        """Generate unique quote number КП-YYYY-NNN (атомарно, без гонки)."""
+        from atelier_erp.services.numbering import next_number
+        return next_number('quote')

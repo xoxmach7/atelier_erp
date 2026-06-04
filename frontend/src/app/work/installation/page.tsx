@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useInstallationQueue } from "@/hooks/useWorkQueues";
 import type { InstallationTask } from "@/services/http/work";
+import { formatAddress } from "@/utils/formatAddress";
 import { EmptyRoleState, MaterialsList, StatusPill, TaskSection, WorkOrderHeader, WorkspaceHeader, formatDate } from "@/components/layout/role-workspace";
 
 function InstallationCard({ task }: { task: InstallationTask }) {
@@ -16,7 +17,7 @@ function InstallationCard({ task }: { task: InstallationTask }) {
         <WorkOrderHeader task={task} right={<StatusPill label={task.handover_stage_label} tone="sky" />} />
         <div className="grid gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
           <div><span className="font-medium">Телефон:</span> {task.customer_phone || "не указан"}</div>
-          <div><span className="font-medium">Адрес:</span> {task.installation_address || "адрес не указан"}</div>
+          <div><span className="font-medium">Адрес:</span> {formatAddress(task.installation_address) || "адрес не указан"}</div>
           <div><span className="font-medium">Дата:</span> {formatDate(task.installation_date || task.planned_completion_date)}</div>
         </div>
         <MaterialsList items={task.items_to_install} emptyText="Позиции для установки ещё не сформированы." />

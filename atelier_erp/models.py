@@ -322,16 +322,18 @@ class Order(UUIDModel, AuditedModel):
         COMPLETED = 'completed', _('Завершён')
         CANCELLED = 'cancelled', _('Отменён')
         
-        # Legacy statuses (to be removed in Sprint 3+)
-        DRAFT = 'draft', _('Draft')
-        MEASUREMENT = 'measurement', _('Measurement Scheduled')
-        DESIGN = 'design', _('Design in Progress')
-        QUOTED = 'quoted', _('Quote Generated')
-        APPROVED = 'approved', _('Approved by Customer')
-        PREPAYMENT_RECEIVED = 'prepayment_received', _('Prepayment Received')
-        FABRIC_RESERVED = 'fabric_reserved', _('Fabric Reserved')
-        PRODUCTION = 'production', _('In Production')
-        INSTALLATION = 'installation', _('Installation Scheduled')
+        # DEPRECATED — used only in old OrderService (atelier_erp/services/order_service.py)
+        # v1 API and mobile use the MVP statuses above exclusively
+        # Remove after old OrderService and related tests are deleted (post-pilot)
+        DRAFT = 'draft', _('[DEPRECATED] Draft')
+        MEASUREMENT = 'measurement', _('[DEPRECATED] Measurement Scheduled')
+        DESIGN = 'design', _('[DEPRECATED] Design in Progress')
+        QUOTED = 'quoted', _('[DEPRECATED] Quote Generated')
+        APPROVED = 'approved', _('[DEPRECATED] Approved by Customer')
+        PREPAYMENT_RECEIVED = 'prepayment_received', _('[DEPRECATED] Prepayment Received')
+        FABRIC_RESERVED = 'fabric_reserved', _('[DEPRECATED] Fabric Reserved')
+        PRODUCTION = 'production', _('[DEPRECATED] In Production')
+        INSTALLATION = 'installation', _('[DEPRECATED] Installation Scheduled')
     
     # Identity
     order_number = models.CharField(
@@ -1244,6 +1246,54 @@ class QuoteItem(UUIDModel):
         verbose_name_plural = 'Quote Items'
 
 
+class OrderMaterial(UUIDModel):
+    """Material line item for order — created from approved quote items"""
+
+    class Status(models.TextChoices):
+        TO_BUY = 'to_buy', 'Закупить'
+        PARTIAL = 'partial', 'Есть частично'
+        READY = 'ready', 'Готово'
+
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='materials',
+        db_index=True
+    )
+    name = models.CharField(max_length=200)
+    material_type = models.CharField(max_length=50)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    unit = models.CharField(max_length=20, default='м')
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.TO_BUY,
+        db_index=True
+    )
+    source_quote_item = models.ForeignKey(
+        QuoteItem,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='order_materials'
+    )
+    comment = models.TextField(blank=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='updated_materials'
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'order_materials'
+        ordering = ['name']
+        verbose_name = 'Order Material'
+        verbose_name_plural = 'Order Materials'
+
+
 # ============================================
 # PRODUCTION CONTEXT
 # ============================================
@@ -1474,3 +1524,27 @@ class AppConfig(models.Model):
         elif self.value_type == 'json':
             return json.loads(self.value)
         return self.value
+
+
+class NumberSequence(models.Model):
+    """Атомарный счётчик номеров документов (заказы/КП/задачи) по году.
+
+    Используется numbering.next_number() с select_for_update, чтобы избежать
+    гонки и дублей номеров при одновременном создании (раньше — count()+1).
+    """
+
+    prefix = models.CharField(max_length=8)
+    year = models.PositiveIntegerField()
+    last_value = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'number_sequence'
+        verbose_name = 'Number Sequence'
+        verbose_name_plural = 'Number Sequences'
+        constraints = [
+            UniqueConstraint(fields=['prefix', 'year'], name='uniq_number_sequence_prefix_year'),
+        ]
+
+    def __str__(self):
+        return f'{self.prefix}-{self.year}: {self.last_value}'

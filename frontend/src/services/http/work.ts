@@ -19,7 +19,7 @@ export interface WorkOrderTask {
   order_number: string;
   customer_name: string;
   customer_phone: string;
-  installation_address: string;
+  installation_address: string | { city?: string; street?: string; building?: string; apartment?: string };
   status: string;
   status_label: string;
   planned_completion_date: string | null;
@@ -162,6 +162,39 @@ export interface FinanceQueue {
   waiting_payment: WorkOrderTask[];
   paid_needs_completion: WorkOrderTask[];
   recent_payments: PaymentTask[];
+}
+
+export interface DashboardOrders {
+  total: number;
+  in_work: number;
+  completed: number;
+  cancelled: number;
+  overdue: number;
+  awaiting_payment: number;
+}
+
+export interface DashboardFinance {
+  total_revenue: number;
+  total_paid: number;
+  total_debt: number;
+  this_month_revenue: number;
+  this_month_paid: number;
+}
+
+export interface ChartPoint {
+  month: string;
+  revenue: number;
+  paid: number;
+}
+
+export interface DashboardData {
+  orders: DashboardOrders;
+  finance: DashboardFinance;
+  chart: ChartPoint[];
+}
+
+export function fetchDashboard() {
+  return get<DashboardData>("/v1/dashboard/");
 }
 
 export function fetchOwnerQueue() {

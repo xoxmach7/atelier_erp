@@ -1,0 +1,17 @@
+# Нормализация переводов строк: в репозитории всегда LF.
+# Без этого Windows-инструменты пересохраняют файлы в CRLF и создают
+# огромные «фантомные» диффы (вся кодовая база как изменённая).
+
+* text=auto eol=lf
+
+# Бинарные файлы — не трогать
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.ico  binary
+*.gif  binary
+*.pdf  binary
+*.sqlite3 binary
+*.woff binary
+*.woff2 binary

@@ -6,7 +6,8 @@ All state changes go through services
 
 from decimal import Decimal
 
-from django.db.models import Q
+from django.db.models import Q, F
+from dateutil.relativedelta import relativedelta
 from rest_framework import viewsets, status, filters
 from rest_framework.views import APIView
 from rest_framework.decorators import action
@@ -14,22 +15,27 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 
-from atelier_erp.api.permissions import IsManagerOrAdmin
+from atelier_erp.api.permissions import IsManagerOrAdmin, IsOwnerOrDesigner, IsWarehouseOrOwner, IsInstallationOrOwner, IsInstallationOrOwnerOrReadOnly, IsSeamstressOrOwner
+from atelier_erp.roles import Roles, user_in
+from atelier_erp.services.numbering import next_number
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 
 from atelier_erp.models import (
     Order, Task, Fabric, PhotoReport, OrderItem, OrderCompletionAct,
-    Measurement, Quote, Payment
+    Measurement, Quote, Payment, Customer, OrderMaterial
 )
-from atelier_erp.services import OrderService, TaskService, UnitOfWork
+from atelier_erp.services import OrderService, TaskService, UnitOfWork, QuoteService
 from atelier_erp.services.exceptions import (
     OrderNotFoundError, InvalidOrderStatusTransition,
     TaskNotFoundError, InvalidTaskStatusTransition
 )
 
 from .serializers import (
-    OrderListSerializer, OrderDetailSerializer, OrderCreateSerializer, OrderStatusUpdateSerializer,
+    OrderListSerializer, OrderDetailSerializer, OrderCreateSerializer, OrderUpdateSerializer, OrderStatusUpdateSerializer,
+    MeasurementSerializer, MeasurementCreateSerializer,
+    QuoteSerializer, QuoteCreateSerializer,
+    OrderMaterialSerializer, OrderMaterialUpdateSerializer,
     ChangeStatusSerializer, ChangeMaterialReadinessSerializer, ChangeProductionStageSerializer,
     ChangeHandoverStageSerializer, CancelOrderSerializer,
     TaskListSerializer, TaskDetailSerializer, TaskCreateSerializer, TaskStatusUpdateSerializer,
@@ -51,10 +57,40 @@ class OrderViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        """Create requires Manager/Admin role"""
-        if self.action == 'create':
-            return [IsAuthenticated(), IsManagerOrAdmin()]
+        """Create and update require Owner/Designer role"""
+        if self.action in ['create', 'update', 'partial_update']:
+            return [IsAuthenticated(), IsOwnerOrDesigner()]
         return super().get_permissions()
+
+    def get_queryset(self):
+        """Срез заказов по роли.
+
+        Полный список всех заказов компании — только Owner и Designer.
+        Остальные роли видят только свой операционный срез по статусам.
+        Пользователь без подходящей группы не видит ничего (default deny).
+        select_related('customer') убирает N+1 в списке.
+        """
+        qs = Order.objects.select_related('customer').order_by('-created_at')
+        user = self.request.user
+
+        if user_in(user, *Roles.FULL_ORDER_ACCESS):
+            return qs
+        if user_in(user, Roles.WAREHOUSE):
+            return qs.filter(status__in=[
+                Order.Status.IN_WORK,
+                Order.Status.IN_PRODUCTION,
+                Order.Status.READY,
+            ])
+        if user_in(user, Roles.SEAMSTRESS):
+            return qs.filter(status=Order.Status.IN_PRODUCTION)
+        if user_in(user, Roles.INSTALLER):
+            return qs.filter(status__in=[
+                Order.Status.READY,
+                Order.Status.ON_INSTALLATION,
+                Order.Status.WAITING_FINAL_PAYMENT,
+            ])
+        # Нет подходящей роли — ничего не показываем (default deny).
+        return qs.none()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'customer']
     search_fields = ['order_number', 'customer__full_name', 'customer__phone']
@@ -65,6 +101,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             return OrderListSerializer
         if self.action == 'create':
             return OrderCreateSerializer
+        if self.action in ['update', 'partial_update']:
+            return OrderUpdateSerializer
         if self.action == 'change_status':
             return OrderStatusUpdateSerializer
         # New MVP action serializers
@@ -84,75 +122,97 @@ class OrderViewSet(viewsets.ModelViewSet):
         """Create order via OrderService - supports direct creation without quote"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
-        # Generate order number: О-YYYY-NNN
-        year = timezone.now().year
-        count = Order.objects.filter(created_at__year=year).count() + 1
-        order_number = f"О-{year}-{count:03d}"
 
-        # Build installation address dict from validated data
-        installation_address = {
-            'city': serializer.validated_data.get('installation_address_city', ''),
-            'street': serializer.validated_data.get('installation_address_street', ''),
-            'building': serializer.validated_data.get('installation_address_building', ''),
-            'apartment': serializer.validated_data.get('installation_address_apartment', ''),
-            'notes': serializer.validated_data.get('installation_address_notes', ''),
-        }
+        # Generate order number: О-YYYY-NNN (атомарно, без гонки)
+        year = timezone.now().year
+        order_number = next_number('order', year)
+
+        validated = serializer.validated_data
+
+        # --- Resolve customer ---
+        customer_id = validated.get('customer_id')
+        if not customer_id:
+            # Simplified mode: find or create customer from name + phone
+            client_name = validated.get('client_name', '').strip()
+            client_phone = validated.get('client_phone', '').strip()
+            try:
+                customer = Customer.objects.get(phone=client_phone, is_active=True)
+            except Customer.DoesNotExist:
+                customer = Customer.objects.create(
+                    full_name=client_name,
+                    phone=client_phone,
+                    address_city='',
+                )
+            customer_id = customer.id
+
+        # --- Build installation address ---
+        address = validated.get('address', '')
+        if address:
+            # Simplified mode: stuff full address into street field
+            installation_address = {
+                'city': '',
+                'street': address,
+                'building': '',
+                'apartment': '',
+                'notes': '',
+            }
+        else:
+            installation_address = {
+                'city': validated.get('installation_address_city', ''),
+                'street': validated.get('installation_address_street', ''),
+                'building': validated.get('installation_address_building', ''),
+                'apartment': validated.get('installation_address_apartment', ''),
+                'notes': validated.get('installation_address_notes', ''),
+            }
+
+        # --- Resolve notes / comment ---
+        notes = validated.get('notes', '')
+        comment = validated.get('comment', '')
+        final_notes = comment if comment else notes
+
+        # --- Resolve planned_completion / deadline ---
+        planned_completion = validated.get('planned_completion')
+        deadline = validated.get('deadline')
+        final_deadline = deadline if deadline else planned_completion
 
         with UnitOfWork() as uow:
             service = OrderService(uow)
             try:
                 order = service.create_order(
-                    customer_id=serializer.validated_data['customer_id'],
+                    customer_id=customer_id,
                     order_number=order_number,
                     installation_address=installation_address,
                     created_by=request.user.id,
-                    notes=serializer.validated_data.get('notes', ''),
-                    planned_completion=serializer.validated_data.get('planned_completion'),
+                    notes=final_notes,
+                    planned_completion=final_deadline,
                     measurements=None  # Measurements added separately
                 )
-                
+
                 # Set measurement_date if provided
-                measurement_date = serializer.validated_data.get('measurement_date')
+                measurement_date = validated.get('measurement_date')
                 if measurement_date:
                     order.measurement_date = measurement_date
                     order.save(update_fields=['measurement_date'])
-                
+
                 uow.commit()
-                
+
                 # Refresh to get related data
                 order.refresh_from_db()
-                
+
                 response_serializer = OrderDetailSerializer(order)
                 return Response(response_serializer.data, status=status.HTTP_201_CREATED)
             except Exception as e:
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     def update(self, request, *args, **kwargs):
-        """Update order notes and material_readiness via service layer"""
-        order = self.get_object()
-        
-        # Handle material_readiness update directly on model
-        material_readiness = request.data.get('material_readiness')
-        if material_readiness:
-            if material_readiness in [choice[0] for choice in MaterialReadiness.choices]:
-                order.material_readiness = material_readiness
-                order.save(update_fields=['material_readiness', 'updated_at'])
-        
-        with UnitOfWork() as uow:
-            service = OrderService(uow)
-            try:
-                updated_order = service.update_order(
-                    order_id=order.id,
-                    notes=request.data.get('notes'),
-                    updated_by=request.user
-                )
-                uow.commit()
-                
-                response_serializer = OrderDetailSerializer(updated_order)
-                return Response(response_serializer.data)
-            except Exception as e:
-                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        """Update order via OrderUpdateSerializer - customer, address, deadline, notes"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        updated = serializer.save()
+        response_serializer = OrderDetailSerializer(updated)
+        return Response(response_serializer.data)
     
     @action(detail=True, methods=['get'])
     def execution(self, request, pk=None):
@@ -210,7 +270,8 @@ class OrderViewSet(viewsets.ModelViewSet):
         methods=['get', 'post'],
         url_path='photo-reports',
         url_name='photo-reports',
-        parser_classes=[MultiPartParser, FormParser]
+        parser_classes=[MultiPartParser, FormParser],
+        permission_classes=[IsAuthenticated, IsInstallationOrOwnerOrReadOnly]
     )
     def photo_reports(self, request, pk=None):
         """
@@ -318,7 +379,8 @@ class OrderViewSet(viewsets.ModelViewSet):
         methods=['get', 'post'],
         url_path='completion-act',
         url_name='completion-act',
-        parser_classes=[MultiPartParser, FormParser]
+        parser_classes=[MultiPartParser, FormParser],
+        permission_classes=[IsAuthenticated, IsInstallationOrOwnerOrReadOnly]
     )
     def completion_act(self, request, pk=None):
         """
@@ -415,7 +477,8 @@ class OrderViewSet(viewsets.ModelViewSet):
         methods=['post'],
         url_path='completion-act/upload-signed',
         url_name='completion-act-upload-signed',
-        parser_classes=[MultiPartParser, FormParser]
+        parser_classes=[MultiPartParser, FormParser],
+        permission_classes=[IsAuthenticated, IsInstallationOrOwner]
     )
     def upload_signed_completion_act(self, request, pk=None):
         """
@@ -497,6 +560,68 @@ class OrderViewSet(viewsets.ModelViewSet):
             'message': 'Подписанный АВР успешно загружен'
         })
 
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='completion-checklist',
+        url_name='completion-checklist',
+        permission_classes=[IsAuthenticated]
+    )
+    def completion_checklist(self, request, pk=None):
+        """
+        Return completion checklist for order.
+        GET /api/v1/orders/{id}/completion-checklist/
+        """
+        from ..constants import ProductionStage, HandoverStage
+        order = self.get_object()
+
+        installation_done = order.handover_stage in [HandoverStage.DONE, HandoverStage.NOT_REQUIRED]
+        has_photos = order.photo_reports.filter(is_active=True).exists()
+        has_act = False
+        act_signed = False
+        try:
+            act = order.completion_act
+            has_act = act.is_active
+            act_signed = act.status == OrderCompletionAct.Status.SIGNED
+        except OrderCompletionAct.DoesNotExist:
+            pass
+        fully_paid = order.paid_amount >= order.total_amount
+
+        checklist = [
+            {
+                "key": "installation",
+                "label": "Установка/выдача завершена",
+                "done": installation_done,
+            },
+            {
+                "key": "photos",
+                "label": "Фотоотчёт загружен",
+                "done": has_photos,
+            },
+            {
+                "key": "act_created",
+                "label": "АВР создан",
+                "done": has_act,
+            },
+            {
+                "key": "act_signed",
+                "label": "Подписанный АВР загружен",
+                "done": act_signed,
+            },
+            {
+                "key": "payment",
+                "label": "Оплата закрыта",
+                "done": fully_paid,
+            },
+        ]
+
+        can_complete = all(item["done"] for item in checklist)
+
+        return Response({
+            "checklist": checklist,
+            "can_complete": can_complete,
+        })
+
     @action(detail=True, methods=['post'])
     def change_status(self, request, pk=None):
         """
@@ -566,113 +691,22 @@ class OrderViewSet(viewsets.ModelViewSet):
         order = self.get_object()
         serializer = ChangeStatusSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         new_status = serializer.validated_data['status']
-        
-        # Business rule checks
-        from atelier_erp.constants import MaterialReadiness, ProductionStage
-        
-        # Cannot modify cancelled order
-        if order.status == Order.Status.CANCELLED:
-            return Response(
-                {'detail': 'Нельзя изменить статус отменённого заказа.', 'code': 'cancelled_order'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Cannot modify completed order
-        if order.status == Order.Status.COMPLETED:
-            return Response(
-                {'detail': 'Нельзя изменить статус завершённого заказа.', 'code': 'completed_order'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Check for accepted quote and order items for in_work transition
-        if new_status == Order.Status.IN_WORK:
-            from atelier_erp.models import Quote
-            has_accepted_quote = (
-                (order.quote and order.quote.status == Quote.Status.APPROVED) or
-                order.related_quotes.filter(status=Quote.Status.APPROVED).exists()
-            )
-            if not has_accepted_quote:
-                return Response(
-                    {'detail': 'Сначала примите КП и сформируйте позиции заказа.', 'code': 'quote_not_accepted'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            if order.items.count() == 0:
-                return Response(
-                    {'detail': 'Сначала сформируйте позиции заказа из КП.', 'code': 'no_order_items'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        
-        # Cannot start production without materials and order items
-        if new_status == Order.Status.IN_PRODUCTION:
-            if order.material_readiness == MaterialReadiness.NOT_READY:
-                return Response(
-                    {'detail': 'Нельзя начать производство: материалы не обеспечены.', 'code': 'material_not_ready'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            if order.items.count() == 0:
-                return Response(
-                    {'detail': 'Сначала сформируйте позиции заказа из КП.', 'code': 'no_order_items'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        
-        # Cannot mark ready if production not done
-        if new_status == Order.Status.READY:
-            if order.production_stage != ProductionStage.DONE:
-                return Response(
-                    {'detail': 'Нельзя отметить готовность: производство не завершено.', 'code': 'production_not_done'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        
-        # TODO: Move completed transition validation fully into service layer to avoid duplicated business rules.
-        # Cannot complete if production not done, handover not done, no signed act, or not paid
-        if new_status == Order.Status.COMPLETED:
-            if order.production_stage != ProductionStage.DONE:
-                return Response(
-                    {'detail': 'Нельзя завершить заказ: производство не завершено.', 'code': 'production_not_done'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            if order.handover_stage not in [HandoverStage.DONE, HandoverStage.NOT_REQUIRED]:
-                return Response(
-                    {'detail': 'Нельзя завершить заказ: установка/выдача не завершена.', 'code': 'handover_not_done'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            # Check for signed completion act
-            try:
-                act = order.completion_act
-                if not act.is_active or act.status != OrderCompletionAct.Status.SIGNED:
-                    return Response(
-                        {'detail': 'Нельзя завершить заказ: требуется подписанный АВР.', 'code': 'signed_act_required'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-            except OrderCompletionAct.DoesNotExist:
-                return Response(
-                    {'detail': 'Нельзя завершить заказ: требуется подписанный АВР.', 'code': 'act_required'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            balance_due = order.total_amount - order.paid_amount
-            if balance_due > 0:
-                return Response(
-                    {
-                        'detail': f'Нельзя завершить заказ: требуется оплата {balance_due}.',
-                        'code': 'payment_required',
-                        'balance_due': str(balance_due)
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        
+
+        from atelier_erp.services.exceptions import OrderValidationError
+
         with UnitOfWork() as uow:
             service = OrderService(uow)
             try:
-                order = service.transition_status(
+                order = service.transition_status_mvp(
                     order_id=order.id,
                     new_status=new_status,
                     changed_by=request.user.id if request.user else None,
                     notes=""
                 )
                 uow.commit()
-                
+
                 response_serializer = OrderDetailSerializer(order)
                 return Response({'order': response_serializer.data})
             except InvalidOrderStatusTransition as e:
@@ -680,6 +714,11 @@ class OrderViewSet(viewsets.ModelViewSet):
                     {'detail': str(e), 'code': 'invalid_transition', 'allowed_transitions': e.allowed},
                     status=status.HTTP_409_CONFLICT
                 )
+            except OrderValidationError as e:
+                resp = {'detail': str(e), 'code': e.code}
+                if e.code == 'payment_required' and hasattr(e, 'balance_due'):
+                    resp['balance_due'] = str(e.balance_due)
+                return Response(resp, status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
                 return Response(
                     {'detail': str(e), 'code': 'status_change_error'},
@@ -925,6 +964,148 @@ class OrderViewSet(viewsets.ModelViewSet):
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='measurements',
+        url_name='measurements',
+        permission_classes=[IsAuthenticated, IsOwnerOrDesigner]
+    )
+    def measurements(self, request, pk=None):
+        """
+        Order measurements management.
+
+        GET  /api/v1/orders/{id}/measurements/  — list measurements
+        POST /api/v1/orders/{id}/measurements/  — add measurement
+        """
+        order = self.get_object()
+
+        if request.method == 'GET':
+            measurements = order.measurements.all().order_by('room_name', 'window_name')
+            serializer = MeasurementSerializer(measurements, many=True)
+            return Response({
+                'count': measurements.count(),
+                'results': serializer.data,
+            })
+
+        # POST — create measurement
+        serializer = MeasurementCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Map simplified fields to model fields
+        measurement = Measurement.objects.create(
+            order=order,
+            room_name=data['room_name'],
+            window_name=data.get('window_number', ''),
+            width_cm=int(data['width']),
+            height_cm=int(data['height']),
+            mounting_type=data.get('mounting_type', ''),
+            notes=data.get('comment', ''),
+            measured_by=request.user if request.user.is_authenticated else None,
+        )
+
+        # Map fabric_type + fabric_meters to curtain/tulle fields
+        fabric_type = data.get('fabric_type')
+        fabric_meters = data.get('fabric_meters')
+        fabric_name = data.get('fabric_name', '')
+
+        if fabric_type and fabric_meters:
+            if fabric_type == 'curtain':
+                measurement.curtain_meters = fabric_meters
+                if fabric_name:
+                    fabric = Fabric.objects.filter(name__iexact=fabric_name).first()
+                    if fabric:
+                        measurement.curtain_fabric = fabric
+            elif fabric_type == 'tulle':
+                measurement.tulle_meters = fabric_meters
+                if fabric_name:
+                    fabric = Fabric.objects.filter(name__iexact=fabric_name).first()
+                    if fabric:
+                        measurement.tulle_fabric = fabric
+
+        measurement.save()
+
+        response_serializer = MeasurementSerializer(measurement)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='quotes',
+        url_name='quotes',
+        permission_classes=[IsAuthenticated]
+    )
+    def quotes(self, request, pk=None):
+        """
+        List quotes for an order.
+        GET /api/v1/orders/{id}/quotes/
+        """
+        order = self.get_object()
+        quotes = order.related_quotes.all().order_by('-created_at')
+        serializer = QuoteSerializer(quotes, many=True)
+        return Response({
+            'count': quotes.count(),
+            'results': serializer.data,
+        })
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='materials',
+        url_name='materials',
+        permission_classes=[IsAuthenticated]
+    )
+    def materials(self, request, pk=None):
+        """
+        List materials for an order.
+        GET /api/v1/orders/{id}/materials/
+        """
+        order = self.get_object()
+        materials = order.materials.all().order_by('name')
+        serializer = OrderMaterialSerializer(materials, many=True)
+        return Response({
+            'count': materials.count(),
+            'results': serializer.data,
+        })
+
+    @action(
+        detail=True,
+        methods=['patch'],
+        url_path=r'materials/(?P<material_id>[^/.]+)',
+        url_name='update-material',
+        permission_classes=[IsAuthenticated, IsWarehouseOrOwner]
+    )
+    def update_material(self, request, pk=None, material_id=None):
+        """
+        Update material status.
+        PATCH /api/v1/orders/{id}/materials/{material_id}/
+        Body: {"status": "ready", "comment": "..."}
+        """
+        order = self.get_object()
+        try:
+            material = order.materials.get(pk=material_id)
+        except OrderMaterial.DoesNotExist:
+            return Response(
+                {'error': f'Material {material_id} not found for this order'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = OrderMaterialUpdateSerializer(material, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(updated_by=request.user)
+
+        # Recalculate order material readiness
+        service = OrderService(unit_of_work=None)
+        service.recalculate_material_readiness(order)
+        order.refresh_from_db()
+
+        return Response({
+            'material': OrderMaterialSerializer(material).data,
+            'order_material_readiness': order.material_readiness,
+            'order_material_readiness_label': order.get_material_readiness_display(),
+        })
+
 STATUS_LABELS = {
     'new': 'Новый',
     'in_work': 'В работе',
@@ -985,11 +1166,16 @@ def _address(order):
     return ', '.join(part for part in parts if part) or ''
 
 
-def _base_order(order):
+def _base_order(order, include_financial=True):
+    """Базовый payload заказа для рабочих очередей.
+
+    include_financial=False скрывает денежные поля (суммы/оплаты/баланс) —
+    для ролей без финансового доступа (склад/цех/монтаж).
+    """
     balance_due = max(order.remaining_amount, Decimal('0'))
     is_paid = balance_due <= 0
 
-    return {
+    data = {
         'id': str(order.id),
         'order_number': order.order_number,
         'customer_name': order.customer.full_name,
@@ -1006,12 +1192,16 @@ def _base_order(order):
         'production_stage_label': PRODUCTION_LABELS.get(order.production_stage, order.production_stage),
         'handover_stage': order.handover_stage,
         'handover_stage_label': HANDOVER_LABELS.get(order.handover_stage, order.handover_stage),
-        'total_amount': _money(order.total_amount),
-        'paid_amount': _money(order.paid_amount),
-        'balance_due': _money(balance_due),
-        'payment_state': 'paid' if is_paid else 'partial' if order.paid_amount > 0 else 'unpaid',
         'order_url': f'/orders/{order.id}',
     }
+    if include_financial:
+        data.update({
+            'total_amount': _money(order.total_amount),
+            'paid_amount': _money(order.paid_amount),
+            'balance_due': _money(balance_due),
+            'payment_state': 'paid' if is_paid else 'partial' if order.paid_amount > 0 else 'unpaid',
+        })
+    return data
 
 
 def _quote_payload(quote):
@@ -1177,10 +1367,16 @@ class BaseWorkQueueView(APIView):
     def orders(self):
         return _base_order_queryset()
 
+    def include_financial(self):
+        """Видит ли текущий пользователь денежные поля заказа."""
+        return user_in(self.request.user, *Roles.FINANCIAL_ACCESS)
+
 
 class ProductionWorkQueueView(BaseWorkQueueView):
+    permission_classes = [IsAuthenticated, IsSeamstressOrOwner]
+
     def _payload(self, order):
-        data = _base_order(order)
+        data = _base_order(order, self.include_financial())
         data.update({
             'items_to_sew': _items_for_work(order),
             'actions': {
@@ -1218,8 +1414,10 @@ class ProductionWorkQueueView(BaseWorkQueueView):
 
 
 class InstallationWorkQueueView(BaseWorkQueueView):
+    permission_classes = [IsAuthenticated, IsInstallationOrOwner]
+
     def _payload(self, order):
-        data = _base_order(order)
+        data = _base_order(order, self.include_financial())
         data.update({
             'items_to_install': _items_for_work(order),
             **_photo_status(order),
@@ -1245,8 +1443,10 @@ class InstallationWorkQueueView(BaseWorkQueueView):
 
 
 class WarehouseWorkQueueView(BaseWorkQueueView):
+    permission_classes = [IsAuthenticated, IsWarehouseOrOwner]
+
     def _payload(self, order):
-        data = _base_order(order)
+        data = _base_order(order, self.include_financial())
         data.update({'selected_materials': _selected_materials(order)})
         return data
 
@@ -1290,8 +1490,10 @@ class WarehouseWorkQueueView(BaseWorkQueueView):
 
 
 class DesignerWorkQueueView(BaseWorkQueueView):
+    permission_classes = [IsAuthenticated, IsOwnerOrDesigner]
+
     def _payload(self, order):
-        data = _base_order(order)
+        data = _base_order(order, self.include_financial())
         customer_id = str(order.customer_id)
         data.update({
             'measurement_summary': _measurement_summary(order),
@@ -1332,6 +1534,8 @@ class DesignerWorkQueueView(BaseWorkQueueView):
 
 
 class QuotesWorkQueueView(BaseWorkQueueView):
+    permission_classes = [IsAuthenticated, IsOwnerOrDesigner]
+
     def get(self, request):
         orders = self.orders().filter(status__in=[Order.Status.NEW, Order.Status.IN_WORK])
         ready_for_quote = [
@@ -1355,6 +1559,8 @@ class QuotesWorkQueueView(BaseWorkQueueView):
 
 
 class OwnerWorkQueueView(BaseWorkQueueView):
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+
     def get(self, request):
         orders = list(self.orders())
         today = timezone.localdate()
@@ -1397,6 +1603,8 @@ class OwnerWorkQueueView(BaseWorkQueueView):
 
 
 class FinanceWorkQueueView(BaseWorkQueueView):
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+
     def get(self, request):
         waiting_payment = []
         paid_needs_completion = []
@@ -1424,6 +1632,94 @@ class FinanceWorkQueueView(BaseWorkQueueView):
             'waiting_payment': waiting_payment,
             'paid_needs_completion': paid_needs_completion,
             'recent_payments': recent_payments,
+        })
+
+
+class DashboardView(APIView):
+    """
+    Owner/Manager dashboard metrics
+    GET /api/v1/dashboard/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not user_in(request.user, Roles.OWNER):
+            return Response({'detail': 'Доступ только для владельца/админа'}, status=403)
+
+        today = timezone.localdate()
+        first_of_month = today.replace(day=1)
+
+        # --- Orders stats ---
+        total = Order.objects.count()
+        in_work = Order.objects.filter(
+            status__in=[
+                Order.Status.IN_WORK,
+                Order.Status.IN_PRODUCTION,
+                Order.Status.READY,
+                Order.Status.ON_INSTALLATION,
+                Order.Status.WAITING_FINAL_PAYMENT,
+            ]
+        ).count()
+        completed = Order.objects.filter(status=Order.Status.COMPLETED).count()
+        cancelled = Order.objects.filter(status=Order.Status.CANCELLED).count()
+        overdue = Order.objects.filter(
+            planned_completion__lt=today,
+        ).exclude(
+            status__in=[Order.Status.COMPLETED, Order.Status.CANCELLED]
+        ).count()
+        awaiting_payment = Order.objects.filter(
+            status=Order.Status.WAITING_FINAL_PAYMENT,
+            paid_amount__lt=F('total_amount'),
+        ).count()
+
+        # --- Finance aggregates ---
+        from django.db.models import Sum
+        revenue_agg = Order.objects.aggregate(total_revenue=Sum('total_amount'), total_paid=Sum('paid_amount'))
+        total_revenue = revenue_agg['total_revenue'] or Decimal('0')
+        total_paid = revenue_agg['total_paid'] or Decimal('0')
+        total_debt = total_revenue - total_paid
+
+        this_month_revenue = (
+            Order.objects.filter(created_at__date__gte=first_of_month).aggregate(v=Sum('total_amount'))['v']
+            or Decimal('0')
+        )
+        this_month_paid = (
+            Order.objects.filter(created_at__date__gte=first_of_month).aggregate(v=Sum('paid_amount'))['v']
+            or Decimal('0')
+        )
+
+        # --- 6-month chart ---
+        chart = []
+        for i in range(5, -1, -1):
+            month_date = (today.replace(day=1) - relativedelta(months=i))
+            month_start = month_date
+            month_end = (month_date + relativedelta(months=1))
+            month_orders = Order.objects.filter(created_at__date__gte=month_start, created_at__date__lt=month_end)
+            month_revenue = month_orders.aggregate(v=Sum('total_amount'))['v'] or Decimal('0')
+            month_paid = month_orders.aggregate(v=Sum('paid_amount'))['v'] or Decimal('0')
+            chart.append({
+                'month': month_start.strftime('%Y-%m'),
+                'revenue': int(month_revenue),
+                'paid': int(month_paid),
+            })
+
+        return Response({
+            'orders': {
+                'total': total,
+                'in_work': in_work,
+                'completed': completed,
+                'cancelled': cancelled,
+                'overdue': overdue,
+                'awaiting_payment': awaiting_payment,
+            },
+            'finance': {
+                'total_revenue': int(total_revenue),
+                'total_paid': int(total_paid),
+                'total_debt': int(total_debt),
+                'this_month_revenue': int(this_month_revenue),
+                'this_month_paid': int(this_month_paid),
+            },
+            'chart': chart,
         })
 
 
@@ -1607,3 +1903,103 @@ class InventoryAvailabilityViewSet(viewsets.ReadOnlyModelViewSet):
                 {'error': f'Fabric with id {fabric_id} not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+class QuoteViewSet(viewsets.ModelViewSet):
+    """
+    Quote (Commercial Proposal) API v1
+
+    List/Retrieve: GET /api/v1/quotes/
+    Create: POST /api/v1/quotes/
+    Update: PATCH /api/v1/quotes/{id}/
+    Generate PDF: POST /api/v1/quotes/{id}/generate-pdf/
+    """
+    queryset = Quote.objects.all().order_by('-created_at')
+    permission_classes = [IsAuthenticated, IsOwnerOrDesigner]
+    serializer_class = QuoteSerializer
+
+    def get_queryset(self):
+        queryset = Quote.objects.all().order_by('-created_at')
+        order_id = self.request.query_params.get('order')
+        if order_id:
+            queryset = queryset.filter(order_id=order_id)
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        """Create quote for an existing order"""
+        serializer = QuoteCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        service = QuoteService(unit_of_work=None)
+        quote_number = service._generate_quote_number()
+
+        try:
+            quote = service.create_quote_for_order(
+                order_id=data['order_id'],
+                items=data['items'],
+                quote_number=quote_number,
+                installation_cost=data.get('installation_cost', Decimal('0')),
+                delivery_cost=data.get('delivery_cost', Decimal('0')),
+                discount_amount=data.get('discount_amount', Decimal('0')),
+                prepayment_percent=data.get('prepayment_percent', Decimal('0.5')),
+                valid_until=data.get('valid_until'),
+                created_by=request.user.id if request.user.is_authenticated else None
+            )
+            response_serializer = QuoteSerializer(quote)
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def update(self, request, *args, **kwargs):
+        """Update existing quote (partial)"""
+        partial = kwargs.pop('partial', False)
+        quote = self.get_object()
+
+        serializer = QuoteCreateSerializer(data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        service = QuoteService(unit_of_work=None)
+        try:
+            updated = service.update_quote(
+                quote_id=quote.id,
+                items=data.get('items'),
+                installation_cost=data.get('installation_cost'),
+                delivery_cost=data.get('delivery_cost'),
+                discount_amount=data.get('discount_amount'),
+                prepayment_percent=data.get('prepayment_percent'),
+                valid_until=data.get('valid_until'),
+                updated_by=request.user.id if request.user.is_authenticated else None
+            )
+            response_serializer = QuoteSerializer(updated)
+            return Response(response_serializer.data)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='generate-pdf', url_name='generate-pdf')
+    def generate_pdf(self, request, pk=None):
+        """
+        Generate PDF for quote.
+        POST /api/v1/quotes/{id}/generate-pdf/
+        """
+        quote = self.get_object()
+        service = QuoteService(unit_of_work=None)
+
+        try:
+            from django.conf import settings
+            media_root = getattr(settings, 'MEDIA_ROOT', '')
+            pdf_path = service.generate_pdf(quote.id, media_root=media_root)
+            quote.refresh_from_db()
+            return Response({
+                'pdf_url': quote.pdf_url,
+                'pdf_generated': quote.pdf_generated,
+                'path': pdf_path,
+            })
+        except ImportError as e:
+            return Response(
+                {'error': str(e), 'hint': 'Run: pip install weasyprint'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)

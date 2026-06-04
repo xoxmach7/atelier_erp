@@ -6,16 +6,17 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from .views import (
-    OrderViewSet, TaskViewSet, InventoryAvailabilityViewSet,
+    OrderViewSet, TaskViewSet, InventoryAvailabilityViewSet, QuoteViewSet,
     DesignerWorkQueueView, QuotesWorkQueueView, WarehouseWorkQueueView,
     ProductionWorkQueueView, InstallationWorkQueueView, OwnerWorkQueueView,
-    FinanceWorkQueueView,
+    FinanceWorkQueueView, DashboardView,
 )
 
 router = DefaultRouter()
 router.register(r'orders', OrderViewSet, basename='v1-order')
 router.register(r'tasks', TaskViewSet, basename='v1-task')
 router.register(r'inventory', InventoryAvailabilityViewSet, basename='v1-inventory')
+router.register(r'quotes', QuoteViewSet, basename='v1-quote')
 
 urlpatterns = [
     path('work/designer/', DesignerWorkQueueView.as_view(), name='v1-work-designer'),
@@ -25,5 +26,6 @@ urlpatterns = [
     path('work/installation/', InstallationWorkQueueView.as_view(), name='v1-work-installation'),
     path('work/owner/', OwnerWorkQueueView.as_view(), name='v1-work-owner'),
     path('work/finance/', FinanceWorkQueueView.as_view(), name='v1-work-finance'),
+    path('dashboard/', DashboardView.as_view(), name='v1-dashboard'),
     path('', include(router.urls)),
 ]

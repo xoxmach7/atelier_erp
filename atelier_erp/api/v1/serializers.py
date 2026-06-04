@@ -6,8 +6,12 @@ Minimal serializers for orders, tasks, inventory
 from decimal import Decimal
 
 from rest_framework import serializers
-from atelier_erp.models import Order, Task, Fabric, OrderItem, Customer, Quote, Measurement, Payment, PhotoReport
+from atelier_erp.models import Order, Task, Fabric, OrderItem, Customer, Quote, QuoteItem, Measurement, Payment, PhotoReport, OrderMaterial
 from atelier_erp.api.serializers import RelatedQuoteSerializer, FabricListSerializer
+from atelier_erp.roles import Roles, user_in
+
+# Финансовые поля заказа, скрываемые от ролей без финансового доступа
+FINANCIAL_ORDER_FIELDS = ('total_amount', 'paid_amount', 'balance_due')
 
 
 class CustomerMinimalSerializer(serializers.ModelSerializer):
@@ -48,6 +52,20 @@ class OrderListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['order_number', 'created_at']
 
+    def to_representation(self, instance):
+        """Скрыть денежные поля от ролей без финансового доступа.
+
+        Склад/цех/монтаж не должны видеть суммы, оплаты и баланс.
+        Owner и Designer — видят.
+        """
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not user_in(user, *Roles.FINANCIAL_ACCESS):
+            for field in FINANCIAL_ORDER_FIELDS:
+                data.pop(field, None)
+        return data
+
 
 class SourceQuoteSerializer(serializers.ModelSerializer):
     """Source quote info for orders created from quote"""
@@ -87,6 +105,102 @@ class MeasurementSerializer(serializers.ModelSerializer):
             'tulle_fabric', 'tulle_fabric_details', 'tulle_meters',
             'notes',
         ]
+
+
+class MeasurementCreateSerializer(serializers.Serializer):
+    """Simplified measurement creation for mobile/web forms.
+    Maps designer-friendly fields to the Measurement model.
+    """
+    room_name = serializers.CharField(max_length=100)
+    window_number = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    width = serializers.DecimalField(max_digits=8, decimal_places=2)
+    height = serializers.DecimalField(max_digits=8, decimal_places=2)
+    fabric_type = serializers.ChoiceField(
+        choices=[('curtain', 'Ткань'), ('tulle', 'Тюль')],
+        required=False, allow_blank=True
+    )
+    fabric_meters = serializers.DecimalField(max_digits=8, decimal_places=2, required=False)
+    fabric_name = serializers.CharField(required=False, allow_blank=True)
+    mounting_type = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    comment = serializers.CharField(required=False, allow_blank=True)
+
+
+class QuoteItemSerializer(serializers.ModelSerializer):
+    """Quote item serializer for embedding in quote detail"""
+    class Meta:
+        model = QuoteItem
+        fields = [
+            'id', 'room_name', 'window_name',
+            'window_width_cm', 'window_height_cm',
+            'fabric_meters', 'fabric_cost',
+            'tulle_meters', 'tulle_cost',
+            'sewing_cost', 'installation_price',
+            'accessories_cost', 'line_total',
+        ]
+
+
+class QuoteSerializer(serializers.ModelSerializer):
+    """Quote detail serializer with items"""
+    items = QuoteItemSerializer(many=True, read_only=True)
+    status_label = serializers.CharField(source='get_status_display', read_only=True)
+    customer_name = serializers.CharField(source='customer.full_name', read_only=True)
+    customer_phone = serializers.CharField(source='customer.phone', read_only=True)
+    order_number = serializers.CharField(source='order.order_number', read_only=True)
+
+    class Meta:
+        model = Quote
+        fields = [
+            'id', 'quote_number', 'status', 'status_label',
+            'customer_name', 'customer_phone', 'order', 'order_number',
+            'subtotal', 'discount_amount', 'installation_cost',
+            'delivery_cost', 'total', 'prepayment_percent',
+            'valid_until', 'pdf_generated', 'pdf_url',
+            'items', 'created_at',
+        ]
+
+
+class QuoteCreateSerializer(serializers.Serializer):
+    """Create/update quote for an existing order"""
+    order_id = serializers.UUIDField()
+    valid_until = serializers.DateField(required=False)
+    discount_amount = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=Decimal('0'))
+    installation_cost = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=Decimal('0'))
+    delivery_cost = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=Decimal('0'))
+    prepayment_percent = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, default=Decimal('0.5'))
+    items = serializers.ListSerializer(
+        child=serializers.DictField(),
+        allow_empty=False
+    )
+
+    def validate_items(self, value):
+        if not value:
+            raise serializers.ValidationError("At least one item is required")
+        for item in value:
+            if 'room_name' not in item:
+                raise serializers.ValidationError("Each item must have room_name")
+            if 'line_total' not in item:
+                raise serializers.ValidationError("Each item must have line_total")
+        return value
+
+
+class OrderMaterialSerializer(serializers.ModelSerializer):
+    """Order material with status display label"""
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = OrderMaterial
+        fields = [
+            'id', 'order', 'name', 'material_type',
+            'quantity', 'unit', 'status', 'status_display',
+            'source_quote_item', 'comment', 'updated_at',
+        ]
+
+
+class OrderMaterialUpdateSerializer(serializers.ModelSerializer):
+    """Update only status and comment"""
+    class Meta:
+        model = OrderMaterial
+        fields = ['status', 'comment']
 
 
 class OrderDetailSerializer(serializers.ModelSerializer):
@@ -217,9 +331,21 @@ class OrderDetailSerializer(serializers.ModelSerializer):
 
 
 class OrderCreateSerializer(serializers.ModelSerializer):
-    """Order creation - write-only, supports direct order creation without quote"""
-    customer_id = serializers.UUIDField(write_only=True)
-    # Installation address fields
+    """Order creation - write-only, supports direct order creation without quote
+
+    Two modes:
+    1. Legacy: provide customer_id (UUID) + installation_address_* fields
+    2. Simplified: provide client_name, client_phone, address, deadline, comment
+       — customer is found by phone or created automatically.
+    """
+    customer_id = serializers.UUIDField(write_only=True, required=False)
+    # Simplified fields (alternative to customer_id)
+    client_name = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    client_phone = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    address = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    deadline = serializers.DateField(required=False, allow_null=True, write_only=True)
+    comment = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    # Installation address fields (legacy)
     installation_address_city = serializers.CharField(required=False, allow_blank=True)
     installation_address_street = serializers.CharField(required=False, allow_blank=True)
     installation_address_building = serializers.CharField(required=False, allow_blank=True)
@@ -227,15 +353,99 @@ class OrderCreateSerializer(serializers.ModelSerializer):
     installation_address_notes = serializers.CharField(required=False, allow_blank=True)
     # Dates
     measurement_date = serializers.DateField(required=False, allow_null=True)
-    
+
     class Meta:
         model = Order
         fields = [
-            'customer_id', 'notes', 'planned_completion',
+            'customer_id', 'client_name', 'client_phone', 'address', 'deadline', 'comment',
+            'notes', 'planned_completion',
             'installation_address_city', 'installation_address_street',
             'installation_address_building', 'installation_address_apartment',
             'installation_address_notes', 'measurement_date'
         ]
+
+    def validate(self, data):
+        """Ensure either customer_id OR (client_name + client_phone) is provided."""
+        has_customer_id = bool(data.get('customer_id'))
+        has_client_name = bool(data.get('client_name', '').strip())
+        has_client_phone = bool(data.get('client_phone', '').strip())
+
+        if not has_customer_id and not (has_client_name and has_client_phone):
+            raise serializers.ValidationError(
+                "Укажите либо customer_id, либо client_name и client_phone."
+            )
+
+        return data
+
+
+class OrderUpdateSerializer(serializers.ModelSerializer):
+    """Order update - editable fields for owner/designer
+
+    Fields:
+    - client_name / client_phone: update customer info
+    - address: simplified full address string
+    - deadline: planned completion date
+    - comment: order notes
+    - installation_address_*: granular address fields
+    """
+    client_name = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    client_phone = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    address = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    deadline = serializers.DateField(required=False, allow_null=True, write_only=True)
+    comment = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    # Granular address fields
+    installation_address_city = serializers.CharField(required=False, allow_blank=True)
+    installation_address_street = serializers.CharField(required=False, allow_blank=True)
+    installation_address_building = serializers.CharField(required=False, allow_blank=True)
+    installation_address_apartment = serializers.CharField(required=False, allow_blank=True)
+    installation_address_notes = serializers.CharField(required=False, allow_blank=True)
+
+    class Meta:
+        model = Order
+        fields = [
+            'client_name', 'client_phone', 'address', 'deadline', 'comment',
+            'notes', 'planned_completion',
+            'installation_address_city', 'installation_address_street',
+            'installation_address_building', 'installation_address_apartment',
+            'installation_address_notes',
+        ]
+
+    def update(self, instance, validated_data):
+        # Update customer info if provided
+        client_name = validated_data.pop('client_name', None)
+        client_phone = validated_data.pop('client_phone', None)
+        if client_name or client_phone:
+            customer = instance.customer
+            if client_name:
+                customer.full_name = client_name
+            if client_phone:
+                customer.phone = client_phone
+            customer.save(update_fields=['full_name', 'phone', 'updated_at'])
+
+        # Handle simplified address
+        address = validated_data.pop('address', None)
+        if address:
+            instance.installation_address_street = address
+            instance.installation_address_city = ''
+            instance.installation_address_building = ''
+            instance.installation_address_apartment = ''
+
+        # Handle deadline -> planned_completion
+        deadline = validated_data.pop('deadline', None)
+        if deadline is not None:
+            instance.planned_completion = deadline
+
+        # Handle comment -> notes
+        comment = validated_data.pop('comment', None)
+        if comment is not None:
+            instance.notes = comment
+
+        # Update remaining fields directly
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+        return instance
 
 
 class OrderStatusUpdateSerializer(serializers.Serializer):

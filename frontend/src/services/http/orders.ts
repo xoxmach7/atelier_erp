@@ -3,12 +3,13 @@
  * Handles all HTTP operations for orders
  */
 
-import { get, post } from "./client";
+import { get, post, patch } from "./client";
 import type {
   OrderListItemDTO,
   OrderDetailDTO,
   OrderExecutionDTO,
   OrderCreateDTO,
+  OrderUpdateDTO,
   ChangeStatusRequest,
   ChangeMaterialReadinessRequest,
   ChangeProductionStageRequest,
@@ -56,6 +57,13 @@ export async function fetchOrderById(id: string): Promise<OrderDetailDTO> {
  */
 export async function createOrder(data: OrderCreateDTO): Promise<OrderDetailDTO> {
   return post<OrderDetailDTO>("/v1/orders/", data);
+}
+
+/**
+ * Update order
+ */
+export async function updateOrder(orderId: string, data: OrderUpdateDTO): Promise<OrderDetailDTO> {
+  return patch<OrderDetailDTO>(`/v1/orders/${orderId}/`, data);
 }
 
 // ============================================================================
@@ -183,6 +191,191 @@ export async function createOrderCompletionAct(
   return post<CompletionActResponse>(`/v1/orders/${orderId}/completion-act/`, {});
 }
 
+// ============================================================================
+// Measurements API
+// ============================================================================
+
+export interface MeasurementPayload {
+  room_name: string;
+  window_number?: string;
+  width: number;
+  height: number;
+  fabric_type?: 'curtain' | 'tulle';
+  fabric_meters?: number;
+  fabric_name?: string;
+  mounting_type?: string;
+  comment?: string;
+}
+
+export interface MeasurementsListResponse {
+  count: number;
+  results: Array<{
+    id: string;
+    room_name: string;
+    window_name: string;
+    width_cm: number;
+    height_cm: number;
+    mounting_type?: string;
+    curtain_fabric?: string | null;
+    curtain_meters?: string;
+    tulle_fabric?: string | null;
+    tulle_meters?: string;
+    notes?: string;
+    measured_at?: string;
+  }>;
+}
+
+/**
+ * Fetch measurements for an order
+ * GET /api/v1/orders/{id}/measurements/
+ */
+export async function fetchMeasurements(orderId: string): Promise<MeasurementsListResponse> {
+  return get<MeasurementsListResponse>(`/v1/orders/${orderId}/measurements/`);
+}
+
+/**
+ * Create measurement for an order
+ * POST /api/v1/orders/{id}/measurements/
+ */
+export async function createMeasurement(
+  orderId: string,
+  data: MeasurementPayload
+): Promise<unknown> {
+  return post<unknown>(`/v1/orders/${orderId}/measurements/`, data);
+}
+
+// ============================================================================
+// Quotes API
+// ============================================================================
+
+export interface QuoteItemPayload {
+  room_name: string;
+  window_name?: string;
+  window_width_cm: number;
+  window_height_cm: number;
+  fabric_meters?: number;
+  fabric_cost?: number;
+  tulle_meters?: number;
+  tulle_cost?: number;
+  sewing_cost?: number;
+  installation_price?: number;
+  accessories_cost?: number;
+  line_total: number;
+}
+
+export interface CreateQuotePayload {
+  order_id: string;
+  valid_until?: string;
+  discount_amount?: number;
+  installation_cost?: number;
+  delivery_cost?: number;
+  prepayment_percent?: number;
+  items: QuoteItemPayload[];
+}
+
+export interface QuoteDTO {
+  id: string;
+  quote_number: string;
+  status: string;
+  status_label: string;
+  customer_name: string;
+  customer_phone: string;
+  order: string;
+  order_number: string;
+  subtotal: string;
+  discount_amount: string;
+  installation_cost: string;
+  delivery_cost: string;
+  total: string;
+  prepayment_percent: string;
+  valid_until: string | null;
+  pdf_generated: boolean;
+  pdf_url: string;
+  items: Array<{
+    id: string;
+    room_name: string;
+    window_name: string;
+    window_width_cm: number;
+    window_height_cm: number;
+    fabric_meters: string;
+    fabric_cost: string;
+    tulle_meters: string;
+    tulle_cost: string;
+    sewing_cost: string;
+    installation_price: string;
+    accessories_cost: string;
+    line_total: string;
+  }>;
+  created_at: string;
+}
+
+export interface QuotesListResponse {
+  count: number;
+  results: QuoteDTO[];
+}
+
+export async function fetchQuotes(orderId: string): Promise<QuotesListResponse> {
+  return get<QuotesListResponse>(`/v1/quotes/?order=${orderId}`);
+}
+
+export async function createQuote(payload: CreateQuotePayload): Promise<QuoteDTO> {
+  return post<QuoteDTO>('/v1/quotes/', payload);
+}
+
+export async function generateQuotePdf(quoteId: string): Promise<{ pdf_url: string; pdf_generated: boolean; path: string }> {
+  return post<{ pdf_url: string; pdf_generated: boolean; path: string }>(`/v1/quotes/${quoteId}/generate-pdf/`, {});
+}
+
+// ============================================================================
+// Order Materials API
+// ============================================================================
+
+export interface OrderMaterialDTO {
+  id: string;
+  order: string;
+  name: string;
+  material_type: string;
+  quantity: string;
+  unit: string;
+  status: 'to_buy' | 'partial' | 'ready';
+  status_display: string;
+  source_quote_item: string | null;
+  comment: string;
+  updated_at: string;
+}
+
+export interface MaterialsListResponse {
+  count: number;
+  results: OrderMaterialDTO[];
+}
+
+export interface UpdateMaterialPayload {
+  status: string;
+  comment?: string;
+}
+
+export interface UpdateMaterialResponse {
+  material: OrderMaterialDTO;
+  order_material_readiness: string;
+  order_material_readiness_label: string;
+}
+
+export async function fetchMaterials(orderId: string): Promise<MaterialsListResponse> {
+  return get<MaterialsListResponse>(`/v1/orders/${orderId}/materials/`);
+}
+
+export async function updateMaterial(
+  orderId: string,
+  materialId: string,
+  payload: UpdateMaterialPayload
+): Promise<UpdateMaterialResponse> {
+  return patch<UpdateMaterialResponse>(`/v1/orders/${orderId}/materials/${materialId}/`, payload);
+}
+
+// ============================================================================
+// Order Completion Act (АВР) API
+// ============================================================================
+
 /**
  * Upload signed completion act file
  * POST /api/v1/orders/{id}/completion-act/upload-signed/
@@ -196,4 +389,19 @@ export async function uploadSignedCompletionAct(
     `/v1/orders/${orderId}/completion-act/upload-signed/`,
     formData
   );
+}
+
+export interface CompletionChecklistItem {
+  key: string;
+  label: string;
+  done: boolean;
+}
+
+export interface CompletionChecklistDTO {
+  checklist: CompletionChecklistItem[];
+  can_complete: boolean;
+}
+
+export async function getCompletionChecklist(orderId: string): Promise<CompletionChecklistDTO> {
+  return get<CompletionChecklistDTO>(`/v1/orders/${orderId}/completion-checklist/`);
 }

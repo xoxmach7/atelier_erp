@@ -40,6 +40,8 @@ from .serializers import (
     MeasurementSerializer, MeasurementListSerializer
 )
 from .permissions import IsManagerOrAdmin, IsWorkerOrManagerOrAdmin
+from ..roles import Roles, user_in
+from ..services.numbering import next_number
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
@@ -105,13 +107,35 @@ class OrderViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'planned_completion', 'total_amount']
     
     def get_queryset(self):
-        """Optimize with prefetch_related for detail view"""
-        queryset = Order.objects.all()
+        """Срез заказов по роли (см. v1 OrderViewSet — та же логика).
+
+        Полный список — только Owner/Designer; остальные роли видят свой
+        операционный срез; без подходящей группы — пусто (default deny).
+        """
+        queryset = Order.objects.select_related('customer')
         if self.action == 'retrieve':
             queryset = queryset.prefetch_related(
                 'items', 'measurements', 'payments', 'source_task'
             )
-        return queryset
+
+        user = self.request.user
+        if user_in(user, *Roles.FULL_ORDER_ACCESS):
+            return queryset
+        if user_in(user, Roles.WAREHOUSE):
+            return queryset.filter(status__in=[
+                Order.Status.IN_WORK,
+                Order.Status.IN_PRODUCTION,
+                Order.Status.READY,
+            ])
+        if user_in(user, Roles.SEAMSTRESS):
+            return queryset.filter(status=Order.Status.IN_PRODUCTION)
+        if user_in(user, Roles.INSTALLER):
+            return queryset.filter(status__in=[
+                Order.Status.READY,
+                Order.Status.ON_INSTALLATION,
+                Order.Status.WAITING_FINAL_PAYMENT,
+            ])
+        return queryset.none()
     
     def get_serializer_class(self):
         if self.action == 'list':
@@ -357,10 +381,9 @@ class QuoteViewSet(viewsets.ModelViewSet):
         uow = UnitOfWork()
         order_service = OrderService(uow)
 
-        # Generate order number: О-YYYY-NNN
+        # Generate order number: О-YYYY-NNN (атомарно, без гонки)
         year = timezone.now().year
-        count = Order.objects.filter(created_at__year=year).count() + 1
-        order_number = f"О-{year}-{count:03d}"
+        order_number = next_number('order', year)
 
         try:
             with uow.atomic():
