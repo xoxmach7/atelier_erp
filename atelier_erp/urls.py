@@ -31,9 +31,9 @@ def health_check(request):
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('atelier_erp.api.urls')),
-    path('api/auth/', include('rest_framework.urls')),
 
-    # JWT Authentication endpoints
+    # JWT Authentication endpoints (должны идти ДО rest_framework.urls,
+    # иначе DRF-include перехватывает api/auth/logout/ своим браузерным logout).
     path('api/auth/token/', ThrottledTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
@@ -41,6 +41,9 @@ urlpatterns = [
 
     # Current user endpoint
     path('api/me/', me, name='me'),
+
+    # Браузерный логин/логаут DRF (для browsable API) — после кастомных путей
+    path('api/auth/', include('rest_framework.urls')),
 
     path('health/', health_check, name='health'),
 ]
