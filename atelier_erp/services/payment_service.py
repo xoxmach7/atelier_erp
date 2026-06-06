@@ -11,12 +11,10 @@ from uuid import UUID, uuid4
 from django.utils import timezone
 
 from ..models import Payment, Order
-from ..events import OrderPaymentReceived, DomainEvent, EventMetadata
 from .exceptions import (
     PaymentServiceError, InvalidPaymentAmount, DuplicatePaymentError,
     PaymentNotFoundError
 )
-
 
 class PaymentService:
     """
@@ -117,22 +115,6 @@ class PaymentService:
         order.paid_amount += amount
         order.save(update_fields=['paid_amount', 'updated_at'])
         
-        # Emit event
-        self.uow.register_event(OrderPaymentReceived(
-            metadata=EventMetadata(
-                event_id=uuid4(),
-                timestamp=timezone.now(),
-                user_id=received_by
-            ),
-            order_id=order_id,
-            order_number=order.order_number,
-            payment_id=payment.id,
-            amount=amount,
-            payment_type=payment_type,
-            payment_method=payment_method,
-            received_by=received_by,
-            is_fully_paid=order.paid_amount >= order.total_amount
-        ))
         
         return payment
     

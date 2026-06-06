@@ -12,14 +12,10 @@ from django.utils import timezone
 
 from ..models import Task, TaskMeasurement, TaskHistory, Customer, Order
 from ..constants import TaskFSMRules
-from ..events import (
-    TaskCreated, TaskConvertedToOrder, DomainEvent
-)
 from .exceptions import (
     TaskNotFoundError, TaskAlreadyConvertedError, InvalidTaskStatusTransition,
     TaskServiceError
 )
-
 
 class TaskService:
     """
@@ -103,15 +99,6 @@ class TaskService:
             notes='Task created'
         )
         
-        # Emit event
-        self.uow.register_event(TaskCreated(
-            task_id=task.id,
-            task_number=task.task_number,
-            client_name=client_name,
-            client_phone=client_phone,
-            source=source,
-            created_by=created_by
-        ))
         
         return task
     
@@ -294,12 +281,6 @@ class TaskService:
         # Log history
         self._log_status_change(task, old_status, task.status, converted_by, f"Converted to order {order_id}")
         
-        # Emit event
-        self.uow.register_event(TaskConvertedToOrder(
-            task_id=task.id,
-            order_id=order_id,
-            order_number=task.converted_to_order.order_number if task.converted_to_order else ""
-        ))
         
         return task
     

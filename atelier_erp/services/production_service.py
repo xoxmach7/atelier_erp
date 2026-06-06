@@ -13,16 +13,12 @@ from django.utils import timezone
 
 from ..models import ProductionAssignment, ProductionLog, SeamstressPayment, Order
 from ..constants import ProductionConfig
-from ..events import (
-    ProductionAssigned, ProductionStatusChanged, WorkCompleted, DomainEvent
-)
 from .exceptions import (
     ProductionServiceError, SeamstressNotFoundError, AssignmentNotFoundError,
     InvalidProductionStatusTransition
 )
 
 User = get_user_model()
-
 
 class ProductionService:
     """
@@ -113,14 +109,6 @@ class ProductionService:
             notes='Assignment created'
         )
         
-        # Emit event
-        self.uow.register_event(ProductionAssigned(
-            assignment_id=assignment.id,
-            order_id=order_id,
-            seamstress_id=seamstress_id,
-            deadline=deadline.isoformat() if deadline else None,
-            complexity=complexity
-        ))
         
         return assignment
     
@@ -201,24 +189,6 @@ class ProductionService:
             notes=notes
         )
         
-        # Emit event
-        self.uow.register_event(ProductionStatusChanged(
-            assignment_id=assignment.id,
-            order_id=assignment.order_id,
-            old_status=old_status,
-            new_status=new_status,
-            changed_by=changed_by
-        ))
-        
-        # If completed, emit work completed event
-        if new_status == ProductionAssignment.Status.READY:
-            self.uow.register_event(WorkCompleted(
-                assignment_id=assignment.id,
-                order_id=assignment.order_id,
-                seamstress_id=assignment.assigned_to_id,
-                completed_at=assignment.completed_at.isoformat(),
-                payment_due=str(assignment.total_payment)
-            ))
         
         return assignment
     
