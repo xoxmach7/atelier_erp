@@ -13,15 +13,10 @@ from django.utils import timezone
 
 from ..models import Fabric, FabricReservation, Cornice, Order
 from ..constants import ReservationConfig
-from ..events import (
-    FabricReserved, FabricReservationConverted, FabricReservationCancelled,
-    StockDeducted, StockReturned, LowStockAlert, DomainEvent, EventMetadata
-)
 from .exceptions import (
     InsufficientStockError, FabricNotFoundError, CorniceNotFoundError,
     ReservationNotFoundError, ReservationExpiredError, CannotConvertReservationError
 )
-
 
 class InventoryService:
     """
@@ -93,27 +88,8 @@ class InventoryService:
         fabric.reserved_meters += meters
         fabric.save(update_fields=['reserved_meters', 'updated_at'])
         
-        # Emit event
         available_before = fabric.available_meters
         available_after = available_before - meters
-        self.uow.register_event(FabricReserved(
-            metadata=EventMetadata(
-                event_id=uuid4(),
-                timestamp=timezone.now()
-            ),
-            reservation_id=reservation.id,
-            fabric_id=fabric_id,
-            fabric_name=fabric.name,
-            hanger_number=fabric.hanger_number,
-            order_id=order_id,
-            reserved_meters=meters,
-            available_before=available_before,
-            available_after=available_after,
-            expires_at=expires_at
-        ))
-        
-        # Check for low stock alert
-        self._check_low_stock(fabric)
         
         return reservation
     
@@ -188,13 +164,6 @@ class InventoryService:
         fabric.reserved_meters -= reserved_meters
         fabric.save(update_fields=['reserved_meters', 'updated_at'])
         
-        # Emit event
-        self.uow.register_event(FabricReservationCancelled(
-            reservation_id=reservation_id,
-            fabric_id=fabric.id,
-            released_meters=str(reserved_meters),
-            reason=reason
-        ))
         
         return reservation
     
@@ -264,22 +233,7 @@ class InventoryService:
         reservation.converted_at = timezone.now()
         reservation.save(update_fields=['status', 'converted_to_order', 'converted_at'])
         
-        # Emit event
-        self.uow.register_event(FabricReservationConverted(
-            reservation_id=reservation_id,
-            fabric_id=fabric.id,
-            order_id=order_id,
-            deducted_meters=str(deducted_meters),
-            remaining_stock=str(fabric.stock_meters)
-        ))
         
-        self.uow.register_event(StockDeducted(
-            fabric_id=fabric.id,
-            cornice_id=None,
-            order_id=order_id,
-            quantity_deducted=str(deducted_meters),
-            remaining_stock=str(fabric.stock_meters)
-        ))
         
         return reservation, fabric.stock_meters
     
@@ -347,14 +301,6 @@ class InventoryService:
         cornice.stock_count -= quantity
         cornice.save(update_fields=['stock_count', 'updated_at'])
         
-        # Emit event
-        self.uow.register_event(StockDeducted(
-            fabric_id=None,
-            cornice_id=cornice_id,
-            order_id=order_id,
-            quantity_deducted=str(quantity),
-            remaining_stock=str(cornice.stock_count)
-        ))
         
         return cornice
     
@@ -389,14 +335,6 @@ class InventoryService:
         fabric.stock_meters += quantity
         fabric.save(update_fields=['stock_meters', 'updated_at'])
         
-        # Emit event
-        self.uow.register_event(StockReturned(
-            fabric_id=fabric_id,
-            cornice_id=None,
-            order_id=order_id,
-            quantity_returned=str(quantity),
-            new_stock_level=str(fabric.stock_meters)
-        ))
         
         return fabric
     
@@ -417,13 +355,6 @@ class InventoryService:
         cornice.stock_count += quantity
         cornice.save(update_fields=['stock_count', 'updated_at'])
         
-        self.uow.register_event(StockReturned(
-            fabric_id=None,
-            cornice_id=cornice_id,
-            order_id=order_id,
-            quantity_returned=str(quantity),
-            new_stock_level=str(cornice.stock_count)
-        ))
         
         return cornice
     
@@ -509,20 +440,6 @@ class InventoryService:
     # ============================================
     # PRIVATE METHODS
     # ============================================
-    
-    def _check_low_stock(self, fabric: Fabric):
-        """Emit low stock alert if below threshold"""
-        LOW_STOCK_THRESHOLD = Decimal('10.0')
-        
-        if fabric.stock_meters < LOW_STOCK_THRESHOLD:
-            self.uow.register_event(LowStockAlert(
-                fabric_id=fabric.id,
-                fabric_name=fabric.name,
-                hanger_number=fabric.hanger_number,
-                current_stock=str(fabric.stock_meters),
-                reserved_amount=str(fabric.reserved_meters),
-                available=str(fabric.available_meters)
-            ))
     
     def expire_old_reservations(self) -> int:
         """

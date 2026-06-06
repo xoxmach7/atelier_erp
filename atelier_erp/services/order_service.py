@@ -17,17 +17,11 @@ from django.utils import timezone
 
 from ..models import Order, OrderItem, Customer, Measurement, Payment, Quote, OrderMaterial
 from ..constants import OrderFSMRules, FinancialConfig
-from ..events import (
-    OrderCreated, OrderStatusChanged, OrderConfirmed, OrderMaterialsReserved,
-    OrderProductionStarted, OrderCompleted, OrderCancelled, OrderPaymentReceived,
-    DomainEvent, EventMetadata
-)
 from .exceptions import (
     OrderNotFoundError, InvalidOrderStatusTransition, OrderValidationError,
     OrderCannotBeModified, OrderCancellationError, OrderNotPaidError,
     InsufficientStockError
 )
-
 
 class OrderService:
     """
@@ -137,20 +131,6 @@ class OrderService:
                     **measurement_data
                 )
         
-        # Emit event
-        self.uow.register_event(OrderCreated(
-            metadata=EventMetadata(
-                event_id=uuid4(),
-                timestamp=timezone.now(),
-                user_id=created_by
-            ),
-            order_id=order.id,
-            order_number=order_number,
-            customer_id=customer_id,
-            customer_name=customer.full_name,
-            total_amount=total_amount,
-            created_by=created_by
-        ))
         
         return order
     
@@ -287,20 +267,7 @@ class OrderService:
         # Create history entry
         self._create_status_history(order, old_status, order.status, confirmed_by, "Customer approved quote")
         
-        # Emit events
-        self.uow.register_event(OrderStatusChanged(
-            order_id=order.id,
-            old_status=old_status,
-            new_status=order.status,
-            changed_by=str(confirmed_by) if confirmed_by else None,
-            reason="Customer approved quote"
-        ))
         
-        self.uow.register_event(OrderConfirmed(
-            order_id=order.id,
-            customer_id=order.customer_id,
-            quote_id=order.quote_id
-        ))
         
         return order
     
@@ -369,8 +336,6 @@ class OrderService:
                 )
         
         # Acquire locks and reserve
-        from .unit_of_work import LockManager
-        lock_keys = [(item['fabric_id'], item['meters']) for item in fabric_items]
         
         # Reserve all fabrics
         reservations = self.inventory.reserve_fabrics_for_order(
@@ -397,33 +362,7 @@ class OrderService:
         # Create history
         self._create_status_history(order, old_status, order.status, reserved_by, "Materials reserved")
         
-        # Emit events
-        self.uow.register_event(OrderStatusChanged(
-            order_id=order.id,
-            old_status=old_status,
-            new_status=order.status,
-            changed_by=str(reserved_by) if reserved_by else None,
-            reason="Materials reserved"
-        ))
         
-        self.uow.register_event(OrderMaterialsReserved(
-            order_id=order.id,
-            fabric_reservations=[
-                {
-                    'fabric_id': r.fabric_id,
-                    'reserved_meters': str(r.reserved_meters),
-                    'reservation_id': r.id
-                }
-                for r in reservations
-            ],
-            cornice_allocations=[
-                {
-                    'cornice_id': item['cornice_id'],
-                    'quantity': item['quantity']
-                }
-                for item in cornice_items
-            ]
-        ))
         
         return order, reservations
     
@@ -512,20 +451,7 @@ class OrderService:
             f"Production started, assigned to {assigned_to}"
         )
         
-        # Emit events
-        self.uow.register_event(OrderStatusChanged(
-            order_id=order.id,
-            old_status=old_status,
-            new_status=order.status,
-            changed_by=str(started_by) if started_by else None,
-            reason="Production started"
-        ))
         
-        self.uow.register_event(OrderProductionStarted(
-            order_id=order.id,
-            assigned_to=assigned_to,
-            deadline=deadline.isoformat() if deadline else None
-        ))
         
         return order
     
@@ -588,22 +514,7 @@ class OrderService:
         # Create history
         self._create_status_history(order, old_status, order.status, completed_by, "Order completed")
         
-        # Emit events
-        self.uow.register_event(OrderStatusChanged(
-            order_id=order.id,
-            old_status=old_status,
-            new_status=order.status,
-            changed_by=str(completed_by) if completed_by else None,
-            reason="Order completed"
-        ))
         
-        self.uow.register_event(OrderCompleted(
-            order_id=order.id,
-            customer_id=order.customer_id,
-            completion_date=order.actual_completion.isoformat(),
-            total_amount=str(order.total_amount),
-            total_paid=str(order.paid_amount)
-        ))
         
         return order
     
@@ -713,21 +624,7 @@ class OrderService:
         # Create history
         self._create_status_history(order, old_status, order.status, cancelled_by, reason)
         
-        # Emit events
-        self.uow.register_event(OrderStatusChanged(
-            order_id=order.id,
-            old_status=old_status,
-            new_status=order.status,
-            changed_by=str(cancelled_by) if cancelled_by else None,
-            reason=reason
-        ))
         
-        self.uow.register_event(OrderCancelled(
-            order_id=order.id,
-            reason=reason,
-            cancelled_by=str(cancelled_by) if cancelled_by else None,
-            inventory_to_release=inventory_to_release
-        ))
         
         return order
     
@@ -758,19 +655,6 @@ class OrderService:
         
         self._create_status_history(order, old_status, new_status, changed_by, notes)
         
-        self.uow.register_event(OrderStatusChanged(
-            metadata=EventMetadata(
-                event_id=uuid4(),
-                timestamp=timezone.now(),
-                user_id=changed_by
-            ),
-            order_id=order.id,
-            order_number=order.order_number,
-            old_status=old_status,
-            new_status=new_status,
-            changed_by=changed_by,
-            reason=notes
-        ))
         
         return order
     
@@ -1033,14 +917,6 @@ class OrderService:
                     notes=f"Prepayment received: {amount}"
                 )
         
-        # Emit event
-        self.uow.register_event(OrderPaymentReceived(
-            order_id=order.id,
-            payment_id=payment.id,
-            amount=str(amount),
-            payment_type=payment_type,
-            is_fully_paid=order.is_fully_paid
-        ))
         
         return order, payment
     
