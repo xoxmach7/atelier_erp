@@ -14,8 +14,7 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 
-from atelier_erp.api.views import me
-from atelier_erp.api.auth_views import ThrottledTokenObtainPairView, LogoutView
+from atelier_erp.api.auth_views import ThrottledTokenObtainPairView, LogoutView, me
 
 # Health check endpoint
 @api_view(['GET'])
