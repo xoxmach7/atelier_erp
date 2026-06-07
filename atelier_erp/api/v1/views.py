@@ -662,21 +662,28 @@ class OrderViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['post'])
-    def confirm(self, request, pk=None):
-        """Shortcut: Confirm order via service layer"""
-        return self._simple_transition(request, pk, Order.Status.APPROVED)
-    
-    @action(detail=True, methods=['post'])
-    def start_production(self, request, pk=None):
-        """Shortcut: Start production via service layer"""
-        return self._simple_transition(request, pk, Order.Status.PRODUCTION)
-    
-    @action(detail=True, methods=['post'])
-    def complete(self, request, pk=None):
-        """Shortcut: Complete order via service layer"""
-        return self._simple_transition(request, pk, Order.Status.COMPLETED)
-    
+    # ============================================
+    # ЯВНЫЕ ДЕЙСТВИЯ (MVP Workflow)
+    # ============================================
+
+    @action(detail=True, methods=['post'], url_path='accept')
+    def accept(self, request, pk=None):
+        """
+        Принять заказ в работу (new → in_work).
+        Требует: принятое КП + позиции заказа.
+        POST /api/v1/orders/{id}/accept/
+        """
+        return self._mvp_transition(request, pk, Order.Status.IN_WORK)
+
+    @action(detail=True, methods=['post'], url_path='send-to-production')
+    def send_to_production(self, request, pk=None):
+        """
+        Передать заказ в цех (in_work → in_production).
+        Требует: материалы обеспечены (material_readiness != not_ready).
+        POST /api/v1/orders/{id}/send-to-production/
+        """
+        return self._mvp_transition(request, pk, Order.Status.IN_PRODUCTION)
+
     # ============================================
     # NEW ACTION ENDPOINTS (MVP Workflow)
     # ============================================
@@ -939,14 +946,14 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
-    def _simple_transition(self, request, pk, target_status):
+    def _mvp_transition(self, request, pk, target_status):
         """Helper for simple state transitions"""
         order = self.get_object()
         
         with UnitOfWork() as uow:
             service = OrderService(uow)
             try:
-                order = service.transition_status(
+                order = service.transition_status_mvp(
                     order_id=order.id,
                     new_status=target_status,
                     changed_by=request.user.id
