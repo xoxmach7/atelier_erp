@@ -8,10 +8,36 @@ from decimal import Decimal
 from rest_framework import serializers
 from atelier_erp.models import Order, Task, Fabric, OrderItem, Customer, Quote, QuoteItem, Measurement, Payment, PhotoReport, OrderMaterial
 from atelier_erp.api.serializers import RelatedQuoteSerializer, FabricListSerializer
+from atelier_erp.constants import MaterialReadiness
 from atelier_erp.roles import Roles, user_in
 
 # Финансовые поля заказа, скрываемые от ролей без финансового доступа
 FINANCIAL_ORDER_FIELDS = ('total_amount', 'paid_amount', 'balance_due')
+
+
+def compute_ui_badge(order) -> dict:
+    """Возвращает {color, label} для карточки заказа на фронте/мобиле.
+
+    Приоритет:
+      1. red    — просрочен (is_overdue), перебивает всё
+      2. yellow — ожидание оплаты ИЛИ in_work без готовых материалов
+      3. green  — активное выполнение
+      4. gray   — new / completed / cancelled
+    """
+    S = order.__class__.Status
+
+    if order.is_overdue:
+        return {'color': 'red', 'label': 'Просрочен'}
+
+    if order.status == S.WAITING_FINAL_PAYMENT:
+        return {'color': 'yellow', 'label': 'Ожидание оплаты'}
+    if order.status == S.IN_WORK and order.material_readiness != MaterialReadiness.READY:
+        return {'color': 'yellow', 'label': 'Ожидание материалов'}
+
+    if order.status in (S.IN_WORK, S.IN_PRODUCTION, S.ON_INSTALLATION, S.READY):
+        return {'color': 'green', 'label': 'В работе'}
+
+    return {'color': 'gray', 'label': order.get_status_display()}
 
 
 class CustomerMinimalSerializer(serializers.ModelSerializer):
@@ -43,14 +69,20 @@ class OrderListSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     balance_due = serializers.DecimalField(source='remaining_amount', max_digits=12, decimal_places=2, read_only=True)
     
+    ui_badge = serializers.SerializerMethodField()
+
     class Meta:
         model = Order
         fields = [
             'id', 'order_number', 'customer', 'customer_name', 'customer_phone',
-            'status', 'status_display', 'total_amount', 'paid_amount', 'balance_due',
+            'status', 'status_display', 'ui_badge',
+            'total_amount', 'paid_amount', 'balance_due',
             'created_at', 'planned_completion'
         ]
         read_only_fields = ['order_number', 'created_at']
+
+    def get_ui_badge(self, obj) -> dict:
+        return compute_ui_badge(obj)
 
     def to_representation(self, instance):
         """Скрыть денежные поля от ролей без финансового доступа.
