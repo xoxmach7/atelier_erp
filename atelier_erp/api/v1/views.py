@@ -642,7 +642,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 if new_status == Order.Status.CANCELLED:
                     order = service.cancel_order(order.id, cancelled_by=request.user, reason=reason)
                 else:
-                    order = service.transition_status(
+                    order = service.transition_status_mvp(
                         order_id=order.id,
                         new_status=new_status,
                         changed_by=request.user.id if request.user else None,
@@ -666,7 +666,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     # ЯВНЫЕ ДЕЙСТВИЯ (MVP Workflow)
     # ============================================
 
-    @action(detail=True, methods=['post'], url_path='accept')
+    @action(detail=True, methods=['post'], url_path='accept', permission_classes=[IsAuthenticated, IsOwnerOrDesigner])
     def accept(self, request, pk=None):
         """
         Принять заказ в работу (new → in_work).
@@ -675,7 +675,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         """
         return self._mvp_transition(request, pk, Order.Status.IN_WORK)
 
-    @action(detail=True, methods=['post'], url_path='send-to-production')
+    @action(detail=True, methods=['post'], url_path='send-to-production', permission_classes=[IsAuthenticated, IsOwnerOrDesigner])
     def send_to_production(self, request, pk=None):
         """
         Передать заказ в цех (in_work → in_production).
@@ -732,7 +732,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
     
-    @action(detail=True, methods=['post'], url_path='change-material-readiness')
+    @action(detail=True, methods=['post'], url_path='change-material-readiness', permission_classes=[IsAuthenticated, IsWarehouseOrOwner])
     def change_material_readiness(self, request, pk=None):
         """
         Change order material readiness state.
@@ -766,7 +766,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
     
-    @action(detail=True, methods=['post'], url_path='change-production-stage')
+    @action(detail=True, methods=['post'], url_path='change-production-stage', permission_classes=[IsAuthenticated, IsSeamstressOrOwner])
     def change_production_stage(self, request, pk=None):
         """
         Change order production stage.
@@ -796,7 +796,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
     
-    @action(detail=True, methods=['post'], url_path='change-handover-stage')
+    @action(detail=True, methods=['post'], url_path='change-handover-stage', permission_classes=[IsAuthenticated, IsInstallationOrOwner])
     def change_handover_stage(self, request, pk=None):
         """
         Change order handover stage.
@@ -829,7 +829,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
     
-    @action(detail=True, methods=['post'], url_path='cancel')
+    @action(detail=True, methods=['post'], url_path='cancel', permission_classes=[IsAuthenticated, IsOwnerOrDesigner])
     def cancel(self, request, pk=None):
         """
         Cancel order with required reason.
@@ -880,7 +880,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
     
-    @action(detail=True, methods=['post'], url_path='generate-items-from-quote')
+    @action(detail=True, methods=['post'], url_path='generate-items-from-quote', permission_classes=[IsAuthenticated, IsOwnerOrDesigner])
     def generate_items_from_quote(self, request, pk=None):
         """
         Generate OrderItems from linked QuoteItems.
@@ -1132,9 +1132,7 @@ MATERIAL_LABELS = {
 
 PRODUCTION_LABELS = {
     ProductionStage.NOT_STARTED: 'Не начато',
-    ProductionStage.SEWING: 'Раскрой',
     ProductionStage.SEWING: 'Пошив',
-    ProductionStage.DONE: 'Контроль качества',
     ProductionStage.DONE: 'Готово',
 }
 
@@ -1388,7 +1386,7 @@ class ProductionWorkQueueView(BaseWorkQueueView):
             'items_to_sew': _items_for_work(order),
             'actions': {
                 'can_start_sewing': order.status == Order.Status.IN_PRODUCTION and order.production_stage == ProductionStage.NOT_STARTED,
-                'can_mark_done': order.status == Order.Status.IN_PRODUCTION and order.production_stage in [ProductionStage.SEWING, ProductionStage.DONE],
+                'can_mark_done': order.status == Order.Status.IN_PRODUCTION and order.production_stage == ProductionStage.SEWING,
             },
         })
         return data
@@ -1405,11 +1403,7 @@ class ProductionWorkQueueView(BaseWorkQueueView):
         in_sewing = [
             self._payload(order)
             for order in production_orders
-            if order.status == Order.Status.IN_PRODUCTION and order.production_stage in [
-                ProductionStage.SEWING,
-                ProductionStage.SEWING,
-                ProductionStage.DONE,
-            ]
+            if order.status == Order.Status.IN_PRODUCTION and order.production_stage == ProductionStage.SEWING
         ]
         done = [
             self._payload(order)
