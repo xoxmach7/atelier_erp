@@ -92,9 +92,7 @@ class ProductionStage(TextChoices):
     """
     
     NOT_STARTED = 'not_started', 'Не начато'
-    CUTTING = 'cutting', 'Раскрой'
     SEWING = 'sewing', 'Пошив'
-    QUALITY_CHECK = 'quality_check', 'Контроль качества'
     DONE = 'done', 'Производство завершено'
 
 
@@ -359,9 +357,7 @@ class ProductionConfig:
     STATUS_SEQUENCE = [
         'assigned',
         'materials_prepared',
-        'cutting',
         'sewing',
-        'quality_check',
         'ready',
     ]
     
