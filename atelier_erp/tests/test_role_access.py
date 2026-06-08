@@ -134,3 +134,134 @@ class OrderRoleAccessTests(APITestCase):
         rows = _results(resp)
         self.assertTrue(rows)
         self.assertIn('total_amount', rows[0])
+
+
+class ActionRBACTests(APITestCase):
+    """
+    Тесты RBAC на action-эндпоинтах (P3: добавлены permissions).
+    Проверяют что роли не могут вызывать чужие операции.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.conf import settings
+        settings.ALLOWED_HOSTS = ['*', 'testserver', 'localhost', '127.0.0.1']
+
+        cls.customer = Customer.objects.create(
+            full_name='RBAC Test', phone='+7 700 111 0000', address_city='Алматы',
+        )
+        cls.order_new = Order.objects.create(
+            order_number='О-2026-901', customer=cls.customer,
+            status=Order.Status.NEW, total_amount=Decimal('100000'),
+        )
+        cls.order_in_work = Order.objects.create(
+            order_number='О-2026-902', customer=cls.customer,
+            status=Order.Status.IN_WORK, total_amount=Decimal('100000'),
+        )
+        cls.order_in_production = Order.objects.create(
+            order_number='О-2026-903', customer=cls.customer,
+            status=Order.Status.IN_PRODUCTION, total_amount=Decimal('100000'),
+        )
+
+    def _make_user(self, username, role_name):
+        user = User.objects.create_user(username=username, password='pass')
+        if role_name:
+            group, _ = Group.objects.get_or_create(name=role_name)
+            user.groups.add(group)
+        self.client.force_authenticate(user=user)
+        return user
+
+    def _url(self, order, action):
+        return f'/api/v1/orders/{order.id}/{action}/'
+
+    # --- cancel ---
+
+    def test_seamstress_cannot_cancel_order(self):
+        self._make_user('sw_cancel', Roles.SEAMSTRESS)
+        resp = self.client.post(self._url(self.order_in_production, 'cancel'), {'reason': 'test'})
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_warehouse_cannot_cancel_order(self):
+        self._make_user('wh_cancel', Roles.WAREHOUSE)
+        resp = self.client.post(self._url(self.order_in_work, 'cancel'), {'reason': 'test'})
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_installer_cannot_cancel_order(self):
+        self._make_user('inst_cancel', Roles.INSTALLER)
+        resp = self.client.post(self._url(self.order_in_work, 'cancel'), {'reason': 'test'})
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_owner_can_cancel_order(self):
+        self._make_user('owner_cancel', Roles.OWNER)
+        resp = self.client.post(self._url(self.order_in_work, 'cancel'), {'reason': 'Тест отмены'})
+        # 200 or 400 (business rule) — but NOT 403
+        self.assertNotEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    # --- change-material-readiness ---
+
+    def test_seamstress_cannot_change_material_readiness(self):
+        self._make_user('sw_mat', Roles.SEAMSTRESS)
+        resp = self.client.post(
+            self._url(self.order_in_work, 'change-material-readiness'),
+            {'material_readiness': 'ready'}
+        )
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_installer_cannot_change_material_readiness(self):
+        self._make_user('inst_mat', Roles.INSTALLER)
+        resp = self.client.post(
+            self._url(self.order_in_work, 'change-material-readiness'),
+            {'material_readiness': 'ready'}
+        )
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_warehouse_can_change_material_readiness(self):
+        self._make_user('wh_mat', Roles.WAREHOUSE)
+        resp = self.client.post(
+            self._url(self.order_in_work, 'change-material-readiness'),
+            {'material_readiness': 'ready'}
+        )
+        self.assertNotEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    # --- change-production-stage ---
+
+    def test_warehouse_cannot_change_production_stage(self):
+        self._make_user('wh_prod', Roles.WAREHOUSE)
+        resp = self.client.post(
+            self._url(self.order_in_production, 'change-production-stage'),
+            {'production_stage': 'done'}
+        )
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_installer_cannot_change_production_stage(self):
+        self._make_user('inst_prod', Roles.INSTALLER)
+        resp = self.client.post(
+            self._url(self.order_in_production, 'change-production-stage'),
+            {'production_stage': 'done'}
+        )
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_seamstress_can_change_production_stage(self):
+        self._make_user('sw_prod', Roles.SEAMSTRESS)
+        resp = self.client.post(
+            self._url(self.order_in_production, 'change-production-stage'),
+            {'production_stage': 'sewing'}
+        )
+        self.assertNotEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    # --- accept (new → in_work) ---
+
+    def test_warehouse_cannot_accept_order(self):
+        self._make_user('wh_accept', Roles.WAREHOUSE)
+        resp = self.client.post(self._url(self.order_new, 'accept'))
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_seamstress_cannot_accept_order(self):
+        self._make_user('sw_accept', Roles.SEAMSTRESS)
+        resp = self.client.post(self._url(self.order_new, 'accept'))
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_installer_cannot_accept_order(self):
+        self._make_user('inst_accept', Roles.INSTALLER)
+        resp = self.client.post(self._url(self.order_new, 'accept'))
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
