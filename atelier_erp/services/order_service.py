@@ -234,228 +234,6 @@ class OrderService:
         )
     
     # ============================================
-    # CONFIRM ORDER (APPROVE QUOTE)
-    # ============================================
-    
-    def confirm_order(
-        self,
-        order_id: UUID,
-        confirmed_by: Optional[UUID] = None
-    ) -> Order:
-        """
-        Confirm order (customer approved quote).
-        Transition: QUOTED → APPROVED
-        
-        Args:
-            order_id: UUID of order
-            confirmed_by: UUID of user confirming
-        
-        Returns:
-            Updated Order
-        """
-        order = self._get_order_for_update(order_id)
-        
-        # FSM validation
-        self._validate_transition(order, Order.Status.APPROVED)
-        
-        old_status = order.status
-        
-        # Update status
-        order.status = Order.Status.APPROVED
-        order.save(update_fields=['status', 'updated_at'])
-        
-        # Create history entry
-        self._create_status_history(order, old_status, order.status, confirmed_by, "Customer approved quote")
-        
-        
-        
-        return order
-    
-    # ============================================
-    # RESERVE MATERIALS
-    # ============================================
-    
-    def reserve_materials(
-        self,
-        order_id: UUID,
-        fabric_reservations: Optional[List[Dict[str, Any]]] = None,
-        skip_inventory_check: bool = False,
-        reserved_by: Optional[UUID] = None
-    ) -> Tuple[Order, List[Any]]:
-        """
-        Reserve materials for order.
-        Required before production can start.
-        
-        Transition: APPROVED/PREPAYMENT_RECEIVED → FABRIC_RESERVED
-        
-        Args:
-            order_id: UUID of order
-            fabric_reservations: List of {fabric_id, meters} to reserve
-                                 If None, reserves based on order items
-            skip_inventory_check: If True, doesn't check availability (for admin override)
-            reserved_by: UUID of user
-        
-        Returns:
-            Tuple of (updated Order, list of reservations)
-        
-        Raises:
-            InsufficientStockError: If not enough inventory
-        """
-        if not self.inventory:
-            raise OrderValidationError("Inventory service required for material reservation")
-        
-        order = self._get_order_for_update(order_id)
-        
-        # FSM: Can reserve from APPROVED or PREPAYMENT_RECEIVED
-        if order.status not in (Order.Status.APPROVED, Order.Status.PREPAYMENT_RECEIVED):
-            raise InvalidOrderStatusTransition(
-                order.status,
-                Order.Status.FABRIC_RESERVED,
-                OrderFSMRules.get_allowed_transitions(order.status)
-            )
-        
-        # Determine what to reserve
-        if fabric_reservations is None:
-            # Auto-reserve from order items
-            fabric_items = self._extract_fabric_items(order)
-        else:
-            fabric_items = fabric_reservations
-        
-        # Check availability
-        if not skip_inventory_check:
-            availability = self.inventory.check_bulk_availability(fabric_items)
-            unavailable = [
-                item for item in fabric_items 
-                if not availability.get(item['fabric_id'])
-            ]
-            if unavailable:
-                raise InsufficientStockError(
-                    item_name="Multiple fabrics",
-                    requested=0,
-                    available=0
-                )
-        
-        # Acquire locks and reserve
-        
-        # Reserve all fabrics
-        reservations = self.inventory.reserve_fabrics_for_order(
-            order_id=order_id,
-            fabric_items=fabric_items,
-            reserved_by=reserved_by
-        )
-        
-        # Also allocate cornices (immediate deduction)
-        cornice_items = self._extract_cornice_items(order)
-        for item in cornice_items:
-            self.inventory.allocate_cornice(
-                cornice_id=item['cornice_id'],
-                order_id=order_id,
-                quantity=item['quantity']
-            )
-        
-        old_status = order.status
-        
-        # Update order status
-        order.status = Order.Status.FABRIC_RESERVED
-        order.save(update_fields=['status', 'updated_at'])
-        
-        # Create history
-        self._create_status_history(order, old_status, order.status, reserved_by, "Materials reserved")
-        
-        
-        
-        return order, reservations
-    
-    # ============================================
-    # START PRODUCTION
-    # ============================================
-    
-    def start_production(
-        self,
-        order_id: UUID,
-        assigned_to: Optional[UUID] = None,
-        deadline: Optional[date] = None,
-        complexity: str = 'medium',
-        started_by: Optional[UUID] = None
-    ) -> Order:
-        """
-        Start production on order.
-        Converts reservations to actual deductions.
-        
-        Transition: FABRIC_RESERVED → PRODUCTION
-        
-        INVARIANT: Materials must be reserved before production starts
-        
-        Args:
-            order_id: UUID of order
-            assigned_to: UUID of seamstress
-            deadline: Production deadline
-            complexity: Complexity level (low/medium/high)
-            started_by: UUID of user
-        
-        Returns:
-            Updated Order
-        """
-        if not self.inventory:
-            raise OrderValidationError("Inventory service required")
-        
-        order = self._get_order_for_update(order_id)
-        
-        # FSM validation
-        self._validate_transition(order, Order.Status.PRODUCTION)
-        
-        # INVARIANT: Must be in FABRIC_RESERVED status
-        if order.status != Order.Status.FABRIC_RESERVED:
-            raise OrderValidationError(
-                f"Cannot start production from status {order.status}. "
-                "Materials must be reserved first."
-            )
-        
-        # Check for active reservations
-        active_reservations = order.fabric_reservations.filter(
-            status='active'
-        ).count()
-        
-        if active_reservations == 0:
-            raise OrderValidationError(
-                "No active material reservations found. "
-                "Reserve materials before starting production."
-            )
-        
-        # Convert all reservations to deductions
-        converted = self.inventory.convert_all_reservations(order_id)
-        
-        if not converted:
-            raise OrderValidationError("Failed to convert material reservations")
-        
-        old_status = order.status
-        
-        # Update order status
-        order.status = Order.Status.PRODUCTION
-        order.save(update_fields=['status', 'updated_at'])
-        
-        # Create production assignment
-        from ..models import ProductionAssignment
-        assignment = ProductionAssignment.objects.create(
-            order=order,
-            assigned_to_id=assigned_to,
-            deadline=deadline,
-            complexity=complexity,
-            status=ProductionAssignment.Status.ASSIGNED,
-            created_by_id=started_by
-        )
-        
-        # Create history
-        self._create_status_history(
-            order, old_status, order.status, started_by, 
-            f"Production started, assigned to {assigned_to}"
-        )
-        
-        
-        
-        return order
-    
-    # ============================================
     # COMPLETE ORDER
     # ============================================
     
@@ -469,7 +247,7 @@ class OrderService:
         Complete order.
         INVARIANT: Must be fully paid to complete.
         
-        Transition: INSTALLATION → COMPLETED
+        Transition: ON_INSTALLATION → COMPLETED
         
         Args:
             order_id: UUID of order
@@ -494,8 +272,8 @@ class OrderService:
                 f"Remaining: {order.remaining_amount}"
             )
         
-        # INVARIANT: Must be in INSTALLATION status
-        if order.status != Order.Status.INSTALLATION:
+        # INVARIANT: Must be in ON_INSTALLATION status
+        if order.status != Order.Status.ON_INSTALLATION:
             raise InvalidOrderStatusTransition(
                 order.status,
                 Order.Status.COMPLETED,
@@ -573,21 +351,10 @@ class OrderService:
         old_status = order.status
         inventory_to_release = []
         
-        # Release reservations
-        if old_status in (Order.Status.FABRIC_RESERVED, Order.Status.PREPAYMENT_RECEIVED):
-            self.inventory.release_all_reservations(order_id)
-            
-            for item in order.items.all():
-                if item.fabric_id and item.quantity:
-                    inventory_to_release.append({
-                        'type': 'fabric',
-                        'id': item.fabric_id,
-                        'quantity': str(item.quantity)
-                    })
-        
+
         # Return deducted stock (if in production or beyond)
-        if old_status in (Order.Status.PRODUCTION, Order.Status.READY, 
-                          Order.Status.INSTALLATION):
+        if old_status in (Order.Status.IN_PRODUCTION, Order.Status.READY,
+                          Order.Status.ON_INSTALLATION):
             for item in order.items.all():
                 if item.fabric_id and item.quantity:
                     self.inventory.return_fabric_stock(
@@ -864,7 +631,7 @@ class OrderService:
     ) -> Tuple[Order, Payment]:
         """
         Record payment on order.
-        May trigger status transitions (e.g., APPROVED → PREPAYMENT_RECEIVED).
+        Records payment and updates order paid_amount.
         """
         order = self._get_order_for_update(order_id)
         
@@ -905,18 +672,7 @@ class OrderService:
         order.save(update_fields=['paid_amount', 'updated_at'])
         order.refresh_from_db()
         
-        # Check for automatic status transition
-        # If prepayment received, move to PREPAYMENT_RECEIVED
-        if payment_type == Payment.PaymentType.PREPAYMENT and order.status == Order.Status.APPROVED:
-            min_prepayment = order.total_amount * FinancialConfig.MIN_PREPAYMENT_PERCENT
-            if order.paid_amount >= min_prepayment:
-                self.transition_status(
-                    order_id=order_id,
-                    new_status=Order.Status.PREPAYMENT_RECEIVED,
-                    changed_by=received_by,
-                    notes=f"Prepayment received: {amount}"
-                )
-        
+
         
         return order, payment
     

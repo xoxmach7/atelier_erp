@@ -325,12 +325,12 @@ class PaymentService:
         ).filter(
             remaining__gt=min_remaining,
             status__in=[
-                Order.Status.APPROVED,
-                Order.Status.PREPAYMENT_RECEIVED,
-                Order.Status.FABRIC_RESERVED,
-                Order.Status.PRODUCTION,
+                Order.Status.NEW,
+                Order.Status.IN_WORK,
+                Order.Status.IN_PRODUCTION,
                 Order.Status.READY,
-                Order.Status.INSTALLATION
+                Order.Status.ON_INSTALLATION,
+                Order.Status.WAITING_FINAL_PAYMENT,
             ]
         ).order_by('-remaining')
         
