@@ -104,3 +104,82 @@ class OrderMvpLifecycleV1ApiTests(APITestCase):
         order = self._make_order()
         resp = self.client.post(self._change_status_url(order), {'status': Order.Status.IN_WORK}, format='json')
         self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class UIBadgeTests(APITestCase):
+    """Тесты поля ui_badge в OrderListSerializer."""
+
+    def setUp(self):
+        from atelier_erp.models import Customer, Order
+        from decimal import Decimal
+        from datetime import date, timedelta
+        self.customer = Customer.objects.create(
+            full_name='Badge Test', phone='+7 700 000 9999', address_city='Алматы')
+        self.Order = Order
+        self.Decimal = Decimal
+        self.date = date
+        self.timedelta = timedelta
+
+    def _order(self, status, material_readiness=None, planned_completion=None, number_suffix='999'):
+        from atelier_erp.services.numbering import next_number
+        from atelier_erp.constants import MaterialReadiness
+        kwargs = dict(
+            order_number=next_number('order'),
+            customer=self.customer,
+            status=status,
+            total_amount=self.Decimal('1000'),
+            paid_amount=self.Decimal('0'),
+        )
+        if material_readiness:
+            kwargs['material_readiness'] = material_readiness
+        if planned_completion:
+            kwargs['planned_completion'] = planned_completion
+        return self.Order.objects.create(**kwargs)
+
+    def _badge(self, order):
+        from atelier_erp.api.v1.serializers import compute_ui_badge
+        return compute_ui_badge(order)
+
+    def test_new_order_is_gray(self):
+        o = self._order(self.Order.Status.NEW)
+        self.assertEqual(self._badge(o)['color'], 'gray')
+
+    def test_completed_is_gray(self):
+        o = self._order(self.Order.Status.COMPLETED)
+        self.assertEqual(self._badge(o)['color'], 'gray')
+
+    def test_in_work_with_materials_ready_is_green(self):
+        from atelier_erp.constants import MaterialReadiness
+        o = self._order(self.Order.Status.IN_WORK, material_readiness=MaterialReadiness.READY)
+        self.assertEqual(self._badge(o)['color'], 'green')
+
+    def test_in_work_without_materials_is_yellow(self):
+        from atelier_erp.constants import MaterialReadiness
+        o = self._order(self.Order.Status.IN_WORK, material_readiness=MaterialReadiness.NOT_READY)
+        badge = self._badge(o)
+        self.assertEqual(badge['color'], 'yellow')
+        self.assertIn('материал', badge['label'].lower())
+
+    def test_waiting_final_payment_is_yellow(self):
+        o = self._order(self.Order.Status.WAITING_FINAL_PAYMENT)
+        badge = self._badge(o)
+        self.assertEqual(badge['color'], 'yellow')
+        self.assertIn('оплат', badge['label'].lower())
+
+    def test_in_production_is_green(self):
+        o = self._order(self.Order.Status.IN_PRODUCTION)
+        self.assertEqual(self._badge(o)['color'], 'green')
+
+    def test_overdue_is_red_and_overrides_green(self):
+        from atelier_erp.constants import MaterialReadiness
+        yesterday = self.date.today() - self.timedelta(days=1)
+        o = self._order(self.Order.Status.IN_WORK,
+                        material_readiness=MaterialReadiness.READY,
+                        planned_completion=yesterday)
+        self.assertEqual(self._badge(o)['color'], 'red')
+
+    def test_completed_overdue_deadline_is_gray_not_red(self):
+        """Завершённый заказ с просроченным дедлайном — серый, не красный."""
+        yesterday = self.date.today() - self.timedelta(days=1)
+        o = self._order(self.Order.Status.COMPLETED, planned_completion=yesterday)
+        self.assertEqual(self._badge(o)['color'], 'gray')
