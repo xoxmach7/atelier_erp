@@ -176,13 +176,8 @@ class OrderAdmin(admin.ModelAdmin):
     
     def status_badge(self, obj):
         colors = {
-            'draft': 'gray',
             'measurement': 'blue',
             'design': 'purple',
-            'quoted': 'orange',
-            'approved': 'teal',
-            'prepayment_received': 'green',
-            'fabric_reserved': 'olive',
             'production': 'indigo',
             'ready': 'cyan',
             'installation': 'pink',

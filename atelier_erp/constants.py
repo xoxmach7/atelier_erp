@@ -238,13 +238,8 @@ class OrderFSMRules:
         'cancelled': [],  # Terminal state
         
         # Legacy statuses (for backward compatibility during transition)
-        'draft': ['new', 'cancelled'],
         'measurement': ['new', 'cancelled'],
         'design': ['new', 'cancelled'],
-        'quoted': ['new', 'cancelled'],
-        'approved': ['in_work', 'cancelled'],
-        'prepayment_received': ['in_work', 'cancelled'],
-        'fabric_reserved': ['in_production', 'cancelled'],
         'production': ['in_production', 'cancelled'],
         'installation': ['on_installation', 'cancelled'],
     }
