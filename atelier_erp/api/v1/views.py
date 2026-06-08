@@ -1132,9 +1132,9 @@ MATERIAL_LABELS = {
 
 PRODUCTION_LABELS = {
     ProductionStage.NOT_STARTED: 'Не начато',
-    ProductionStage.CUTTING: 'Раскрой',
+    ProductionStage.SEWING: 'Раскрой',
     ProductionStage.SEWING: 'Пошив',
-    ProductionStage.QUALITY_CHECK: 'Контроль качества',
+    ProductionStage.DONE: 'Контроль качества',
     ProductionStage.DONE: 'Готово',
 }
 
@@ -1388,7 +1388,7 @@ class ProductionWorkQueueView(BaseWorkQueueView):
             'items_to_sew': _items_for_work(order),
             'actions': {
                 'can_start_sewing': order.status == Order.Status.IN_PRODUCTION and order.production_stage == ProductionStage.NOT_STARTED,
-                'can_mark_done': order.status == Order.Status.IN_PRODUCTION and order.production_stage in [ProductionStage.SEWING, ProductionStage.QUALITY_CHECK],
+                'can_mark_done': order.status == Order.Status.IN_PRODUCTION and order.production_stage in [ProductionStage.SEWING, ProductionStage.DONE],
             },
         })
         return data
@@ -1406,9 +1406,9 @@ class ProductionWorkQueueView(BaseWorkQueueView):
             self._payload(order)
             for order in production_orders
             if order.status == Order.Status.IN_PRODUCTION and order.production_stage in [
-                ProductionStage.CUTTING,
                 ProductionStage.SEWING,
-                ProductionStage.QUALITY_CHECK,
+                ProductionStage.SEWING,
+                ProductionStage.DONE,
             ]
         ]
         done = [

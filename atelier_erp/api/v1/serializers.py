@@ -271,9 +271,9 @@ class OrderDetailSerializer(serializers.ModelSerializer):
         from atelier_erp.constants import ProductionStage
         labels = {
             ProductionStage.NOT_STARTED: 'Не начато',
-            ProductionStage.CUTTING: 'Раскрой',
+            ProductionStage.SEWING: 'Раскрой',
             ProductionStage.SEWING: 'Пошив',
-            ProductionStage.QUALITY_CHECK: 'Контроль качества',
+            ProductionStage.DONE: 'Контроль качества',
             ProductionStage.DONE: 'Производство завершено',
         }
         return labels.get(obj.production_stage, obj.production_stage)
@@ -484,9 +484,7 @@ class ChangeProductionStageSerializer(serializers.Serializer):
     production_stage = serializers.ChoiceField(
         choices=[
             ('not_started', 'Не начато'),
-            ('cutting', 'Раскрой'),
             ('sewing', 'Пошив'),
-            ('quality_check', 'Контроль качества'),
             ('done', 'Производство завершено'),
         ]
     )

@@ -1152,9 +1152,9 @@ class OrderExecutionService:
         """Get human-readable label for production stage"""
         labels = {
             ProductionStage.NOT_STARTED: 'Не начато',
-            ProductionStage.CUTTING: 'Раскрой',
+            ProductionStage.SEWING: 'Раскрой',
             ProductionStage.SEWING: 'Пошив',
-            ProductionStage.QUALITY_CHECK: 'Контроль качества',
+            ProductionStage.DONE: 'Контроль качества',
             ProductionStage.DONE: 'Производство завершено',
         }
         return labels.get(value, value)

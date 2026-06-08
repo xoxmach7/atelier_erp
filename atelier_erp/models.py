@@ -322,18 +322,7 @@ class Order(UUIDModel, AuditedModel):
         COMPLETED = 'completed', _('Завершён')
         CANCELLED = 'cancelled', _('Отменён')
         
-        # DEPRECATED — used only in old OrderService (atelier_erp/services/order_service.py)
-        # v1 API and mobile use the MVP statuses above exclusively
-        # Remove after old OrderService and related tests are deleted (post-pilot)
-        DRAFT = 'draft', _('[DEPRECATED] Draft')
-        MEASUREMENT = 'measurement', _('[DEPRECATED] Measurement Scheduled')
-        DESIGN = 'design', _('[DEPRECATED] Design in Progress')
-        QUOTED = 'quoted', _('[DEPRECATED] Quote Generated')
-        APPROVED = 'approved', _('[DEPRECATED] Approved by Customer')
-        PREPAYMENT_RECEIVED = 'prepayment_received', _('[DEPRECATED] Prepayment Received')
-        FABRIC_RESERVED = 'fabric_reserved', _('[DEPRECATED] Fabric Reserved')
-        PRODUCTION = 'production', _('[DEPRECATED] In Production')
-        INSTALLATION = 'installation', _('[DEPRECATED] Installation Scheduled')
+
     
     # Identity
     order_number = models.CharField(
@@ -514,6 +503,17 @@ class Order(UUIDModel, AuditedModel):
     @property
     def is_fully_paid(self):
         return self.paid_amount >= self.total_amount
+
+    @property
+    def is_overdue(self) -> bool:
+        """True if deadline passed and order is not completed/cancelled."""
+        from django.utils import timezone
+        if not self.planned_completion:
+            return False
+        terminal = (self.Status.COMPLETED, self.Status.CANCELLED)
+        if self.status in terminal:
+            return False
+        return self.planned_completion < timezone.now().date()
 
 
 class OrderItem(UUIDModel):
@@ -1302,18 +1302,18 @@ class ProductionAssignment(UUIDModel, AuditedModel):
     """Assignment of order to seamstress"""
     
     class Status(models.TextChoices):
-        ASSIGNED = 'assigned', _('Assigned')
-        MATERIALS_PREPARED = 'materials_prepared', _('Materials Prepared')
-        CUTTING = 'cutting', _('Cutting')
-        SEWING = 'sewing', _('Sewing')
-        QUALITY_CHECK = 'quality_check', _('Quality Check')
-        READY = 'ready', _('Ready')
-        RETURNED = 'returned', _('Returned for Revision')
-    
+        ASSIGNED = 'assigned', _('Назначено')
+        MATERIALS_PREPARED = 'materials_prepared', _('Материалы готовы')
+        CUTTING = 'cutting', _('Раскрой')
+        SEWING = 'sewing', _('Пошив')
+        QUALITY_CHECK = 'quality_check', _('Контроль качества')
+        READY = 'ready', _('Готово')
+        RETURNED = 'returned', _('Возврат на доработку')
+
     class Complexity(models.TextChoices):
-        LOW = 'low', _('Low')
-        MEDIUM = 'medium', _('Medium')
-        HIGH = 'high', _('High')
+        LOW = 'low', _('Простой')
+        MEDIUM = 'medium', _('Средний')
+        HIGH = 'high', _('Сложный')
     
     order = models.OneToOneField(
         Order,
