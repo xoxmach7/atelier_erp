@@ -8,7 +8,6 @@ import {
   fetchProductionQueue,
   fetchInstallationQueue,
 } from '../api/work';
-import { DEMO_WORK_QUEUES } from '../api/demoWork';
 import type { ApiError } from '../api/client';
 
 const fetchers: Record<RoleKey, () => Promise<WorkQueueResponse>> = {
@@ -21,20 +20,19 @@ const fetchers: Record<RoleKey, () => Promise<WorkQueueResponse>> = {
   finance: fetchOwnerQueue,
 };
 
-function getErrorInfo(err: unknown): { message: string; isDemoEligible: boolean; isNetworkError: boolean } {
+function getErrorMessage(err: unknown): string {
   if (err && typeof err === 'object') {
     const apiErr = err as ApiError;
     const status = typeof apiErr.status === 'number' ? apiErr.status : 0;
     const message = typeof apiErr.message === 'string' ? apiErr.message : 'Не удалось загрузить задачи.';
-    const isNetworkError = status === 0;
-    const isDemoEligible = status === 401;
-    return { message: isNetworkError ? 'Нет соединения. Потяните чтобы обновить.' : message, isDemoEligible, isNetworkError };
+    if (status === 0) return 'Нет соединения. Потяните чтобы обновить.';
+    return message;
   }
   if (err instanceof Error) {
-    const isNetworkError = err.message.toLowerCase().includes('network') || err.message.toLowerCase().includes('failed to fetch');
-    return { message: isNetworkError ? 'Нет соединения. Потяните чтобы обновить.' : err.message, isDemoEligible: false, isNetworkError };
+    const isNetwork = err.message.toLowerCase().includes('network') || err.message.toLowerCase().includes('failed to fetch');
+    return isNetwork ? 'Нет соединения. Потяните чтобы обновить.' : err.message;
   }
-  return { message: 'Не удалось загрузить задачи.', isDemoEligible: false, isNetworkError: false };
+  return 'Не удалось загрузить задачи.';
 }
 
 export function useWorkQueue(role: RoleKey) {
@@ -42,35 +40,18 @@ export function useWorkQueue(role: RoleKey) {
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isDemo, setIsDemo] = useState(false);
 
   const fetchQueue = useCallback(async () => {
     setLoading(true);
     setError(null);
-    setIsDemo(false);
     try {
       const fetcher = fetchers[role];
-      if (!fetcher) {
-        throw new Error(`No fetcher for role: ${role}`);
-      }
+      if (!fetcher) throw new Error(`No fetcher for role: ${role}`);
       const response = await fetcher();
       setData(response.items || []);
       setCount(response.count || 0);
     } catch (err) {
-      const { message, isDemoEligible, isNetworkError } = getErrorInfo(err);
-      if (isNetworkError) {
-        setError(message);
-        setIsDemo(false);
-      } else if (isDemoEligible) {
-        const demo = DEMO_WORK_QUEUES[role];
-        setData(demo?.items || []);
-        setCount(demo?.count || 0);
-        setIsDemo(true);
-        setError(null);
-      } else {
-        setError(message);
-        setIsDemo(false);
-      }
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -80,5 +61,5 @@ export function useWorkQueue(role: RoleKey) {
     fetchQueue();
   }, [fetchQueue]);
 
-  return { data, count, loading, error, isDemo, refetch: fetchQueue };
+  return { data, count, loading, error, refetch: fetchQueue };
 }

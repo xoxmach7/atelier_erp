@@ -74,7 +74,7 @@ function getTaskSubtitle(item: WorkQueueItem, _role: RoleKey): string {
 export default function WorkScreen() {
   const router = useRouter();
   const { primaryRole } = useAuthContext();
-  const { data, loading, error, isDemo, refetch } = useWorkQueue(primaryRole);
+  const { data, loading, error, refetch } = useWorkQueue(primaryRole);
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
@@ -99,12 +99,6 @@ export default function WorkScreen() {
           <IconButton icon="≡" />
         </View>
       </View>
-
-      {isDemo && (
-        <View style={styles.demoBanner}>
-          <Text style={styles.demoBannerText}>Демо-данные: backend требует авторизацию</Text>
-        </View>
-      )}
 
       {loading && !refreshing && (
         <ActivityIndicator size="large" color={colors.primary[500]} />
@@ -202,18 +196,5 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingBottom: 40,
-  },
-  demoBanner: {
-    backgroundColor: colors.neutral[100],
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.base,
-    marginBottom: spacing.base,
-  },
-  demoBannerText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.medium,
-    color: colors.textMuted,
-    textAlign: 'center',
   },
 });
