@@ -8,12 +8,10 @@ db.sqlite3
 db.sqlite3-journal
 media/
 staticfiles/
-
 # Environment variables
 .env
 .env.*
 !.env.example
-
 # Python
 *.py[cod]
 *$py.class
@@ -27,6 +25,7 @@ eggs/
 .eggs/
 lib/
 lib64/
+!frontend/src/lib/
 parts/
 sdist/
 var/
@@ -35,36 +34,29 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
 .tox/
 .nox/
-
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-*~
-
 # Node / Expo / Next build caches
 node_modules/
 .expo/
 .next/
 frontend/.expo/
-
 # OS
 .DS_Store
 Thumbs.db
-
 # Backup files
 *.bak
 *.tmp
 *.dump
-
 # Local scripts (keep in repo if needed)
 # setup-local-db.ps1
 # check_project.py
