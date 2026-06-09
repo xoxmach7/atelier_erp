@@ -72,6 +72,7 @@ export interface OrderListItemDTO {
   measurement_date: string | null;
   planned_completion: string | null;
   created_at: string;
+  designer_name?: string;
 }
 
 /**

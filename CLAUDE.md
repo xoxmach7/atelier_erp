@@ -58,11 +58,15 @@
 | 12 | P3: тесты на токены/throttling/нумерацию | done (test_p1_security_numbering.py) |
 | 14 | API: ui_badge поле в сериализаторе (цвет/лейбл для фронта) | done 2026-06-08 |
 | 15 | Frontend редизайн v2 (без sidebar, clean cards) | done 2026-06-09 |
-| 16 | P4-CRITI: S3-хранилище для медиафайлов | done 2026-06-09 (код готов, нужно создать R2 bucket + выставить Railway vars) |
+| 16 | P4-CRITI: S3-хранилище для медиафайлов | done 2026-06-09 (R2 bucket создан, Railway vars выставлены) |
+| 19 | P4-SEC: Throttling на все эндпойнты | done 2026-06-09 (user 200/min, anon 20/min) |
+| 20 | P4-CFG: Убрать LAN-IP из CORS settings | done 2026-06-09 |
+| 27 | ensure_superuser + Dockerfile автозапуск on deploy | done 2026-06-09 |
+| 28 | Frontend: orders redesign (Figma, Дизайнер col, hide in_production) | done 2026-06-09 |
+| 29 | Frontend: dashboard redesign (Прибыль/Выручка/Расходы, stat cards) | done 2026-06-09 |
+| 30 | Vercel deploy (Next.js фронт) | TODO — следующий шаг до пилота |
 | 17 | P4-ARCH: Multi-tenancy (Tenant модель + изоляция) | TODO — до второго клиента |
 | 18 | P4-OPS: Email-уведомления (SendGrid/SMTP) | TODO — после первого клиента |
-| 19 | P4-SEC: Throttling на все эндпойнты | TODO — после первого клиента |
-| 20 | P4-CFG: Убрать LAN-IP из CORS settings | TODO |
 | 21 | P5: Автоматический онбординг нового ателье | TODO — после 5 клиентов |
 | 22 | P5: Биллинг-модель SaaS (Subscription) | TODO — после 5 клиентов |
 | 23 | Fix SESSION_COOKIE_SECURE + CSRF_COOKIE_SECURE (hardcoded False в prod) | done 2026-06-09 |

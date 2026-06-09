@@ -1116,6 +1116,7 @@ class OrderExecutionService:
         order.cancel_reason = reason.strip()
         order.cancelled_at = timezone.now()
         order.cancelled_by = user
+        old_status = order.status
         order.status = Order.Status.CANCELLED
         order.save(update_fields=[
             'cancel_reason', 'cancelled_at', 'cancelled_by',
@@ -1127,7 +1128,7 @@ class OrderExecutionService:
             from ..models import OrderStatusHistory
             OrderStatusHistory.objects.create(
                 order=order,
-                old_status=order.status,
+                old_status=old_status,
                 new_status=Order.Status.CANCELLED,
                 changed_by=user,
                 notes=f"Order cancelled. Reason: {reason}"

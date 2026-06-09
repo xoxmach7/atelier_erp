@@ -116,7 +116,7 @@ export default function OrdersPage() {
                           : "—"}
                       </td>
                       <td className="px-6 py-4 text-[#0F172A]">
-                        {(order as any).designer_name || "—"}
+                        {order.designer_name || "—"}
                       </td>
                       <td className="px-6 py-4 text-[#0F172A] whitespace-nowrap">
                         {order.total_amount
