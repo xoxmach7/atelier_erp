@@ -22,7 +22,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . /app/
 
 # Собрать статику (для админки за whitenoise). collectstatic не трогает БД.
-RUN DJANGO_SECRET_KEY=build DEBUG=False python manage.py collectstatic --noinput || true
+RUN DJANGO_SECRET_KEY=build DEBUG=False python manage.py collectstatic --noinput || (echo "WARNING: collectstatic failed — check storages config" && exit 1)
 
 # Expose port
 EXPOSE 8000
