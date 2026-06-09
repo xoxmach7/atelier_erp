@@ -68,7 +68,7 @@ class OrderListSerializer(serializers.ModelSerializer):
     customer_phone = serializers.CharField(source='customer.phone', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     balance_due = serializers.DecimalField(source='remaining_amount', max_digits=12, decimal_places=2, read_only=True)
-    
+    designer_name = serializers.SerializerMethodField()
     ui_badge = serializers.SerializerMethodField()
 
     class Meta:
@@ -77,9 +77,15 @@ class OrderListSerializer(serializers.ModelSerializer):
             'id', 'order_number', 'customer', 'customer_name', 'customer_phone',
             'status', 'status_display', 'ui_badge',
             'total_amount', 'paid_amount', 'balance_due',
-            'created_at', 'planned_completion'
+            'designer_name', 'created_at', 'planned_completion'
         ]
         read_only_fields = ['order_number', 'created_at']
+
+    def get_designer_name(self, obj) -> str:
+        user = getattr(obj, 'created_by', None)
+        if not user:
+            return ""
+        return user.last_name or user.get_full_name() or user.username
 
     def get_ui_badge(self, obj) -> dict:
         return compute_ui_badge(obj)
