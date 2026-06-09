@@ -6,7 +6,7 @@ All state changes go through services
 
 from decimal import Decimal
 
-from django.db.models import Q, F
+from django.db.models import Q, F, Exists, OuterRef, ExpressionWrapper, DecimalField
 from dateutil.relativedelta import relativedelta
 from rest_framework import viewsets, status, filters
 from rest_framework.views import APIView
@@ -1368,6 +1368,8 @@ def _base_order_queryset():
 
 class BaseWorkQueueView(APIView):
     permission_classes = [IsAuthenticated]
+    DEFAULT_LIMIT = 50
+    MAX_LIMIT = 200
 
     def orders(self):
         return _base_order_queryset()
@@ -1375,6 +1377,13 @@ class BaseWorkQueueView(APIView):
     def include_financial(self):
         """Видит ли текущий пользователь денежные поля заказа."""
         return user_in(self.request.user, *Roles.FINANCIAL_ACCESS)
+
+    def get_limit(self):
+        try:
+            limit = int(self.request.query_params.get('limit', self.DEFAULT_LIMIT))
+        except (TypeError, ValueError):
+            limit = self.DEFAULT_LIMIT
+        return min(max(limit, 1), self.MAX_LIMIT)
 
 
 class ProductionWorkQueueView(BaseWorkQueueView):
@@ -1392,24 +1401,26 @@ class ProductionWorkQueueView(BaseWorkQueueView):
         return data
 
     def get(self, request):
-        production_orders = list(self.orders().filter(
+        limit = self.get_limit()
+        base = self.orders()
+        active = base.filter(
             Q(status=Order.Status.IN_PRODUCTION) | Q(status=Order.Status.IN_WORK, material_readiness=MaterialReadiness.READY)
-        ))
+        )
         ready_to_start = [
-            self._payload(order)
-            for order in production_orders
-            if order.status == Order.Status.IN_WORK or order.production_stage == ProductionStage.NOT_STARTED
+            self._payload(o) for o in
+            active.filter(
+                Q(status=Order.Status.IN_WORK) | Q(production_stage=ProductionStage.NOT_STARTED)
+            )[:limit]
         ]
         in_sewing = [
-            self._payload(order)
-            for order in production_orders
-            if order.status == Order.Status.IN_PRODUCTION and order.production_stage == ProductionStage.SEWING
+            self._payload(o) for o in
+            active.filter(status=Order.Status.IN_PRODUCTION, production_stage=ProductionStage.SEWING)[:limit]
         ]
         done = [
-            self._payload(order)
-            for order in self.orders().filter(
+            self._payload(o) for o in
+            base.filter(
                 Q(status=Order.Status.IN_PRODUCTION, production_stage=ProductionStage.DONE) | Q(status=Order.Status.READY)
-            )
+            )[:limit]
         ]
         return Response({'ready_to_start': ready_to_start, 'in_sewing': in_sewing, 'done': done})
 
@@ -1427,10 +1438,11 @@ class InstallationWorkQueueView(BaseWorkQueueView):
         return data
 
     def get(self, request):
+        limit = self.get_limit()
         orders = self.orders()
-        ready = [self._payload(order) for order in orders.filter(status=Order.Status.READY)]
-        in_installation = [self._payload(order) for order in orders.filter(status=Order.Status.ON_INSTALLATION)]
-        payment = [self._payload(order) for order in orders.filter(status=Order.Status.WAITING_FINAL_PAYMENT)]
+        ready = [self._payload(o) for o in orders.filter(status=Order.Status.READY)[:limit]]
+        in_installation = [self._payload(o) for o in orders.filter(status=Order.Status.ON_INSTALLATION)[:limit]]
+        payment = [self._payload(o) for o in orders.filter(status=Order.Status.WAITING_FINAL_PAYMENT)[:limit]]
         needs_artifacts = [
             item for item in payment
             if item['photo_report_status'] == 'missing' or not item['signed_act_uploaded']
@@ -1452,14 +1464,17 @@ class WarehouseWorkQueueView(BaseWorkQueueView):
         return data
 
     def get(self, request):
+        limit = self.get_limit()
         orders = self.orders().filter(status__in=[
             Order.Status.IN_WORK,
             Order.Status.IN_PRODUCTION,
             Order.Status.READY,
-        ])
+        ]).annotate(
+            has_measurements=Exists(Measurement.objects.filter(order=OuterRef('pk')))
+        )
 
         def group(readiness):
-            return [self._payload(order) for order in orders.filter(material_readiness=readiness)]
+            return [self._payload(o) for o in orders.filter(material_readiness=readiness)[:limit]]
 
         fabrics = [
             {
@@ -1475,11 +1490,7 @@ class WarehouseWorkQueueView(BaseWorkQueueView):
             for fabric in Fabric.objects.filter(is_active=True).order_by('name')[:30]
         ]
 
-        needs_check = [
-            self._payload(order)
-            for order in orders
-            if not _selected_materials(order)
-        ]
+        needs_check = [self._payload(o) for o in orders.filter(has_measurements=False)[:limit]]
 
         return Response({
             'needs_check': needs_check,
@@ -1504,33 +1515,29 @@ class DesignerWorkQueueView(BaseWorkQueueView):
         return data
 
     def get(self, request):
-        orders = self.orders().filter(status__in=[Order.Status.NEW, Order.Status.IN_WORK])
+        limit = self.get_limit()
         today = timezone.localdate()
+        orders = self.orders().filter(status__in=[Order.Status.NEW, Order.Status.IN_WORK]).annotate(
+            has_measurements=Exists(Measurement.objects.filter(order=OuterRef('pk'))),
+            has_quotes=Exists(Quote.objects.filter(order=OuterRef('pk'))),
+            has_pending_quote=Exists(
+                Quote.objects.filter(
+                    order=OuterRef('pk'),
+                    status__in=[Quote.Status.DRAFT, Quote.Status.SENT],
+                )
+            ),
+        )
 
-        needs_measurement = []
-        measurement_done_needs_quote = []
-        quote_in_progress = []
-        overdue = []
-
-        for order in orders:
-            has_measurements = order.measurements.exists()
-            quotes = _related_quotes(order)
-            has_quote = bool(quotes)
-            if not has_measurements:
-                needs_measurement.append(self._payload(order))
-            elif not has_quote:
-                measurement_done_needs_quote.append(self._payload(order))
-            elif any(quote.status in [Quote.Status.DRAFT, Quote.Status.SENT] for quote in quotes):
-                quote_in_progress.append(self._payload(order))
-
-            if order.planned_completion and order.planned_completion < today:
-                overdue.append(self._payload(order))
+        qs_needs_meas = orders.filter(has_measurements=False)
+        qs_needs_quote = orders.filter(has_measurements=True, has_quotes=False)
+        qs_quote_progress = orders.filter(has_measurements=True, has_quotes=True, has_pending_quote=True)
+        qs_overdue = orders.filter(planned_completion__lt=today)
 
         return Response({
-            'needs_measurement': needs_measurement,
-            'measurement_done_needs_quote': measurement_done_needs_quote,
-            'quote_in_progress': quote_in_progress,
-            'overdue': overdue,
+            'needs_measurement': [self._payload(o) for o in qs_needs_meas[:limit]],
+            'measurement_done_needs_quote': [self._payload(o) for o in qs_needs_quote[:limit]],
+            'quote_in_progress': [self._payload(o) for o in qs_quote_progress[:limit]],
+            'overdue': [self._payload(o) for o in qs_overdue[:limit]],
         })
 
 
@@ -1538,24 +1545,27 @@ class QuotesWorkQueueView(BaseWorkQueueView):
     permission_classes = [IsAuthenticated, IsOwnerOrDesigner]
 
     def get(self, request):
-        orders = self.orders().filter(status__in=[Order.Status.NEW, Order.Status.IN_WORK])
+        limit = self.get_limit()
+        orders = self.orders().filter(status__in=[Order.Status.NEW, Order.Status.IN_WORK]).annotate(
+            has_measurements=Exists(Measurement.objects.filter(order=OuterRef('pk'))),
+            has_quotes=Exists(Quote.objects.filter(order=OuterRef('pk'))),
+        )
         ready_for_quote = [
             {
                 **_base_order(order),
                 'measurement_summary': _measurement_summary(order),
                 'estimate_url': f'/estimate?customer={order.customer_id}&order={order.id}',
             }
-            for order in orders
-            if order.measurements.exists() and not _related_quotes(order)
+            for order in orders.filter(has_measurements=True, has_quotes=False)[:limit]
         ]
 
         quotes = Quote.objects.select_related('customer', 'order').prefetch_related('items').order_by('-created_at')
 
         return Response({
             'ready_for_quote': ready_for_quote,
-            'draft_quotes': [_quote_payload(quote) for quote in quotes.filter(status=Quote.Status.DRAFT)],
-            'pending_approval': [_quote_payload(quote) for quote in quotes.filter(status=Quote.Status.SENT)],
-            'accepted_quotes': [_quote_payload(quote) for quote in quotes.filter(status=Quote.Status.APPROVED)],
+            'draft_quotes': [_quote_payload(q) for q in quotes.filter(status=Quote.Status.DRAFT)[:limit]],
+            'pending_approval': [_quote_payload(q) for q in quotes.filter(status=Quote.Status.SENT)[:limit]],
+            'accepted_quotes': [_quote_payload(q) for q in quotes.filter(status=Quote.Status.APPROVED)[:limit]],
         })
 
 
@@ -1563,43 +1573,64 @@ class OwnerWorkQueueView(BaseWorkQueueView):
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
     def get(self, request):
-        orders = list(self.orders())
+        limit = self.get_limit()
         today = timezone.localdate()
 
-        def paid(order):
-            return order.remaining_amount <= 0
+        # Annotate once: has_measurements, has_quotes, remaining_amount
+        orders = self.orders().annotate(
+            has_measurements=Exists(
+                Measurement.objects.filter(order=OuterRef('pk'))
+            ),
+            has_quotes=Exists(
+                Quote.objects.filter(order=OuterRef('pk'))
+            ),
+            remaining=ExpressionWrapper(
+                F('total_amount') - F('paid_amount'),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            ),
+        )
 
-        new_orders = [_base_order(order) for order in orders if order.status == Order.Status.NEW]
-        needs_measurement = [_base_order(order) for order in orders if order.status in [Order.Status.NEW, Order.Status.IN_WORK] and not order.measurements.exists()]
-        needs_quote = [_base_order(order) for order in orders if order.status in [Order.Status.NEW, Order.Status.IN_WORK] and order.measurements.exists() and not _related_quotes(order)]
-        materials_not_ready = [_base_order(order) for order in orders if order.status in [Order.Status.IN_WORK, Order.Status.IN_PRODUCTION] and order.material_readiness != MaterialReadiness.READY]
-        in_sewing = [_base_order(order) for order in orders if order.status == Order.Status.IN_PRODUCTION]
-        on_installation = [_base_order(order) for order in orders if order.status in [Order.Status.READY, Order.Status.ON_INSTALLATION]]
-        waiting_payment = [_base_order(order) for order in orders if order.status == Order.Status.WAITING_FINAL_PAYMENT and not paid(order)]
-        paid_needs_completion = [_base_order(order) for order in orders if order.status == Order.Status.WAITING_FINAL_PAYMENT and paid(order)]
-        overdue = [_base_order(order) for order in orders if order.planned_completion and order.planned_completion < today and order.status not in [Order.Status.COMPLETED, Order.Status.CANCELLED]]
+        S = Order.Status
+        active = [S.NEW, S.IN_WORK]
+
+        qs_new = orders.filter(status=S.NEW)
+        qs_needs_meas = orders.filter(status__in=active, has_measurements=False)
+        qs_needs_quote = orders.filter(status__in=active, has_measurements=True, has_quotes=False)
+        qs_mat_not_ready = orders.filter(
+            status__in=[S.IN_WORK, S.IN_PRODUCTION]
+        ).exclude(material_readiness=MaterialReadiness.READY)
+        qs_in_sewing = orders.filter(status=S.IN_PRODUCTION)
+        qs_on_install = orders.filter(status__in=[S.READY, S.ON_INSTALLATION])
+        qs_waiting_pay = orders.filter(status=S.WAITING_FINAL_PAYMENT, remaining__gt=0)
+        qs_paid_needs = orders.filter(status=S.WAITING_FINAL_PAYMENT, remaining__lte=0)
+        qs_overdue = orders.filter(
+            planned_completion__lt=today
+        ).exclude(status__in=[S.COMPLETED, S.CANCELLED])
+
+        def to_list(qs):
+            return [_base_order(o, True) for o in qs[:limit]]
 
         return Response({
             'counters': {
-                'new_orders': len(new_orders),
-                'needs_measurement': len(needs_measurement),
-                'needs_quote': len(needs_quote),
-                'materials_not_ready': len(materials_not_ready),
-                'in_sewing': len(in_sewing),
-                'on_installation': len(on_installation),
-                'waiting_payment': len(waiting_payment),
-                'paid_needs_completion': len(paid_needs_completion),
-                'overdue': len(overdue),
+                'new_orders': qs_new.count(),
+                'needs_measurement': qs_needs_meas.count(),
+                'needs_quote': qs_needs_quote.count(),
+                'materials_not_ready': qs_mat_not_ready.count(),
+                'in_sewing': qs_in_sewing.count(),
+                'on_installation': qs_on_install.count(),
+                'waiting_payment': qs_waiting_pay.count(),
+                'paid_needs_completion': qs_paid_needs.count(),
+                'overdue': qs_overdue.count(),
             },
-            'new_orders': new_orders[:10],
-            'needs_measurement': needs_measurement[:10],
-            'needs_quote': needs_quote[:10],
-            'materials_not_ready': materials_not_ready[:10],
-            'in_sewing': in_sewing[:10],
-            'on_installation': on_installation[:10],
-            'waiting_payment': waiting_payment[:10],
-            'paid_needs_completion': paid_needs_completion[:10],
-            'overdue': overdue[:10],
+            'new_orders': to_list(qs_new),
+            'needs_measurement': to_list(qs_needs_meas),
+            'needs_quote': to_list(qs_needs_quote),
+            'materials_not_ready': to_list(qs_mat_not_ready),
+            'in_sewing': to_list(qs_in_sewing),
+            'on_installation': to_list(qs_on_install),
+            'waiting_payment': to_list(qs_waiting_pay),
+            'paid_needs_completion': to_list(qs_paid_needs),
+            'overdue': to_list(qs_overdue),
         })
 
 
@@ -1607,13 +1638,15 @@ class FinanceWorkQueueView(BaseWorkQueueView):
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
     def get(self, request):
-        waiting_payment = []
-        paid_needs_completion = []
-        for order in self.orders().filter(status=Order.Status.WAITING_FINAL_PAYMENT):
-            if order.remaining_amount <= 0:
-                paid_needs_completion.append(_base_order(order))
-            else:
-                waiting_payment.append(_base_order(order))
+        limit = self.get_limit()
+        orders = self.orders().filter(status=Order.Status.WAITING_FINAL_PAYMENT).annotate(
+            remaining=ExpressionWrapper(
+                F('total_amount') - F('paid_amount'),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            )
+        )
+        waiting_payment = [_base_order(o) for o in orders.filter(remaining__gt=0)[:limit]]
+        paid_needs_completion = [_base_order(o) for o in orders.filter(remaining__lte=0)[:limit]]
 
         recent_payments = [
             {
