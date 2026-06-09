@@ -1,78 +1,44 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import {
-  AlertTriangle,
-  ClipboardList,
-  CreditCard,
-  FileText,
-  PackageCheck,
-  Ruler,
-  Scissors,
-  TrendingUp,
-  TrendingDown,
-  Truck,
-} from "lucide-react";
+import { BarChart2, TrendingDown, TrendingUp, ChevronDown, RefreshCw } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { useAuth } from "@/contexts/auth-context";
 import { ErrorState, LoadingState } from "@/components/shared";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOwnerQueue, useDashboard } from "@/hooks/useWorkQueues";
-import type { WorkOrderTask, ChartPoint } from "@/services/http/work";
-import { StatusPill, formatDate } from "@/components/layout/role-workspace";
 
-const roleLinks = [
-  { title: "Дизайнер", href: "/work/designer", helper: "замеры и выбор ткани", icon: Ruler },
-  { title: "КП", href: "/work/quotes", helper: "расчёты и согласование", icon: FileText },
-  { title: "Склад", href: "/work/warehouse", helper: "материалы и readiness", icon: PackageCheck },
-  { title: "Пошив", href: "/work/production", helper: "что шить сегодня", icon: Scissors },
-  { title: "Установка", href: "/work/installation", helper: "куда ехать и что закрыть", icon: Truck },
-];
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
-function formatMoney(value: number): string {
-  return value.toLocaleString("ru-RU") + " ₸";
+const MONTHS: Record<string, string> = {
+  "01": "Янв", "02": "Фев", "03": "Мар", "04": "Апр",
+  "05": "Май", "06": "Июн", "07": "Июл", "08": "Авг",
+  "09": "Сен", "10": "Окт", "11": "Ноя", "12": "Дек",
+};
+function monthLabel(m: string) {
+  return MONTHS[m.slice(5, 7)] ?? m.slice(5);
+}
+function fmtAxis(v: number) {
+  if (Math.abs(v) >= 1_000_000) return (v / 1_000_000).toFixed(1) + "М";
+  if (Math.abs(v) >= 1_000) return (v / 1_000).toFixed(0) + "к";
+  return v.toFixed(0);
 }
 
-function formatShortMoney(value: number): string {
-  if (value >= 1_000_000) return (value / 1_000_000).toFixed(1) + " млн ₸";
-  if (value >= 1_000) return (value / 1_000).toFixed(0) + " тыс ₸";
-  return value + " ₸";
-}
+// ─── Mini Bar Chart ────────────────────────────────────────────────────────────
 
-function OrderLine({ order, view = "admin", nextStep }: { order: WorkOrderTask; view?: string; nextStep: string }) {
+function MiniBarChart({ data }: { data: { label: string; value: number }[] }) {
+  const maxVal = Math.max(...data.map((d) => d.value), 1);
   return (
-    <Link href={`/orders/${order.id}${view === "admin" ? "" : `?view=${view}`}`} className="block rounded-xl bg-slate-50 p-3 transition hover:bg-sky-50">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="font-medium text-slate-950">{order.order_number}</div>
-          <div className="truncate text-sm text-slate-500">{order.customer_name} · {formatDate(order.planned_completion_date)}</div>
-          <div className="mt-1 text-sm text-sky-800">{nextStep}</div>
-        </div>
-        <StatusPill label={order.status_label} tone="sky" />
-      </div>
-    </Link>
-  );
-}
-
-function BarChart({ data, mode }: { data: ChartPoint[]; mode: "revenue" | "paid" | "debt" }) {
-  const maxValue = Math.max(...data.flatMap((d) => [d.revenue, d.paid]), 1);
-  const barColor = mode === "revenue" ? "bg-sky-500" : mode === "paid" ? "bg-green-500" : "bg-red-400";
-
-  return (
-    <div className="flex items-end gap-2 h-40">
-      {data.map((point, i) => {
-        const value = mode === "revenue" ? point.revenue : mode === "paid" ? point.paid : point.revenue - point.paid;
-        const heightPercent = maxValue > 0 ? (value / maxValue) * 100 : 0;
+    <div className="flex items-end gap-[3px] h-[100px] flex-1">
+      {data.map((d, i) => {
+        const pct = Math.max((d.value / maxVal) * 100, 4);
         return (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full flex items-end justify-center h-32">
-              <div
-                className={`w-full max-w-[32px] rounded-t ${barColor} transition-all duration-500`}
-                style={{ height: `${Math.max(heightPercent, 4)}%` }}
-              />
-            </div>
-            <span className="text-[10px] text-slate-500">{point.month.slice(5)}</span>
+          <div key={i} className="flex flex-1 flex-col items-center h-full justify-end">
+            <div
+              className={`w-full rounded-t-[3px] min-h-[3px] transition-all duration-300 ${
+                d.value > 0 ? "bg-[#0EA5E9]" : "bg-[#E2E8F0]"
+              }`}
+              style={{ height: `${pct}%` }}
+            />
           </div>
         );
       })}
@@ -80,216 +46,152 @@ function BarChart({ data, mode }: { data: ChartPoint[]; mode: "revenue" | "paid"
   );
 }
 
-function DashboardContent() {
-  const queue = useOwnerQueue();
-  const dashboard = useDashboard();
-  const [chartMode, setChartMode] = useState<"revenue" | "paid" | "debt">("revenue");
+// ─── Chart Panel ──────────────────────────────────────────────────────────────
 
-  if (queue.isLoading || dashboard.isLoading) return <LoadingState message="Загрузка dashboard..." />;
-  if (queue.isError || dashboard.isError) return <ErrorState title="Не удалось загрузить dashboard" description={dashboard.error?.message || queue.error?.message || "Проверьте API."} />;
-
-  const d = dashboard.data;
-  const orders = d?.orders;
-  const finance = d?.finance;
-  const chart = d?.chart || [];
-
-  const counters = queue.data?.counters;
-  const activeCount = counters
-    ? counters.new_orders + counters.needs_measurement + counters.needs_quote + counters.materials_not_ready + counters.in_sewing + counters.on_installation + counters.waiting_payment + counters.paid_needs_completion
-    : 0;
-
-  const attention = [
-    { title: "Нужен замер", value: counters?.needs_measurement || 0, icon: Ruler, href: "/work/designer", tone: "amber" as const },
-    { title: "Нужно КП", value: counters?.needs_quote || 0, icon: FileText, href: "/work/quotes", tone: "amber" as const },
-    { title: "Материалы не готовы", value: counters?.materials_not_ready || 0, icon: PackageCheck, href: "/work/warehouse", tone: "red" as const },
-    { title: "В пошиве", value: counters?.in_sewing || 0, icon: Scissors, href: "/work/production", tone: "sky" as const },
-    { title: "На установке", value: counters?.on_installation || 0, icon: Truck, href: "/work/installation", tone: "sky" as const },
-    { title: "Ждут оплату", value: counters?.waiting_payment || 0, icon: CreditCard, href: "/payments", tone: "amber" as const },
-    { title: "Оплачено, завершить", value: counters?.paid_needs_completion || 0, icon: AlertTriangle, href: "/work/finance", tone: "green" as const },
-    { title: "Просрочено", value: counters?.overdue || 0, icon: AlertTriangle, href: "/orders", tone: "red" as const },
-  ];
-
-  const latestOrders = [
-    ...(queue.data?.new_orders || []).map((order) => ({ order, view: "designer", nextStep: "назначить замер" })),
-    ...(queue.data?.needs_quote || []).map((order) => ({ order, view: "designer", nextStep: "создать КП" })),
-    ...(queue.data?.materials_not_ready || []).map((order) => ({ order, view: "warehouse", nextStep: "проверить материалы" })),
-    ...(queue.data?.in_sewing || []).map((order) => ({ order, view: "production", nextStep: "контроль пошива" })),
-    ...(queue.data?.on_installation || []).map((order) => ({ order, view: "installation", nextStep: "установка / фото / АВР" })),
-    ...(queue.data?.waiting_payment || []).map((order) => ({ order, view: "finance", nextStep: "получить оплату" })),
-    ...(queue.data?.paid_needs_completion || []).map((order) => ({ order, view: "finance", nextStep: "проверить готовность и завершить" })),
-  ].filter((item, index, array) => array.findIndex((candidate) => candidate.order.id === item.order.id) === index).slice(0, 8);
+function ChartPanel({
+  title,
+  icon,
+  data,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  data: { label: string; value: number }[];
+}) {
+  const maxVal = Math.max(...data.map((d) => d.value), 1);
+  const yLabels = [maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0].map(fmtAxis);
 
   return (
-    <>
-      <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="text-sm font-medium text-sky-700">Пульт владельца</div>
-          <h1 className="mt-1 text-2xl font-semibold text-slate-950">Сегодня</h1>
-          <p className="mt-1 text-sm text-slate-500">Активных сигналов: {activeCount}. Откройте блок с самым большим числом — там текущий затык.</p>
+    <div className="flex-1 p-5 min-w-0">
+      <div className="flex items-center justify-center gap-1.5 mb-4">
+        <span className="text-[#0EA5E9]">{icon}</span>
+        <span className="text-sm font-semibold text-[#475569]">{title}</span>
+      </div>
+      <div className="flex gap-2">
+        <div className="flex flex-col justify-between w-9 shrink-0 pb-5">
+          {yLabels.map((label, i) => (
+            <span key={i} className="text-[9px] text-[#94A3B8] text-right leading-none">
+              {label}
+            </span>
+          ))}
         </div>
-        <Button asChild><Link href="/orders/new">Новый заказ</Link></Button>
+        <div className="flex-1 flex flex-col gap-1">
+          <MiniBarChart data={data} />
+          <div className="flex gap-[3px]">
+            {data.map((d, i) => (
+              <span key={i} className="flex-1 text-center text-[9px] text-[#94A3B8]">
+                {d.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Nav Tile ─────────────────────────────────────────────────────────────────
+
+function NavTile({
+  label,
+  value,
+  valueColor = "text-[#0EA5E9]",
+  href,
+}: {
+  label: string;
+  value: number;
+  valueColor?: string;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex flex-1 flex-col gap-3 border-r border-[#E2E8F0] bg-[#F8FAFC] p-5 min-w-0 transition-colors hover:bg-[#F0F9FF] last:border-r-0"
+    >
+      <div className="flex items-start justify-between">
+        <span className="text-[13px] text-[#475569] leading-snug pr-2 group-hover:text-[#0284C7] transition-colors">
+          {label}
+        </span>
+        <span className="text-[#94A3B8] group-hover:text-[#0EA5E9] transition-colors">
+          <ChevronDown size={14} />
+        </span>
+      </div>
+      <div className={`text-4xl font-bold leading-none ${valueColor}`}>{value}</div>
+    </Link>
+  );
+}
+
+// ─── Main content ─────────────────────────────────────────────────────────────
+
+function DashboardContent() {
+  const queue     = useOwnerQueue();
+  const dashboard = useDashboard();
+  const { logout, user } = useAuth();
+
+  if (queue.isLoading || dashboard.isLoading)
+    return <LoadingState message="Загрузка..." />;
+  if (queue.isError || dashboard.isError)
+    return (
+      <ErrorState
+        title="Не удалось загрузить дашборд"
+        description={dashboard.error?.message ?? ""}
+      />
+    );
+
+  const d        = dashboard.data;
+  const orders   = d?.orders;
+  const chart    = d?.chart ?? [];
+  const counters = queue.data?.counters;
+
+  const revenuePoints = chart.map((p) => ({ label: monthLabel(p.month), value: p.revenue }));
+  const paidPoints    = chart.map((p) => ({ label: monthLabel(p.month), value: p.paid    }));
+  const debtPoints    = chart.map((p) => ({ label: monthLabel(p.month), value: Math.max(p.revenue - p.paid, 0) }));
+
+  const displayName = user
+    ? `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || user.username
+    : "Организация";
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="flex items-start justify-between px-8 pt-7 pb-2">
+        <div>
+          <h1 className="text-[28px] font-semibold text-[#0F172A]">{displayName}</h1>
+          <div className="flex items-center gap-2 mt-1.5 text-sm text-[#475569]">
+            <span>Дашборд</span>
+            <button
+              onClick={() => dashboard.refetch?.()}
+              className="text-[#94A3B8] hover:text-[#0EA5E9] transition-colors"
+            >
+              <RefreshCw size={14} />
+            </button>
+          </div>
+        </div>
+        <button
+          onClick={() => logout()}
+          className="text-sm text-[#475569] hover:text-[#DC2626] transition-colors mt-1"
+        >
+          Выйти
+        </button>
       </div>
 
-      {/* Financial metrics */}
-      {finance && (
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-6">
-          <Card className="border-slate-200 bg-white shadow-sm">
-            <CardContent className="p-4">
-              <div className="text-sm text-slate-500">Выручка</div>
-              <div className="mt-1 text-2xl font-bold text-slate-900">{formatShortMoney(finance.total_revenue)}</div>
-              <div className="mt-1 text-xs text-slate-400">В этом месяце: {formatMoney(finance.this_month_revenue)}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-slate-200 bg-white shadow-sm">
-            <CardContent className="p-4">
-              <div className="text-sm text-slate-500">Оплачено</div>
-              <div className="mt-1 text-2xl font-bold text-green-600">{formatShortMoney(finance.total_paid)}</div>
-              <div className="mt-1 text-xs text-slate-400">В этом месяце: {formatMoney(finance.this_month_paid)}</div>
-            </CardContent>
-          </Card>
-          <Card className="border-slate-200 bg-white shadow-sm">
-            <CardContent className="p-4">
-              <div className="text-sm text-slate-500">Долг</div>
-              <div className="mt-1 text-2xl font-bold text-red-600">{formatShortMoney(finance.total_debt)}</div>
-              <div className="mt-1 text-xs text-slate-400">{((finance.total_debt / Math.max(finance.total_revenue, 1)) * 100).toFixed(1)}% от выручки</div>
-            </CardContent>
-          </Card>
-          <Card className="border-slate-200 bg-white shadow-sm">
-            <CardContent className="p-4">
-              <div className="text-sm text-slate-500">Заказов</div>
-              <div className="mt-1 text-2xl font-bold text-slate-900">{orders?.total ?? 0}</div>
-              <div className="mt-1 text-xs text-slate-400">В работе: {orders?.in_work ?? 0} · Завершено: {orders?.completed ?? 0}</div>
-            </CardContent>
-          </Card>
-        </section>
-      )}
+      {/* Charts Row */}
+      <div className="flex border-b border-[#E2E8F0] mt-3">
+        <ChartPanel title="Выручка"  icon={<BarChart2 size={16} />}    data={revenuePoints} />
+        <div className="w-px bg-[#F1F5F9]" />
+        <ChartPanel title="Оплачено" icon={<TrendingUp size={16} />}   data={paidPoints}    />
+        <div className="w-px bg-[#F1F5F9]" />
+        <ChartPanel title="Долг"     icon={<TrendingDown size={16} />} data={debtPoints}    />
+      </div>
 
-      {/* Counter cards */}
-      {orders && (
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-6">
-          <Card className="border-slate-200 bg-white shadow-sm">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                <ClipboardList className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-slate-900">{orders.in_work}</div>
-                <div className="text-xs text-slate-500">В работе</div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-slate-200 bg-white shadow-sm">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 text-green-600">
-                <TrendingUp className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-slate-900">{orders.completed}</div>
-                <div className="text-xs text-slate-500">Завершено</div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-slate-200 bg-white shadow-sm">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600">
-                <TrendingDown className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-slate-900">{orders.overdue}</div>
-                <div className="text-xs text-slate-500">Просрочено</div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-slate-200 bg-white shadow-sm">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-                <CreditCard className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-slate-900">{orders.awaiting_payment}</div>
-                <div className="text-xs text-slate-500">Ожидают оплату</div>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-      )}
-
-      {/* Chart */}
-      {chart.length > 0 && (
-        <Card className="mb-6 border-slate-200 bg-white shadow-sm">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Динамика за 6 месяцев</CardTitle>
-              <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
-                {(["revenue", "paid", "debt"] as const).map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => setChartMode(m)}
-                    className={`rounded-md px-3 py-1 text-xs font-medium transition ${
-                      chartMode === m
-                        ? "bg-white text-slate-900 shadow-sm"
-                        : "text-slate-500 hover:text-slate-700"
-                    }`}
-                  >
-                    {m === "revenue" ? "Выручка" : m === "paid" ? "Оплачено" : "Долг"}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <BarChart data={chart} mode={chartMode} />
-          </CardContent>
-        </Card>
-      )}
-
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-950">Требует внимания</h2>
-          <p className="text-sm text-slate-500">Короткая карта процесса: замер → КП → материалы → пошив → установка → оплата → завершение.</p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {attention.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link key={item.title} href={item.href} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-200 hover:bg-sky-50">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <StatusPill label={String(item.value)} tone={item.tone} />
-                </div>
-                <div className="mt-3 font-medium text-slate-950">{item.title}</div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
-      <Card className="mt-6 border-slate-200 bg-white shadow-sm">
-        <CardHeader><CardTitle className="text-base">Рабочие места</CardTitle></CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          {roleLinks.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link key={item.href} href={item.href} className="rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-sky-200 hover:bg-sky-50">
-                <Icon className="h-5 w-5 text-sky-700" />
-                <div className="mt-2 font-medium text-slate-950">{item.title}</div>
-                <div className="text-sm text-slate-500">{item.helper}</div>
-              </Link>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      <Card className="mt-6 border-slate-200 bg-white shadow-sm">
-        <CardHeader><CardTitle className="text-base">Последние заказы и следующий шаг</CardTitle></CardHeader>
-        <CardContent className="grid gap-2 lg:grid-cols-2">
-          {latestOrders.map(({ order, view, nextStep }) => <OrderLine key={order.id} order={order} view={view} nextStep={nextStep} />)}
-          {!latestOrders.length ? <div className="text-sm text-slate-500">Нет активных заказов для внимания.</div> : null}
-        </CardContent>
-      </Card>
-    </>
+      {/* Nav Tiles */}
+      <div className="flex">
+        <NavTile label="Все заказы"        value={orders?.total ?? 0}                 href="/orders"         />
+        <NavTile label="В работе"          value={orders?.in_work ?? 0}               href="/orders"         />
+        <NavTile label="Ожидают оплаты"    value={orders?.awaiting_payment ?? 0}      href="/work/finance"   />
+        <NavTile label="Просрочено"        value={orders?.overdue ?? 0}               href="/orders"         valueColor="text-[#DC2626]" />
+        <NavTile label="Материал не готов" value={counters?.materials_not_ready ?? 0} href="/work/warehouse" valueColor="text-[#D97706]" />
+      </div>
+    </div>
   );
 }
 

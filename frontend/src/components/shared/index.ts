@@ -1,4 +1,5 @@
 // Shared components barrel export
+export { StatusText } from "./status-text";
 export { PageHeader } from "./page-header";
 export { EmptyState } from "./empty-state";
 export { LoadingState } from "./loading-state";
