@@ -178,10 +178,16 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
-    # Лимит частоты на чувствительные эндпоинты (логин). Применяется точечно
-    # через ScopedRateThrottle на вьюхе получения токена.
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    # Лимит частоты: логин — точечно через ScopedRateThrottle,
+    # user/anon — глобально на все эндпойнты.
     'DEFAULT_THROTTLE_RATES': {
         'login': '5/min',
+        'user': '200/min',
+        'anon': '20/min',
     },
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
@@ -223,52 +229,4 @@ SIMPLE_JWT = {
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
-    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_TYPE_CLAIM': 'token_type',
-    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
-    'JTI_CLAIM': 'jti',
-}
-
-# ============================================
-# PRODUCTION SECURITY
-# Включается только когда DEBUG выключен (т.е. в проде) и не под тестами.
-# Требует работы за HTTPS-прокси (nginx/ingress), пробрасывающим X-Forwarded-Proto.
-# ============================================
-if not DEBUG and not TESTING:
-    # За reverse-proxy: доверять заголовку схемы от прокси
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    # Принудительный HTTPS
-    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'False').lower() == 'true'
-    # Cookie только по HTTPS
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    # HSTS
-    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '31536000'))
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
-    # Прочие заголовки
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    X_FRAME_OPTIONS = 'DENY'
-    # CSRF доверенные источники (схема обязательна), задаются через env
-    CSRF_TRUSTED_ORIGINS = [
-        o.strip()
-        for o in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
-        if o.strip()
-    ]
-
-# Logging
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
-    },
-}
-
+    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authent
