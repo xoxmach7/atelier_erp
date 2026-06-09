@@ -467,35 +467,6 @@ class Order(UUIDModel, AuditedModel):
     def __str__(self):
         return f"{self.order_number} - {self.customer.full_name}"
     
-    def save(self, *args, **kwargs):
-        """Auto-generate order_number if not set"""
-        if not self.order_number:
-            self.order_number = self._generate_order_number()
-        super().save(*args, **kwargs)
-    
-    def _generate_order_number(self) -> str:
-        """Generate unique order number О-YYYY-NNN"""
-        import re
-        from datetime import datetime
-        
-        year = datetime.now().year
-        
-        # Get the latest order number for this year (excluding empty ones)
-        latest = Order.objects.filter(
-            order_number__regex=f'^О-{year}-\\d{{3}}$'
-        ).order_by('-order_number').first()
-        
-        if latest:
-            match = re.match(rf'^О-{year}-(\d{{3}})$', latest.order_number)
-            if match:
-                seq = int(match.group(1)) + 1
-            else:
-                seq = 1
-        else:
-            seq = 1
-        
-        return f"О-{year}-{seq:03d}"
-    
     @property
     def remaining_amount(self):
         return self.total_amount - self.paid_amount

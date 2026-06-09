@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'django_filters',
     'corsheaders',
+    'storages',
     'atelier_erp',
 ]
 
@@ -132,8 +133,36 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Media files (uploads)
+# В проде переопределяется блоком S3 ниже, если выставлены AWS_* переменные.
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# ============================================
+# FILE STORAGE — Cloudflare R2 (S3-compatible)
+# Активируется когда AWS_ACCESS_KEY_ID задан в env (Railway Variables).
+# Локальная разработка продолжает использовать MEDIA_ROOT выше.
+# Переменные для Railway:
+#   AWS_ACCESS_KEY_ID       — R2 Access Key ID
+#   AWS_SECRET_ACCESS_KEY   — R2 Secret Access Key
+#   AWS_STORAGE_BUCKET_NAME — имя bucket (например: sheber-media)
+#   AWS_S3_ENDPOINT_URL     — https://<account_id>.r2.cloudflarestorage.com
+# ============================================
+if os.environ.get('AWS_ACCESS_KEY_ID'):
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    AWS_ACCESS_KEY_ID = os.environ['AWS_ACCESS_KEY_ID']
+    AWS_SECRET_ACCESS_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
+    AWS_STORAGE_BUCKET_NAME = os.environ['AWS_STORAGE_BUCKET_NAME']
+    AWS_S3_ENDPOINT_URL = os.environ.get('AWS_S3_ENDPOINT_URL')
+    AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'auto')
+    # R2 не поддерживает ACL — отключаем
+    AWS_DEFAULT_ACL = None
+    AWS_S3_FILE_OVERWRITE = False
+    # Подписанные URL (временный доступ к файлам)
+    AWS_QUERYSTRING_AUTH = True
+    AWS_QUERYSTRING_EXPIRE = 3600  # 1 час
+    AWS_S3_SIGNATURE_VERSION = 's3v4'
+    # Медиа URL берётся из endpoint + bucket
+    MEDIA_URL = f'{AWS_S3_ENDPOINT_URL}/{AWS_STORAGE_BUCKET_NAME}/'
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -162,6 +191,8 @@ REST_FRAMEWORK = {
 }
 
 # CORS
+# Задавать через env var CORS_ALLOWED_ORIGINS (comma-separated).
+# Дефолт содержит только localhost — LAN-IP убран, чтобы не утекать в прод.
 CORS_ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.environ.get(
@@ -170,10 +201,8 @@ CORS_ALLOWED_ORIGINS = [
         'http://127.0.0.1:3000,'
         'http://localhost:8081,'
         'http://127.0.0.1:8081,'
-        'http://192.168.15.53:8081,'
         'http://localhost:8082,'
-        'http://127.0.0.1:8082,'
-        'http://192.168.15.53:8082'
+        'http://127.0.0.1:8082'
     ).split(',')
     if origin.strip()
 ]
@@ -212,8 +241,8 @@ if not DEBUG and not TESTING:
     # Принудительный HTTPS
     SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'False').lower() == 'true'
     # Cookie только по HTTPS
-    SESSION_COOKIE_SECURE = False
-    CSRF_COOKIE_SECURE = False
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
     # HSTS
     SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '31536000'))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True

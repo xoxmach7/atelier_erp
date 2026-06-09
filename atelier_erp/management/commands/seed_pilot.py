@@ -16,7 +16,6 @@ def rand_password(n=12):
     return ''.join(random.choices(chars, k=n))
 
 
-# Имена групп берутся из единого реестра Roles (канонично).
 PILOT_ROLES = [
     ('owner',       Roles.OWNER,      'Владелец',   'owner'),
     ('designer',    Roles.DESIGNER,   'Дизайнер',   'designer'),
@@ -31,17 +30,16 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--atelier', type=str, default='pilot', help='Atelier name prefix for usernames')
-        parser.add_argument('--reset', action='store_true', help='Delete existing pilot users before creating')
+        parser.add_argument('--reset', action='store_true', help='Regenerate passwords for existing pilot users')
 
     def handle(self, *args, **options):
         prefix = options['atelier'].lower().replace(' ', '_')[:12]
 
         if options['reset']:
-            deleted = User.objects.filter(username__startswith=f'{prefix}_').delete()
-            self.stdout.write(f'Deleted {deleted[0]} existing pilot users')
+            self.stdout.write(f'--reset: regenerating passwords for existing {prefix}_* users')
 
         self.stdout.write(self.style.SUCCESS(f'\n=== Pilot accounts for: {options["atelier"]} ===\n'))
-        self.stdout.write(f'{"Username":<25} {"Password":<15} {"Group":<12} {"Role"}')
+        self.stdout.write(f'{"Username":<25} {"Password":<15} {"Group":<12} Role')
         self.stdout.write('-' * 70)
 
         for username_suffix, group_name, display, role in PILOT_ROLES:
@@ -60,19 +58,18 @@ class Command(BaseCommand):
                 user.set_password(password)
                 user.save()
             else:
-                password = '(existing — use reset to regenerate)'
+                password = '(existing -- use --reset to regenerate)'
 
             try:
                 group = Group.objects.get(name=group_name)
                 user.groups.clear()
                 user.groups.add(group)
             except Group.DoesNotExist:
-                self.stdout.write(self.style.WARNING(f'  Group {group_name} not found — run seed_groups first'))
+                self.stdout.write(self.style.WARNING(f'  Group {group_name} not found -- run seed_groups first'))
 
             self.stdout.write(f'{username:<25} {password:<15} {group_name:<12} {display}')
 
-        self.stdout.write(self.style.SUCCESS(f'\nDone! Share these credentials with the pilot atelier.'))
-        self.stdout.write('\nSetup commands:')
+        self.stdout.write(self.style.SUCCESS('\nDone! Share these credentials with the pilot atelier.'))
+        self.stdout.write('Setup commands:')
         self.stdout.write(f'  python manage.py seed_groups')
         self.stdout.write(f'  python manage.py seed_pilot --atelier "{options["atelier"]}"')
-        self.stdout.write(f'  python manage.py seed_demo_workflow --reset-demo')
