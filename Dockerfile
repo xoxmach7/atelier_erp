@@ -29,4 +29,4 @@ EXPOSE 8000
 
 # Прод-запуск: миграции + gunicorn на порту платформы ($PORT, по умолчанию 8000).
 # Локальный docker-compose переопределяет эту команду своим `command:`.
-CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn atelier_erp.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 3 --timeout 120"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_groups && python manage.py ensure_superuser && gunicorn atelier_erp.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 3 --timeout 120"]
