@@ -7,14 +7,12 @@ import { cn } from "@/lib/utils";
  *   Ожидание оплаты       #EBDD1D (жёлтый)
  *   Завершён / Черновик   #94A3B8 (серый)
  *   Новый                 #0EA5E9 (голубой)
- *   В производстве        #7C3AED (фиолетовый)
- *   Установка             #4F46E5 (синий)
+ *  *   Установка             #4F46E5 (синий)
  */
 
 const statusColors: Record<string, string> = {
   new:                    "text-[#0EA5E9]",
   in_work:                "text-[#32ED51]",
-  in_production:          "text-[#7C3AED]",
   ready:                  "text-[#32ED51]",
   on_installation:        "text-[#4F46E5]",
   waiting_final_payment:  "text-[#EBDD1D]",
@@ -27,7 +25,6 @@ const statusColors: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   new:                    "Новый",
   in_work:                "В работе",
-  in_production:          "В производстве",
   ready:                  "Готов",
   on_installation:        "Установка",
   waiting_final_payment:  "Ожидание оплаты",
