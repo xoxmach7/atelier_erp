@@ -10,6 +10,7 @@ import {
   CreditCard,
   FileText,
   LayoutDashboard,
+  MonitorPlay,
   PlusCircle,
   Ruler,
   Scissors,
@@ -42,6 +43,7 @@ const ALL_NAV_SECTIONS: NavSection[] = [
     title: "Главное",
     items: [
       { title: "Сегодня", href: "/dashboard", icon: LayoutDashboard },
+      { title: "Рабочий стол", href: "/workspace", icon: MonitorPlay, match: ["/workspace"] },
       { title: "Заказы", href: "/orders", icon: ClipboardList, match: ["/orders"] },
       { title: "Клиенты", href: "/customers", icon: Users, match: ["/customers"] },
     ],
