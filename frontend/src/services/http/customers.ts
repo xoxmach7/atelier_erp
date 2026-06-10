@@ -5,7 +5,7 @@
 
 import { get, post } from "./client";
 
-const CUSTOMERS_ENDPOINT = "/customers/";
+const CUSTOMERS_ENDPOINT = "/v1/customers/";
 
 export interface CustomerDTO {
   id: string;

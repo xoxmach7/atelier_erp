@@ -10,8 +10,8 @@ import { get, post, patch, del } from "./client";
 import type { QuoteDTO, QuoteListResponse, QuoteItemDTO, QuoteStatus, OrderDetailDTO } from "@/types";
 import type { CreateQuoteInput } from "@/hooks/useQuotes";
 
-const QUOTES_ENDPOINT = "/quotes/";
-const QUOTE_ITEMS_ENDPOINT = "/quote-items";
+const QUOTES_ENDPOINT = "/v1/quotes/";
+const QUOTE_ITEMS_ENDPOINT = "/v1/quote-items";
 
 interface FetchQuotesOptions extends Record<string, string | number | undefined> {
   status?: string;

@@ -6,7 +6,7 @@
 import { get, post, patch, del } from "./client";
 import type { MeasurementDTO, MeasurementListResponse } from "@/types";
 
-const BASE_ENDPOINT = "/measurements/";
+const BASE_ENDPOINT = "/v1/measurements/";
 
 interface FetchMeasurementsOptions extends Record<string, string | number | undefined> {
   order?: string;

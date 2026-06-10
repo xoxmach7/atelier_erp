@@ -6,7 +6,7 @@
 ## Проект
 **Sheber ERP** (он же Atelier ERP) — ERP для шторного ателье.
 Репо: https://github.com/xoxmach7/atelier_erp.git
-Ветка в работе: `fix/p0-access-security`
+Ветка в работе: `main` (fix/p0-access-security смёрджена)
 Последний стабильный тег: `v0.1-cleanup`
 
 ## Стек
@@ -64,7 +64,7 @@
 | 27 | ensure_superuser + Dockerfile автозапуск on deploy | done 2026-06-09 |
 | 28 | Frontend: orders redesign (Figma, Дизайнер col, hide in_production) | done 2026-06-09 |
 | 29 | Frontend: dashboard redesign (Прибыль/Выручка/Расходы, stat cards) | done 2026-06-09 |
-| 30 | Vercel deploy (Next.js фронт) | TODO — следующий шаг до пилота |
+| 30 | Vercel deploy (Next.js фронт) | done 2026-06-10 ✅ (Framework Preset=Next.js, webpack build, CORS+CSRF обновлены) |
 | 17 | P4-ARCH: Multi-tenancy (Tenant модель + изоляция) | TODO — до второго клиента |
 | 18 | P4-OPS: Email-уведомления (SendGrid/SMTP) | TODO — после первого клиента |
 | 21 | P5: Автоматический онбординг нового ателье | TODO — после 5 клиентов |
@@ -73,6 +73,22 @@
 | 24 | Fix Order._generate_order_number() race condition (убрать, оставить только numbering.py) | done 2026-06-09 |
 | 25 | Fix seed_pilot --reset ProtectedError (PROTECT FK на ProductionAssignment + SeamstressPayment) | done 2026-06-09 |
 | 26 | Проверить CORS_ALLOWED_ORIGINS в Railway Variables (LAN-IP в дефолте) | done 2026-06-09 |
+
+
+## Vercel (фронтенд деплой) — состояние на 2026-06-09
+- Проект: https://vercel.com/bohemetextile8-2199s-projects/atelier-erp
+- GitHub: xoxmach7/atelier_erp, ветка main, Root Directory: frontend
+- **Проблема была**: Framework Preset = "Other" → Vercel не создавал serverless functions
+- **Фикс**: изменить Framework Preset на "Next.js" в Settings → Build & Development Settings → сохранить → редеплой
+- Build command: `next build --webpack` (явно отключён Turbopack, commit 89cde7e)
+- NEXT_PUBLIC_API_BASE_URL выставлен в Vercel env vars
+- ✅ РАБОТАЕТ: https://atelier-erp.vercel.app — логин проходит
+- Домен добавлен в CORS_ALLOWED_ORIGINS и CSRF_TRUSTED_ORIGINS в Railway Variables
+
+## VirtioFS — важно для файловых правок
+- Sandbox (bash/python) НЕ пишет в Windows-папку через Edit/Write инструменты
+- Все правки файлов: `python3 -c "open(path,'w').write(content)"` через bash
+- Git операции — только из терминала пользователя, не из sandbox
 
 ## Тесты (зелёные MVP, 20 штук)
 ```
@@ -150,15 +166,4 @@ EMAIL_BACKEND не настроен. Сотрудники не получают 
 
 ### Стратегия
 - Модель входа: консалтинг + продукт (concierge-внедрение, не холодная подписка)
-- Что продаём: не "убери хаос", а "ты теряешь деньги прямо сейчас"
-- Вертикаль: ателье → мебельщики → дилеры → все кто с заказами+дедлайнами
-- Не абстрагировать продукт до 5 платящих клиентов
-- Личный бренд = главный канал продаж в Алматы (сарафан быстрый)
-
-### Идеальный первый клиент
-60-100+ заказов/месяц, владелец чувствует что теряет деньги, готов к пилоту.
-Условия: внедрение почти бесплатно → референс для следующих.
-
-### Следующий шаг
-Связаться с владельцем ателье (знает устно). Срок: среда-четверг 11-12 июня.
-Детали: PRODUCT_STRATEGY.md
+- Что продаём: не "уб

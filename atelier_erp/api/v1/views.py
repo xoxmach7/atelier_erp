@@ -8,7 +8,7 @@ from decimal import Decimal
 
 from django.db.models import Q, F, Exists, OuterRef, ExpressionWrapper, DecimalField
 from dateutil.relativedelta import relativedelta
-from rest_framework import viewsets, status, filters
+from rest_framework import viewsets, status, filters, serializers
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -34,6 +34,7 @@ from atelier_erp.services.exceptions import (
 from .serializers import (
     OrderListSerializer, OrderDetailSerializer, OrderCreateSerializer, OrderUpdateSerializer, OrderStatusUpdateSerializer,
     MeasurementSerializer, MeasurementCreateSerializer,
+    PaymentSerializer,
     QuoteSerializer, QuoteCreateSerializer,
     OrderMaterialSerializer, OrderMaterialUpdateSerializer,
     ChangeStatusSerializer, ChangeMaterialReadinessSerializer, ChangeProductionStageSerializer,
@@ -2011,6 +2012,28 @@ class QuoteViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+
+    @action(detail=True, methods=['post'], url_path='convert_to_order')
+    def convert_to_order(self, request, pk=None):
+        """
+        Convert approved quote to order.
+        POST /api/v1/quotes/{id}/convert_to_order/
+        """
+        quote = self.get_object()
+        with UnitOfWork() as uow:
+            service = OrderService(uow)
+            try:
+                order_number = next_number('ORDER')
+                order = service.create_order_from_quote(
+                    quote_id=quote.id,
+                    order_number=order_number,
+                    created_by=request.user.id if request.user.is_authenticated else None
+                )
+                uow.commit()
+                return Response(OrderDetailSerializer(order).data, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['post'], url_path='generate-pdf', url_name='generate-pdf')
     def generate_pdf(self, request, pk=None):
         """
@@ -2037,3 +2060,110 @@ class QuoteViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ---------------------------------------------------------------------------
+# Customer ViewSet
+# ---------------------------------------------------------------------------
+
+class CustomerSerializer(serializers.ModelSerializer):
+    """Full customer serializer for /v1/customers/"""
+    class Meta:
+        model = Customer
+        fields = ['id', 'full_name', 'phone', 'email', 'address_city',
+                  'address_street', 'notes', 'is_active', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class CustomerViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for customers.
+    GET  /api/v1/customers/          — list (search by name/phone)
+    POST /api/v1/customers/          — create (Owner/Designer)
+    GET  /api/v1/customers/{id}/     — detail
+    PATCH /api/v1/customers/{id}/    — update (Owner/Designer)
+    """
+    serializer_class = CustomerSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['full_name', 'phone', 'email']
+    ordering_fields = ['full_name', 'created_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        qs = Customer.objects.filter(is_active=True)
+        return qs
+
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [IsAuthenticated(), IsOwnerOrDesigner()]
+        return [IsAuthenticated()]
+
+
+# ---------------------------------------------------------------------------
+# Payment ViewSet
+# ---------------------------------------------------------------------------
+
+class PaymentViewSet(viewsets.ModelViewSet):
+    """
+    Payments — финансовые данные, только Owner.
+    Designer видит платежи конкретного заказа через OrderDetailSerializer,
+    но список ВСЕХ платежей — исключительно Owner.
+    GET  /api/v1/payments/?order=<id>  — list filtered by order (Owner only)
+    POST /api/v1/payments/             — create payment (Owner only)
+    GET  /api/v1/payments/{id}/        — detail (Owner only)
+    """
+    serializer_class = PaymentSerializer
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['order', 'payment_type', 'payment_method']
+    ordering_fields = ['received_at', 'amount']
+    ordering = ['-received_at']
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+
+    def get_queryset(self):
+        return Payment.objects.select_related('order').all()
+
+
+# ---------------------------------------------------------------------------
+# Measurement ViewSet
+# ---------------------------------------------------------------------------
+
+class MeasurementViewSet(viewsets.ModelViewSet):
+    """
+    Measurements (замеры) — Owner/Designer CRUD.
+    GET  /api/v1/measurements/?order=<id>  — list filtered by order
+    POST /api/v1/measurements/              — create
+    GET  /api/v1/measurements/{id}/         — detail
+    PATCH /api/v1/measurements/{id}/        — update
+    DELETE /api/v1/measurements/{id}/       — delete
+    """
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['order', 'room_name', 'mounting_type']
+    ordering_fields = ['room_name', 'window_name']
+    ordering = ['room_name', 'window_name']
+    permission_classes = [IsAuthenticated, IsOwnerOrDesigner]
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return MeasurementCreateSerializer
+        return MeasurementSerializer
+
+    def get_queryset(self):
+        return Measurement.objects.select_related(
+            'curtain_fabric', 'tulle_fabric'
+        ).all()
+
+    def perform_create(self, serializer):
+        """Map MeasurementCreateSerializer fields to Measurement model fields."""
+        from django.shortcuts import get_object_or_404
+        data = serializer.validated_data
+        order_id = self.request.data.get('order')
+        order = get_object_or_404(Order, pk=order_id)
+        Measurement.objects.create(
+            order=order,
+            room_name=data.get('room_name', ''),
+            window_name=data.get('window_number', ''),
+            width_cm=int(data.get('width', 0)),
+            height_cm=int(data.get('height', 0)),
+            mounting_type=data.get('mounting_type', ''),
+            notes=data.get('comment', ''),
+        )

@@ -21,7 +21,7 @@ interface PaymentsFilter extends Record<string, string | number | boolean | unde
   page_size?: number;
 }
 
-const PAYMENTS_ENDPOINT = "/payments/";
+const PAYMENTS_ENDPOINT = "/v1/payments/";
 
 export interface CreatePaymentInput {
   order: string;

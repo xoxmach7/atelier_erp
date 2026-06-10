@@ -5,7 +5,7 @@
 
 import { get } from "./client";
 
-const TASKS_ENDPOINT = "/tasks";
+const TASKS_ENDPOINT = "/v1/tasks";
 
 export interface TaskDTO {
   id: string;

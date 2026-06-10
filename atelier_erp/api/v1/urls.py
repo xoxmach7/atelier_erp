@@ -7,6 +7,7 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     OrderViewSet, TaskViewSet, InventoryAvailabilityViewSet, QuoteViewSet,
+    CustomerViewSet, PaymentViewSet, MeasurementViewSet,
     DesignerWorkQueueView, QuotesWorkQueueView, WarehouseWorkQueueView,
     ProductionWorkQueueView, InstallationWorkQueueView, OwnerWorkQueueView,
     FinanceWorkQueueView, DashboardView,
@@ -17,6 +18,9 @@ router.register(r'orders', OrderViewSet, basename='v1-order')
 router.register(r'tasks', TaskViewSet, basename='v1-task')
 router.register(r'inventory', InventoryAvailabilityViewSet, basename='v1-inventory')
 router.register(r'quotes', QuoteViewSet, basename='v1-quote')
+router.register(r'customers', CustomerViewSet, basename='v1-customer')
+router.register(r'payments', PaymentViewSet, basename='v1-payment')
+router.register(r'measurements', MeasurementViewSet, basename='v1-measurement')
 
 urlpatterns = [
     path('work/designer/', DesignerWorkQueueView.as_view(), name='v1-work-designer'),
