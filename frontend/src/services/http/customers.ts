@@ -1,9 +1,9 @@
 /**
  * Customers HTTP Service
- * Minimal service for customer selection in quote creation
+ * Full CRUD for /customers page
  */
 
-import { get, post } from "./client";
+import { get, post, patch, del } from "./client";
 
 const CUSTOMERS_ENDPOINT = "/v1/customers/";
 
@@ -24,6 +24,13 @@ export interface CreateCustomerInput {
   address_building?: string;
   address_apartment?: string;
   notes?: string;
+}
+
+export interface UpdateCustomerInput {
+  full_name?: string;
+  phone?: string;
+  email?: string;
+  address_city?: string;
 }
 
 export interface CustomerListResponse {
@@ -56,4 +63,21 @@ export async function fetchCustomerById(customerId: string): Promise<CustomerDTO
  */
 export async function createCustomer(data: CreateCustomerInput): Promise<CustomerDTO> {
   return post<CustomerDTO>(CUSTOMERS_ENDPOINT, data);
+}
+
+/**
+ * Update an existing customer
+ */
+export async function updateCustomer(
+  customerId: string,
+  data: UpdateCustomerInput
+): Promise<CustomerDTO> {
+  return patch<CustomerDTO>(`${CUSTOMERS_ENDPOINT}${customerId}/`, data);
+}
+
+/**
+ * Delete a customer
+ */
+export async function deleteCustomer(customerId: string): Promise<void> {
+  return del<void>(`${CUSTOMERS_ENDPOINT}${customerId}/`);
 }

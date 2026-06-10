@@ -2,496 +2,387 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { PageHeader } from "@/components/shared/page-header";
+import { X, Search, User, Loader2, Plus } from "lucide-react";
+import { ProtectedRoute } from "@/components/auth/protected-route";
 import { LoadingState } from "@/components/shared/loading-state";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useCreateOrder } from "@/hooks/useOrders";
 import { useCustomers, useCreateCustomer } from "@/hooks/useCustomers";
-import { ArrowLeft, Loader2, User, MapPin, Calendar, FileText, Plus, X } from "lucide-react";
+import type { CustomerDTO } from "@/hooks/useCustomers";
 
-// Wrapper component with Suspense
 export default function NewOrderPage() {
   return (
-    <Suspense fallback={<LoadingState message="Загрузка..." />}>
-      <NewOrderContent />
-    </Suspense>
+    <ProtectedRoute>
+      <Suspense fallback={<LoadingState message="Загрузка..." />}>
+        <NewOrderContent />
+      </Suspense>
+    </ProtectedRoute>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/*  Inline Customer Search/Select                                     */
+/* ------------------------------------------------------------------ */
+
+function CustomerSearch({
+  value,
+  onChange,
+  onCreateNew,
+}: {
+  value: string;
+  onChange: (id: string, name: string) => void;
+  onCreateNew: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+
+  const { data, isLoading } = useCustomers(query || undefined);
+  const customers = data?.results ?? [];
+
+  function handleSelect(c: CustomerDTO) {
+    onChange(c.id, c.full_name);
+    setQuery(c.full_name);
+    setIsOpen(false);
+  }
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+          <input
+            type="text"
+            placeholder="Фамилия/телефон"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setIsOpen(true);
+              if (!e.target.value) onChange("", "");
+            }}
+            onFocus={() => setIsOpen(true)}
+            className="w-full rounded-[10px] border border-[#E2E8F0] bg-[#F8FAFC] pl-10 pr-4 py-3 text-[15px] text-[#0F172A] outline-none focus:border-[#0EA5E9] transition-colors placeholder:text-[#94A3B8]"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={onCreateNew}
+          className="flex h-[46px] w-[46px] items-center justify-center rounded-[10px] bg-[#0EA5E9] text-white hover:bg-[#0284C7] transition-colors shrink-0"
+          title="Новый клиент"
+        >
+          <User size={20} />
+        </button>
+      </div>
+
+      {/* Dropdown */}
+      {isOpen && query.length > 0 && (
+        <div className="absolute left-0 right-12 top-full mt-1 z-50 max-h-[200px] overflow-y-auto rounded-[10px] border border-[#E2E8F0] bg-white shadow-lg">
+          {isLoading ? (
+            <div className="px-4 py-3 text-[14px] text-[#94A3B8]">Поиск...</div>
+          ) : customers.length === 0 ? (
+            <div className="px-4 py-3 text-[14px] text-[#94A3B8]">
+              Не найдено.{" "}
+              <button type="button" onClick={onCreateNew} className="text-[#0EA5E9] hover:underline">
+                Создать нового
+              </button>
+            </div>
+          ) : (
+            customers.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => handleSelect(c)}
+                className="w-full text-left px-4 py-2.5 text-[14px] text-[#0F172A] hover:bg-[#F8FAFC] transition-colors border-b border-[#F1F5F9] last:border-0"
+              >
+                <span className="font-medium">{c.full_name}</span>
+                {c.phone && <span className="text-[#94A3B8] ml-2">{c.phone}</span>}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Inline New Customer Mini-Form                                     */
+/* ------------------------------------------------------------------ */
+
+function InlineNewCustomer({
+  onCreated,
+  onCancel,
+}: {
+  onCreated: (c: CustomerDTO) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const createMutation = useCreateCustomer();
+
+  async function handleCreate() {
+    if (!name.trim() || !phone.trim()) return;
+    try {
+      const customer = await createMutation.mutateAsync({
+        full_name: name.trim(),
+        phone: phone.trim(),
+      });
+      onCreated(customer);
+    } catch (err) {
+      console.error("Failed to create customer:", err);
+    }
+  }
+
+  return (
+    <div className="rounded-[10px] border border-[#0EA5E9] bg-[#F0F9FF] p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-[14px] font-medium text-[#0F172A]">Новый клиент</span>
+        <button type="button" onClick={onCancel} className="text-[#94A3B8] hover:text-[#475569]">
+          <X size={16} />
+        </button>
+      </div>
+      <input
+        type="text"
+        placeholder="Фамилия и имя *"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="w-full rounded-[10px] border border-[#E2E8F0] bg-white px-4 py-2.5 text-[14px] outline-none focus:border-[#0EA5E9]"
+        autoFocus
+      />
+      <input
+        type="text"
+        placeholder="+7 (777) 000-00-00 *"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+        className="w-full rounded-[10px] border border-[#E2E8F0] bg-white px-4 py-2.5 text-[14px] outline-none focus:border-[#0EA5E9]"
+      />
+      <button
+        type="button"
+        onClick={handleCreate}
+        disabled={!name.trim() || !phone.trim() || createMutation.isPending}
+        className="w-full rounded-[10px] bg-[#0EA5E9] py-2.5 text-[14px] font-medium text-white hover:bg-[#0284C7] transition-colors disabled:opacity-50"
+      >
+        {createMutation.isPending ? "Создание..." : "Добавить и выбрать"}
+      </button>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main Form                                                         */
+/* ------------------------------------------------------------------ */
 
 function NewOrderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const createOrder = useCreateOrder();
-  const createCustomer = useCreateCustomer();
-  const { data: customersData, isLoading: customersLoading, refetch: refetchCustomers } = useCustomers();
 
-  // Prefill from query params (context from quote/measurement)
   const prefillCustomer = searchParams.get("customer");
-  const prefillSource = searchParams.get("source");
-  const prefillRef = searchParams.get("ref");
 
-  const [formData, setFormData] = useState({
-    customer: prefillCustomer || "",
-    // Installation address
-    installation_address_city: "",
-    installation_address_street: "",
-    installation_address_building: "",
-    installation_address_apartment: "",
-    installation_address_notes: "",
-    // Dates
-    measurement_date: "",
-    planned_completion: "",
-    // Notes
-    notes: "",
-  });
+  const [customerId, setCustomerId] = useState(prefillCustomer || "");
+  const [customerName, setCustomerName] = useState("");
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  // Form fields
+  const [measurementDate, setMeasurementDate] = useState("");
+  const [completionDate, setCompletionDate] = useState("");
+  const [city, setCity] = useState("");
+  const [street, setStreet] = useState("");
+  const [building, setBuilding] = useState("");
+  const [apartment, setApartment] = useState("");
+  const [notes, setNotes] = useState("");
 
-  // Inline customer creation state
-  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
-  const [newCustomerData, setNewCustomerData] = useState({
-    full_name: "",
-    phone: "",
-    email: "",
-    address_city: "",
-  });
+  const [error, setError] = useState("");
 
-  const customers = customersData?.results || [];
-
-  // Handle inline customer creation
-  const handleCreateCustomer = async () => {
-    if (!newCustomerData.full_name.trim() || !newCustomerData.phone.trim()) {
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!customerId) {
+      setError("Выберите клиента");
       return;
     }
-
-    try {
-      const customer = await createCustomer.mutateAsync({
-        full_name: newCustomerData.full_name.trim(),
-        phone: newCustomerData.phone.trim(),
-        email: newCustomerData.email.trim() || undefined,
-        address_city: newCustomerData.address_city.trim() || undefined,
-      });
-
-      // Auto-select the newly created customer
-      setFormData((prev) => ({ ...prev, customer: customer.id }));
-
-      // Clear and hide the new customer form
-      setNewCustomerData({ full_name: "", phone: "", email: "", address_city: "" });
-      setShowNewCustomerForm(false);
-
-      // Refresh customer list to include new customer
-      await refetchCustomers();
-    } catch (err) {
-      console.error("Failed to create customer:", err);
-      alert(err instanceof Error ? err.message : "Не удалось создать клиента");
-    }
-  };
-
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-    if (!formData.customer) {
-      newErrors.customer = "Выберите клиента";
-    }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+    setError("");
 
     try {
       const result = await createOrder.mutateAsync({
-        customer_id: formData.customer,
-        // Installation address
-        installation_address_city: formData.installation_address_city,
-        installation_address_street: formData.installation_address_street,
-        installation_address_building: formData.installation_address_building,
-        installation_address_apartment: formData.installation_address_apartment,
-        installation_address_notes: formData.installation_address_notes,
-        // Dates
-        measurement_date: formData.measurement_date || null,
-        planned_completion: formData.planned_completion || null,
-        // Notes
-        notes: formData.notes,
-        items: [], // Optional, but explicitly sent
+        customer_id: customerId,
+        measurement_date: measurementDate || null,
+        planned_completion: completionDate || null,
+        installation_address_city: city,
+        installation_address_street: street,
+        installation_address_building: building,
+        installation_address_apartment: apartment,
+        installation_address_notes: notes,
+        items: [],
       });
-
-      // Redirect to the created order detail
       router.push(`/orders/${result.id}`);
     } catch (err) {
-      console.error("Failed to create order:", err);
+      console.error("Create order failed:", err);
+      setError(err instanceof Error ? err.message : "Ошибка создания заказа");
     }
-  };
+  }
 
-  const isDirectCreation = !prefillSource;
+  function handleCustomerCreated(c: CustomerDTO) {
+    setCustomerId(c.id);
+    setCustomerName(c.full_name);
+    setShowNewCustomer(false);
+  }
+
+  /* Shared input styles */
+  const inputClass =
+    "w-full rounded-[10px] border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-[15px] text-[#0F172A] outline-none focus:border-[#0EA5E9] transition-colors placeholder:text-[#94A3B8]";
 
   return (
-    <>
-      <PageHeader
-        title={isDirectCreation ? "Новый заказ (напрямую)" : "Новый заказ"}
-        description={
-          isDirectCreation
-            ? "Создание заказа без КП — заполните данные клиента"
-            : `Создание заказа ${prefillRef ? `из ${prefillRef}` : ""}`
-        }
-      >
-        <Button asChild variant="outline">
-          <Link href="/orders">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            К заказам
-          </Link>
-        </Button>
-      </PageHeader>
+    <div className="min-h-screen bg-[#F0F4F8] flex items-start justify-center pt-8 pb-16">
+      <div className="w-full max-w-[560px] bg-white rounded-2xl shadow-sm overflow-hidden relative">
+        {/* Close button */}
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="absolute top-4 left-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg bg-[#0EA5E9] text-white hover:bg-[#0284C7] transition-colors"
+        >
+          <X size={18} />
+        </button>
 
-      {/* Mode Indicator Banner */}
-      {isDirectCreation && (
-        <div className="mb-6 p-4 bg-linear-to-r from-slate-50 to-slate-100 border border-slate-200 rounded-lg">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-slate-900 rounded-md shrink-0">
-              <FileText className="h-4 w-4 text-white" />
+        <form onSubmit={handleSubmit} className="px-[52px] pt-16 pb-10">
+          <h1 className="text-[28px] font-light text-[#0F172A] mb-8 italic">
+            Создание заказа
+          </h1>
+
+          {/* 1. Клиент */}
+          <div className="mb-6">
+            <label className="block text-[15px] text-[#0F172A] mb-2">
+              1. Клиент <span className="text-[#DC2626]">*</span>
+            </label>
+            {showNewCustomer ? (
+              <InlineNewCustomer
+                onCreated={handleCustomerCreated}
+                onCancel={() => setShowNewCustomer(false)}
+              />
+            ) : (
+              <CustomerSearch
+                value={customerId}
+                onChange={(id, name) => {
+                  setCustomerId(id);
+                  setCustomerName(name);
+                }}
+                onCreateNew={() => setShowNewCustomer(true)}
+              />
+            )}
+            {customerId && customerName && (
+              <p className="mt-1.5 text-[13px] text-[#16A34A]">✓ {customerName}</p>
+            )}
+          </div>
+
+          {/* 2. Дизайнер */}
+          <div className="mb-6">
+            <label className="block text-[15px] text-[#0F172A] mb-2">
+              2. Дизайнер
+            </label>
+            <div className="relative">
+              <select
+                className={`${inputClass} appearance-none pr-10`}
+                defaultValue=""
+              >
+                <option value="" disabled>Выберите дизайнера</option>
+                {/* TODO: загрузить список дизайнеров из API когда эндпоинт будет готов */}
+              </select>
+              <svg
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8]"
+                width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              >
+                <path d="m6 9 6 6 6-6"></path>
+              </svg>
+            </div>
+          </div>
+
+          {/* 3-4. Даты */}
+          <div className="grid grid-cols-2 gap-[18px] mb-6">
+            <div>
+              <label className="block text-[15px] text-[#0F172A] mb-2">
+                3. Дата замера
+              </label>
+              <input
+                type="date"
+                value={measurementDate}
+                onChange={(e) => setMeasurementDate(e.target.value)}
+                className={inputClass}
+              />
             </div>
             <div>
-              <h3 className="font-medium text-slate-900">Прямое создание заказа</h3>
-              <p className="text-sm text-slate-600 mt-1">
-                Вы создаете заказ без предварительного КП. Это полностью валидный рабочий процесс. 
-                После создания заказ попадёт в статус «Новый», затем можно добавить замеры, КП и принимать оплату.
-              </p>
+              <label className="block text-[15px] text-[#0F172A] mb-2">
+                4. Завершение
+              </label>
+              <input
+                type="date"
+                value={completionDate}
+                onChange={(e) => setCompletionDate(e.target.value)}
+                className={inputClass}
+              />
             </div>
           </div>
-        </div>
-      )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Main Form Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Основная информация
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Customer Selection with Inline Creation */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="customer">
-                  Клиент <span className="text-red-500">*</span>
-                </Label>
-                {!showNewCustomerForm && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowNewCustomerForm(true)}
-                    disabled={customersLoading}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Новый клиент
-                  </Button>
-                )}
-              </div>
-
-              {!showNewCustomerForm ? (
-                <Select
-                  value={formData.customer}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, customer: value }))
-                  }
-                  disabled={customersLoading}
-                >
-                  <SelectTrigger className={errors.customer ? "border-red-500" : ""}>
-                    <SelectValue
-                      placeholder={
-                        customersLoading ? "Загрузка клиентов..." : "Выберите клиента"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map((customer) => (
-                      <SelectItem key={customer.id} value={customer.id}>
-                        {customer.full_name} {customer.phone && `(${customer.phone})`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div className="space-y-3 p-3 bg-slate-50 rounded-lg border">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Новый клиент</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowNewCustomerForm(false)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      placeholder="Имя Фамилия *"
-                      value={newCustomerData.full_name}
-                      onChange={(e) =>
-                        setNewCustomerData((prev) => ({ ...prev, full_name: e.target.value }))
-                      }
-                    />
-                    <Input
-                      placeholder="Телефон *"
-                      value={newCustomerData.phone}
-                      onChange={(e) =>
-                        setNewCustomerData((prev) => ({ ...prev, phone: e.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      placeholder="Email"
-                      value={newCustomerData.email}
-                      onChange={(e) =>
-                        setNewCustomerData((prev) => ({ ...prev, email: e.target.value }))
-                      }
-                    />
-                    <Input
-                      placeholder="Город"
-                      value={newCustomerData.address_city}
-                      onChange={(e) =>
-                        setNewCustomerData((prev) => ({ ...prev, address_city: e.target.value }))
-                      }
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleCreateCustomer}
-                    disabled={
-                      createCustomer.isPending ||
-                      !newCustomerData.full_name.trim() ||
-                      !newCustomerData.phone.trim()
-                    }
-                    className="w-full"
-                  >
-                    {createCustomer.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Создание...
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Добавить и выбрать
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-              {errors.customer && (
-                <p className="text-sm text-red-500">{errors.customer}</p>
-              )}
-            </div>
-
-            {/* Measurement Date */}
-            <div className="space-y-2">
-              <Label htmlFor="measurement_date" className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Дата замера
-              </Label>
-              <Input
-                id="measurement_date"
-                type="date"
-                value={formData.measurement_date}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, measurement_date: e.target.value }))
-                }
+          {/* 5. Адрес установки */}
+          <div className="mb-8">
+            <label className="block text-[15px] text-[#0F172A] mb-2">
+              5. Адрес установки
+            </label>
+            <div className="grid grid-cols-2 gap-[18px] mb-[18px]">
+              <input
+                type="text"
+                placeholder="Город"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                className={inputClass}
+              />
+              <input
+                type="text"
+                placeholder="Улица"
+                value={street}
+                onChange={(e) => setStreet(e.target.value)}
+                className={inputClass}
               />
             </div>
-
-            {/* Planned Completion */}
-            <div className="space-y-2">
-              <Label htmlFor="planned_completion" className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Плановое завершение
-              </Label>
-              <Input
-                id="planned_completion"
-                type="date"
-                value={formData.planned_completion}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, planned_completion: e.target.value }))
-                }
+            <div className="grid grid-cols-2 gap-[18px] mb-[18px]">
+              <input
+                type="text"
+                placeholder="Дом"
+                value={building}
+                onChange={(e) => setBuilding(e.target.value)}
+                className={inputClass}
+              />
+              <input
+                type="text"
+                placeholder="Квартира"
+                value={apartment}
+                onChange={(e) => setApartment(e.target.value)}
+                className={inputClass}
               />
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Installation Address Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              Адрес установки
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="installation_address_city">Город</Label>
-                <Input
-                  id="installation_address_city"
-                  placeholder="Алматы"
-                  value={formData.installation_address_city}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, installation_address_city: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="installation_address_street">Улица</Label>
-                <Input
-                  id="installation_address_street"
-                  placeholder="ул. Примерная"
-                  value={formData.installation_address_street}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, installation_address_street: e.target.value }))
-                  }
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="installation_address_building">Дом</Label>
-                <Input
-                  id="installation_address_building"
-                  placeholder="12"
-                  value={formData.installation_address_building}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, installation_address_building: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="installation_address_apartment">Квартира</Label>
-                <Input
-                  id="installation_address_apartment"
-                  placeholder="45"
-                  value={formData.installation_address_apartment}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, installation_address_apartment: e.target.value }))
-                  }
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="installation_address_notes">Примечания к адресу</Label>
-              <Textarea
-                id="installation_address_notes"
-                placeholder="Подъезд, этаж, домофон..."
-                value={formData.installation_address_notes}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, installation_address_notes: e.target.value }))
-                }
-                rows={2}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Notes Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Примечания
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Textarea
-              placeholder="Описание заказа, особые пожелания клиента..."
-              value={formData.notes}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, notes: e.target.value }))
-              }
-              rows={4}
+            <input
+              type="text"
+              placeholder="Примечание"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className={inputClass}
             />
-          </CardContent>
-        </Card>
-
-        {/* Context Info (if prefill) */}
-        {prefillSource && (
-          <Card className="bg-blue-50 border-blue-200">
-            <CardContent className="pt-4">
-              <p className="text-sm text-blue-700">
-                <strong>Контекст:</strong> Заказ создается на основе{" "}
-                {prefillRef || prefillSource}. Клиент предзаполнен.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Submit Buttons */}
-        <div className="flex items-center gap-4">
-          <Button
-            type="submit"
-            size="lg"
-            disabled={createOrder.isPending || customersLoading}
-          >
-            {createOrder.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Создание...
-              </>
-            ) : (
-              "Создать заказ"
-            )}
-          </Button>
-          <Button type="button" variant="outline" size="lg" asChild>
-            <Link href="/orders">Отмена</Link>
-          </Button>
-        </div>
-
-        {/* Error Display */}
-        {createOrder.isError && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-sm text-red-600 font-medium">
-              Ошибка создания заказа
-            </p>
-            <div className="text-sm text-red-500 mt-1">
-              {(() => {
-                const err = createOrder.error;
-                if (!err) return "Проверьте данные и попробуйте снова.";
-                if (err instanceof Error) {
-                  try {
-                    const parsed = JSON.parse(err.message);
-                    if (typeof parsed === 'object' && parsed !== null) {
-                      return Object.entries(parsed).map(([field, messages]) => (
-                        <div key={field}>
-                          <strong>{field}:</strong> {Array.isArray(messages) ? messages.join(', ') : String(messages)}
-                        </div>
-                      ));
-                    }
-                  } catch {
-                    // Not JSON, show raw message
-                  }
-                  return err.message;
-                }
-                return "Проверьте данные и попробуйте снова.";
-              })()}
-            </div>
           </div>
-        )}
-      </form>
-    </>
+
+          {/* Error */}
+          {(error || createOrder.isError) && (
+            <div className="mb-4 rounded-[10px] bg-[#FEE2E2] px-4 py-3 text-[14px] text-[#DC2626]">
+              {error || (createOrder.error instanceof Error ? createOrder.error.message : "Ошибка")}
+            </div>
+          )}
+
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={createOrder.isPending}
+            className="w-full rounded-[10px] bg-gradient-to-r from-[#67D3F5] to-[#0EA5E9] py-3.5 text-[16px] font-medium text-white hover:from-[#0EA5E9] hover:to-[#0284C7] transition-all disabled:opacity-60"
+          >
+            {createOrder.isPending ? "Создание..." : "Создать"}
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }

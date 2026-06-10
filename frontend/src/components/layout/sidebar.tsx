@@ -13,8 +13,9 @@ import {
   PlusCircle,
   Ruler,
   Scissors,
+  Settings,
   Truck,
-  UserCog,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -26,14 +27,14 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   match?: string[];
-  roles?: WebRole[]; // if set, only show for these roles
+  roles?: WebRole[];
 }
 
 interface NavSection {
   title: string;
   items: NavItem[];
   muted?: boolean;
-  roles?: WebRole[]; // if set, only show section for these roles
+  roles?: WebRole[];
 }
 
 const ALL_NAV_SECTIONS: NavSection[] = [
@@ -42,6 +43,7 @@ const ALL_NAV_SECTIONS: NavSection[] = [
     items: [
       { title: "Сегодня", href: "/dashboard", icon: LayoutDashboard },
       { title: "Заказы", href: "/orders", icon: ClipboardList, match: ["/orders"] },
+      { title: "Клиенты", href: "/customers", icon: Users, match: ["/customers"] },
     ],
   },
   {
@@ -64,10 +66,9 @@ const ALL_NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: "Управление",
-    roles: ["owner"],
+    title: "Прочее",
     items: [
-      { title: "Рабочие места", href: "/role-workspaces", icon: UserCog },
+      { title: "Настройки", href: "/settings", icon: Settings },
     ],
   },
 ];
