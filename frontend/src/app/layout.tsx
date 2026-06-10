@@ -1,21 +1,38 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/layout/app-shell";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const ttNormsPro = localFont({
+  src: [
+    {
+      path: "../../public/fonts/TTNormsPro-Regular.ttf",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/TTNormsPro-Medium.ttf",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/TTNormsPro-Bold.ttf",
+      weight: "700",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/TTNormsPro-ExtraBold.ttf",
+      weight: "800",
+      style: "normal",
+    },
+  ],
+  variable: "--font-tt-norms",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Atelier ERP",
+  title: "Sheber ERP",
   description: "ERP система для ателье по пошиву штор",
 };
 
@@ -27,7 +44,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${ttNormsPro.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-[#F0F4F8]">
         <Providers>

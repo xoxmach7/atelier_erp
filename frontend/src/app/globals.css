@@ -7,8 +7,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-tt-norms);
+  --font-mono: var(--font-tt-norms);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -100,14 +100,15 @@
   --input-bg: #F8FAFC;
 
   /* Status Colors */
-  --ok: #16A34A;
+  --ok: #32ED51;            /* В работе, Готов */
   --ok-bg: #DCFCE7;
-  --warn: #D97706;
-  --warn-bg: #FEF3C7;
-  --err: #DC2626;
+  --warn: #EBDD1D;          /* Ожидание */
+  --warn-bg: #FEF9C3;
+  --err: #DC2626;            /* Просрочено, Отменён */
   --err-bg: #FEE2E2;
   --pur: #7C3AED;
   --pur-bg: #EDE9FE;
+  --table-header: #60CCED;   /* Шапки таблиц */
 }
 
 .dark {
@@ -149,7 +150,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-[var(--bg)] text-[var(--t1)];
   }
   html {
     @apply font-sans;

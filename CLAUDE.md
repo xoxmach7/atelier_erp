@@ -66,6 +66,10 @@
 | 29 | Frontend: dashboard redesign (Прибыль/Выручка/Расходы, stat cards) | done 2026-06-09 |
 | 30 | Vercel deploy (Next.js фронт) | done 2026-06-10 ✅ (Framework Preset=Next.js, webpack build, CORS+CSRF обновлены)
 | 31 | API: добавить customers/payments/measurements ViewSets + фикс v1 URL-префиксов | done 2026-06-10 (ecdea8e) ✅ (Framework Preset=Next.js, webpack build, CORS+CSRF обновлены) |
+| 32 | Frontend: customers page, orders filters+Suspense fix, settings, sidebar cleanup | done 2026-06-10 (56328a6) |
+| 33 | orders/[id] редизайн v4 (Sheber дизайн, 4290→822 строки, InfoGrid+2-col+actions) | done 2026-06-10 (e21fddd) |
+| 34 | /workspace рабочий стол для всех ролей + sidebar link | done 2026-06-10 (e21fddd) |
+| 35 | status-text.tsx + globals.css — токены и статусы по Figma | done 2026-06-10 |
 | 17 | P4-ARCH: Multi-tenancy (Tenant модель + изоляция) | TODO — до второго клиента |
 | 18 | P4-OPS: Email-уведомления (SendGrid/SMTP) | TODO — после первого клиента |
 | 21 | P5: Автоматический онбординг нового ателье | TODO — после 5 клиентов |
