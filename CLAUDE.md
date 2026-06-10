@@ -64,7 +64,8 @@
 | 27 | ensure_superuser + Dockerfile автозапуск on deploy | done 2026-06-09 |
 | 28 | Frontend: orders redesign (Figma, Дизайнер col, hide in_production) | done 2026-06-09 |
 | 29 | Frontend: dashboard redesign (Прибыль/Выручка/Расходы, stat cards) | done 2026-06-09 |
-| 30 | Vercel deploy (Next.js фронт) | done 2026-06-10 ✅ (Framework Preset=Next.js, webpack build, CORS+CSRF обновлены) |
+| 30 | Vercel deploy (Next.js фронт) | done 2026-06-10 ✅ (Framework Preset=Next.js, webpack build, CORS+CSRF обновлены)
+| 31 | API: добавить customers/payments/measurements ViewSets + фикс v1 URL-префиксов | done 2026-06-10 (ecdea8e) ✅ (Framework Preset=Next.js, webpack build, CORS+CSRF обновлены) |
 | 17 | P4-ARCH: Multi-tenancy (Tenant модель + изоляция) | TODO — до второго клиента |
 | 18 | P4-OPS: Email-уведомления (SendGrid/SMTP) | TODO — после первого клиента |
 | 21 | P5: Автоматический онбординг нового ателье | TODO — после 5 клиентов |

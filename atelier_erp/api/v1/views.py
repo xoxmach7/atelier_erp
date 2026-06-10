@@ -8,7 +8,7 @@ from decimal import Decimal
 
 from django.db.models import Q, F, Exists, OuterRef, ExpressionWrapper, DecimalField
 from dateutil.relativedelta import relativedelta
-from rest_framework import viewsets, status, filters, serializers
+from rest_framework import viewsets, status, filters
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -35,6 +35,7 @@ from .serializers import (
     OrderListSerializer, OrderDetailSerializer, OrderCreateSerializer, OrderUpdateSerializer, OrderStatusUpdateSerializer,
     MeasurementSerializer, MeasurementCreateSerializer,
     PaymentSerializer,
+    CustomerSerializer,
     QuoteSerializer, QuoteCreateSerializer,
     OrderMaterialSerializer, OrderMaterialUpdateSerializer,
     ChangeStatusSerializer, ChangeMaterialReadinessSerializer, ChangeProductionStageSerializer,
@@ -2065,15 +2066,6 @@ class QuoteViewSet(viewsets.ModelViewSet):
 # ---------------------------------------------------------------------------
 # Customer ViewSet
 # ---------------------------------------------------------------------------
-
-class CustomerSerializer(serializers.ModelSerializer):
-    """Full customer serializer for /v1/customers/"""
-    class Meta:
-        model = Customer
-        fields = ['id', 'full_name', 'phone', 'email', 'address_city',
-                  'address_street', 'notes', 'is_active', 'created_at']
-        read_only_fields = ['id', 'created_at']
-
 
 class CustomerViewSet(viewsets.ModelViewSet):
     """

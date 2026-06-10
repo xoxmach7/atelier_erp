@@ -47,6 +47,15 @@ class CustomerMinimalSerializer(serializers.ModelSerializer):
         fields = ['id', 'full_name', 'phone']
 
 
+class CustomerSerializer(serializers.ModelSerializer):
+    """Full customer serializer for /api/v1/customers/"""
+    class Meta:
+        model = Customer
+        fields = ['id', 'full_name', 'phone', 'email', 'address_city',
+                  'address_street', 'notes', 'is_active', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
 class OrderItemSerializer(serializers.ModelSerializer):
     """Order item serializer"""
     fabric_name = serializers.CharField(source='fabric.name', read_only=True)
