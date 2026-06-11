@@ -773,4 +773,7 @@ class OrderCompletionActUploadSerializer(serializers.Serializer):
         content_type = value.content_type
         if content_type not in self.ALLOWED_TYPES:
             raise serializers.ValidationError(
-                f'Разрешены только PDF и изображения (JPEG, PNG, WebP). Получено: {content_typ
+                f'Разрешены только PDF и изображения (JPEG, PNG, WebP). Получено: {content_type}'
+            )
+
+        return value
