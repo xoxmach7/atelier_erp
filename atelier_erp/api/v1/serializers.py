@@ -78,6 +78,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
         model = OrderItem
         fields = [
             'id', 'item_type', 'notes',
+            'room_name', 'window_name',
             'fabric', 'fabric_name', 'quantity',
             'cornice', 'service',
             'unit_price', 'total_price',

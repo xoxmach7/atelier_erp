@@ -41,6 +41,7 @@ import {
   useCancelOrder,
 } from "@/hooks/useOrders";
 import { useRole } from "@/hooks/useRole";
+import { useCreatePayment } from "@/hooks/usePayments";
 import type {
   OrderDetailDTO,
   OrderItemDTO,
@@ -435,6 +436,10 @@ export default function OrderDetailPage() {
   const [productionModalOpen, setProductionModalOpen] = useState(false);
   const [measurementModalOpen, setMeasurementModalOpen] = useState(false);
   const [kpModalOpen, setKPModalOpen] = useState(false);
+  const [prepayModalOpen, setPrepayModalOpen] = useState(false);
+  const [prepayAmount, setPrepayAmount] = useState("");
+  const [prepayMethod, setPrepayMethod] = useState<"cash" | "card" | "transfer" | "kaspi">("cash");
+  const [prepayLoading, setPrepayLoading] = useState(false);
   const [ownerViewRole, setOwnerViewRole] = useState<"designer" | "warehouse" | "production" | "installation">("designer");
 
   /* ---- guard against literal [id] placeholder in URL ---- */
@@ -459,7 +464,7 @@ export default function OrderDetailPage() {
     );
   }
 
-  const { data: order, isLoading, error } = useOrder(orderId);
+  const { data: order, isLoading, error, refetch: refetchOrder } = useOrder(orderId);
   const {
     data: execution,
     refetch: refetchExecution,
@@ -471,6 +476,29 @@ export default function OrderDetailPage() {
   const changeProductionMutation  = useChangeProductionStage();
   const changeHandoverMutation    = useChangeHandoverStage();
   const cancelMutation            = useCancelOrder();
+  const createPaymentMutation     = useCreatePayment();
+
+  const handlePrepaySubmit = async () => {
+    const amount = parseFloat(prepayAmount.replace(/\s/g, "").replace(",", "."));
+    if (!amount || amount <= 0) return;
+    setPrepayLoading(true);
+    try {
+      await createPaymentMutation.mutateAsync({
+        order: orderId,
+        amount: String(amount),
+        payment_type: "prepayment",
+        payment_method: prepayMethod,
+      });
+      setPrepayModalOpen(false);
+      setPrepayAmount("");
+      await refetchOrder();
+    } catch {
+      setActionError("Ошибка при записи предоплаты");
+    } finally {
+      setPrepayLoading(false);
+    }
+  };
+
   /* ---- action dispatcher ---- */
   const handleAction = async (action: AvailableActionDTO) => {
     setActionError(null);
@@ -725,9 +753,9 @@ export default function OrderDetailPage() {
 
           {/* ── Info grid ───────────────────────────────────────── */}
           <div className="px-[52px] pb-8">
-            <div className="rounded-xl border border-[#E2E8F0] p-6">
+            <div className="rounded-xl border border-[#0EA5E9] p-6">
               <div className="flex items-center justify-center gap-2 mb-5">
-                <Info size={16} className="text-[#94A3B8]" />
+                <Info size={16} className="text-[#0EA5E9]" />
                 <span className="text-[15px] font-medium text-[#0F172A]">Информация</span>
               </div>
               <div className="flex items-start justify-between divide-x divide-[#F1F5F9]">
@@ -785,6 +813,7 @@ export default function OrderDetailPage() {
                       <Plus size={12} /> Добавить
                     </button>
                     <button
+                      onClick={() => setPrepayModalOpen(true)}
                       className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#DBEAFE] text-[#2563EB] hover:bg-[#BFDBFE] transition-colors"
                     >
                       <Wallet size={12} /> Предоплата
@@ -813,22 +842,12 @@ export default function OrderDetailPage() {
                         {fmtCurrency(order.total_amount)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-8 mt-6 text-[14px] text-[#0F172A]">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[#475569]">Размер предоплаты:</span>
-                        <div className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 bg-[#F8FAFC] min-w-[50px] text-center">
-                          {prepayPercent}
-                        </div>
-                        <span className="text-[#94A3B8]">%</span>
+                    {paid > 0 && (
+                      <div className="mt-3 text-[13px] text-[#475569]">
+                        Внесено: <span className="font-medium text-[#0F172A]">{paid.toLocaleString("ru-RU")} ₸</span>
+                        {order.total_amount && <span className="text-[#94A3B8]"> ({prepayPercent}%)</span>}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[#475569]">Внесено:</span>
-                        <div className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 bg-[#F8FAFC] min-w-[90px]">
-                          {paid > 0 ? paid.toLocaleString("ru-RU") : "0"}
-                        </div>
-                        <span className="text-[#94A3B8]">₸</span>
-                      </div>
-                    </div>
+                    )}
                   </>
                 )}
               </div>
@@ -844,22 +863,6 @@ export default function OrderDetailPage() {
             </div>
           </div>
 
-          {/* ── Quick links ──────────────────────────────────────── */}
-          {quickLinks.length > 0 && (
-            <div className="border-t border-[#F1F5F9] px-[52px] py-4">
-              <div className="flex items-center gap-6">
-                {quickLinks.map((l) => (
-                  <Link
-                    key={l.href}
-                    href={l.href}
-                    className="text-[14px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
-                  >
-                    {l.label}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -896,33 +899,74 @@ export default function OrderDetailPage() {
         }}
       />
 
-      {/* ── Cancel / Delete confirm ────────────────────────────── */}
+      {/* ── Prepay Modal ──────────────────────────────────────── */}
+      <Dialog open={prepayModalOpen} onOpenChange={setPrepayModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Предоплата overlay</DialogTitle>
+            <DialogDescription />
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex items-center gap-3">
+              <label className="text-[14px] text-[#475569] whitespace-nowrap">Сумма:</label>
+              <input
+                type="text"
+                value={prepayAmount}
+                onChange={(e) => setPrepayAmount(e.target.value)}
+                placeholder="173 000"
+                className="flex-1 rounded-lg border border-[#E2E8F0] px-3 py-2 text-[14px] focus:outline-none focus:border-[#0EA5E9]"
+              />
+              <span className="text-[14px] text-[#94A3B8]">₸</span>
+            </div>
+                        <div className="flex items-center gap-3">
+              <label className="text-[14px] text-[#475569] whitespace-nowrap">Способ:</label>
+              <select
+                value={prepayMethod}
+                onChange={(e) => setPrepayMethod(e.target.value as typeof prepayMethod)}
+                className="flex-1 rounded-lg border border-[#E2E8F0] px-3 py-2 text-[14px] focus:outline-none focus:border-[#0EA5E9]"
+              >
+                <option value="cash">Наличные</option>
+                <option value="card">Карта</option>
+                <option value="transfer">Перевод</option>
+                <option value="kaspi">Kaspi</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              onClick={handlePrepaySubmit}
+              disabled={prepayLoading || !prepayAmount}
+              className="w-full py-2.5 rounded-xl bg-[#0EA5E9] text-white text-[14px] font-semibold hover:bg-[#0284C7] disabled:opacity-50 transition-colors"
+            >
+              {prepayLoading ? "Сохранение..." : "Сохранить"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Cancel / Delete confirm ──────────────────────────────── */}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Отменить заказ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Заказ №{order.order_number} будет отменён. Это действие нельзя отменить.
+              Заказ будет отменён. Это действие нельзя отменить.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="px-6 pb-2">
-            <Textarea
-              placeholder="Укажите причину отмены..."
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
-              className="min-h-[80px] text-[14px]"
-            />
-          </div>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { setCancelReason(""); setActionError(null); }}>
-              Нет, оставить
-            </AlertDialogCancel>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleCancel}
-              disabled={cancelMutation.isPending}
-              className="bg-[#DC2626] hover:bg-[#B91C1C] text-white"
+              onClick={async () => {
+                try {
+                  await cancelMutation.mutateAsync({ orderId, data: { reason: cancelReason } });
+                  router.push("/orders");
+                } catch {
+                  setActionError("Ошибка при отмене заказа");
+                }
+              }}
+              className="bg-[#DC2626] hover:bg-[#B91C1C]"
             >
-              {cancelMutation.isPending ? "Отмена..." : "Да, отменить"}
+              Отменить заказ
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -78,6 +78,14 @@
 | 24 | Fix Order._generate_order_number() race condition (убрать, оставить только numbering.py) | done 2026-06-09 |
 | 25 | Fix seed_pilot --reset ProtectedError (PROTECT FK на ProductionAssignment + SeamstressPayment) | done 2026-06-09 |
 | 26 | Проверить CORS_ALLOWED_ORIGINS в Railway Variables (LAN-IP в дефолте) | done 2026-06-09 |
+| A1 | designer_name в OrderDetailSerializer | done 2026-06-11 (3231a3d) |
+| A2 | ui_badge + status_display в OrderListItemDTO типе | done 2026-06-11 (3231a3d) |
+| A3 | Баг дублей ключей в get_production_stage_label | done 2026-06-11 (3231a3d) |
+| A4 | /workspace в ROLE_ALLOWED_PATHS для всех ролей | done 2026-06-11 (3231a3d) |
+| C1 | Удалить мёртвый api/serializers.py (дублировал v1/serializers.py) | done 2026-06-11 (3231a3d) |
+| C2 | Удалить пустые папки (dashboard) и устаревший /production | done 2026-06-11 (3231a3d) |
+| C3 | Объединить STATUS_COLOR — lib/status-colors.ts единый источник | done 2026-06-11 (3231a3d) |
+| C4 | Удалить legacy FSM entries + DEPRECATED execution_info endpoint | done 2026-06-11 (3231a3d) |
 
 
 ## Vercel (фронтенд деплой) — состояние на 2026-06-09
@@ -95,7 +103,7 @@
 - Все правки файлов: `python3 -c "open(path,'w').write(content)"` через bash
 - Git операции — только из терминала пользователя, не из sandbox
 
-## Тесты (зелёные MVP, 20 штук)
+## Тесты (зелёные MVP, 41 штука)
 ```
 python manage.py test --settings=atelier_erp.settings_test \
   atelier_erp.tests.test_order_lifecycle_v1_api \
