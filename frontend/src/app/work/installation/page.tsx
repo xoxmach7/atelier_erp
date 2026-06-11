@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { ErrorState, LoadingState } from "@/components/shared";
 import { Button } from "@/components/ui/button";
@@ -25,7 +24,8 @@ function InstallationCard({ task }: { task: InstallationTask }) {
           <StatusPill label={task.photo_report_count > 0 ? `фото: ${task.photo_report_count}` : "фото нет"} tone={task.photo_report_count > 0 ? "green" : "amber"} />
           <StatusPill label={task.completion_act_status === "missing" ? "АВР нет" : "АВР создан"} tone={task.completion_act_status === "missing" ? "amber" : "green"} />
           <StatusPill label={task.signed_act_uploaded ? "подписан" : "подпись нужна"} tone={task.signed_act_uploaded ? "green" : "amber"} />
-          <Button asChild size="sm"><Link href={`/orders/${task.id}?view=installation`}>Открыть заказ</Link></Button>
+          {task.handover_stage_label === "Ожидает" && <Button size="sm">Начать установку</Button>}
+          {task.handover_stage_label === "В процессе" && <Button size="sm" className="bg-[#16A34A] hover:bg-[#15803D] text-white">Установка завершена</Button>}
         </div>
       </CardContent>
     </Card>
@@ -45,31 +45,17 @@ function InstallationWorkspace() {
       <WorkspaceHeader title="Установка" description="Куда ехать, кому звонить, что установить и что закрыть после установки." />
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <TaskSection title="Готово к выезду" count={data?.ready_for_installation.length || 0}>
+        <TaskSection title="Готово к установке" count={(data?.ready_for_installation.length || 0) + (data?.in_installation.length || 0)}>
           <div className="grid gap-3">
-            {data?.ready_for_installation.map((task) => <InstallationCard key={task.id} task={task} />)}
-            {!data?.ready_for_installation.length ? <EmptyRoleState text="Нет заказов, готовых к установке." /> : null}
-          </div>
-        </TaskSection>
-
-        <TaskSection title="В установке" count={data?.in_installation.length || 0}>
-          <div className="grid gap-3">
-            {data?.in_installation.map((task) => <InstallationCard key={task.id} task={task} />)}
-            {!data?.in_installation.length ? <EmptyRoleState text="Нет активных установок." /> : null}
+            {[...(data?.ready_for_installation ?? []), ...(data?.in_installation ?? [])].map((task) => <InstallationCard key={task.id} task={task} />)}
+            {!(data?.ready_for_installation.length || data?.in_installation.length) ? <EmptyRoleState text="Нет заказов, готовых к установке." /> : null}
           </div>
         </TaskSection>
 
         <TaskSection title="Нужны фото или АВР" count={data?.needs_photo_or_avr.length || 0}>
           <div className="grid gap-3">
             {data?.needs_photo_or_avr.map((task) => <InstallationCard key={task.id} task={task} />)}
-            {!data?.needs_photo_or_avr.length ? <EmptyRoleState text="Нет заказов с незакрытыми фото или АВР." /> : null}
-          </div>
-        </TaskSection>
-
-        <TaskSection title="После установки" count={data?.waiting_final_payment.length || 0}>
-          <div className="grid gap-3">
-            {data?.waiting_final_payment.map((task) => <InstallationCard key={task.id} task={task} />)}
-            {!data?.waiting_final_payment.length ? <EmptyRoleState text="Нет заказов после установки." /> : null}
+            {!data?.needs_photo_or_avr.length ? <EmptyRoleState text="Нет незакрытых фото или АВР." /> : null}
           </div>
         </TaskSection>
       </div>

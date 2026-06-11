@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, ChevronUp, ArrowLeft, Info, Clock } from "lucide-react";
+import { ChevronDown, ChevronUp, ArrowLeft, Info, Clock, Plus, FileText, Wallet } from "lucide-react";
+import { CreateMeasurementModal } from "@/components/shared/create-measurement-modal";
+import { CreateKPModal } from "@/components/shared/create-kp-modal";
+import { MyTaskCard } from "@/components/shared/my-task-card";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { LoadingState } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
@@ -430,6 +433,9 @@ export default function OrderDetailPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [productionModalOpen, setProductionModalOpen] = useState(false);
+  const [measurementModalOpen, setMeasurementModalOpen] = useState(false);
+  const [kpModalOpen, setKPModalOpen] = useState(false);
+  const [ownerViewRole, setOwnerViewRole] = useState<"designer" | "warehouse" | "production" | "installation">("designer");
 
   /* ---- guard against literal [id] placeholder in URL ---- */
   if (
@@ -638,6 +644,85 @@ export default function OrderDetailPage() {
             )}
           </div>
 
+          {/* ── Role view for non-owners ─────────────────────── */}
+          {role !== "owner" && (
+            <div className="px-[52px] pb-2">
+              <MyTaskCard
+                order={order}
+                execution={execution}
+                onOpenMeasurement={() => setMeasurementModalOpen(true)}
+                onOpenKP={() => setKPModalOpen(true)}
+              />
+            </div>
+          )}
+
+          {/* ── Owner: role switcher ──────────────────────────── */}
+          {role === "owner" && (
+            <div className="px-[52px] pb-6">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-[var(--t3)] mb-2">
+                Режим просмотра
+              </div>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {(["designer","warehouse","production","installation"] as const).map((r) => {
+                  const labels: Record<string, string> = { designer: "Дизайнер", warehouse: "Склад", production: "Пошив", installation: "Установка" };
+                  return (
+                    <button
+                      key={r}
+                      onClick={() => setOwnerViewRole(r)}
+                      className={`px-4 py-1.5 rounded-lg text-[13px] font-medium transition-colors border ${
+                        ownerViewRole === r
+                          ? "bg-[var(--a)] text-white border-[var(--a)]"
+                          : "bg-white text-[var(--t2)] border-[#E2E8F0] hover:border-[var(--a)]"
+                      }`}
+                    >
+                      {labels[r]}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Task summary for selected role */}
+              {(() => {
+                const hasMeasurements = (order.measurements?.length ?? 0) > 0;
+                const hasQuote = order.source_quote != null || ((order as any).related_quotes?.length ?? 0) > 0;
+                const matReady = order.material_readiness;
+                const prodStage = execution?.production_stage ?? "not_started";
+
+                type Summary = { title: string; desc: string; done: boolean };
+                const summaries: Record<string, Summary> = {
+                  designer: !hasMeasurements
+                    ? { title: "Нужен замер", desc: "Замер ещё не добавлен", done: false }
+                    : !hasQuote
+                    ? { title: "Нужно КП", desc: "Замер есть — КП не создано", done: false }
+                    : { title: "Готово", desc: "Замер и КП готовы", done: true },
+                  warehouse: matReady === "ready"
+                    ? { title: "Материалы готовы", desc: "Все обеспечены", done: true }
+                    : matReady === "partially_ready"
+                    ? { title: "Частично", desc: "Часть в закупке", done: false }
+                    : { title: "Не готово", desc: "Материалы не обеспечены", done: false },
+                  production: prodStage === "done"
+                    ? { title: "Пошив завершён", desc: "Готово к передаче", done: true }
+                    : prodStage !== "not_started"
+                    ? { title: "В пошиве", desc: "Изделия в работе", done: false }
+                    : { title: "Не начат", desc: "Ожидает материалов", done: false },
+                  installation: ["completed","waiting_final_payment"].includes(order.status)
+                    ? { title: "Установка завершена", desc: "Работа выполнена", done: true }
+                    : order.status === "on_installation"
+                    ? { title: "На установке", desc: "Идёт установка", done: false }
+                    : order.status === "ready"
+                    ? { title: "Готов к выезду", desc: "Ждёт установщика", done: false }
+                    : { title: "Ожидание", desc: "Заказ ещё не готов", done: false },
+                };
+                const s = summaries[ownerViewRole];
+                return (
+                  <div className={`rounded-xl border-l-4 px-5 py-4 ${s.done ? "border-l-[var(--ok)] bg-[#DCFCE7]/50" : "border-l-[var(--a)] bg-white shadow-sm"}`}>
+                    <div className="text-[15px] font-semibold text-[var(--t1)]">{s.title}</div>
+                    <div className="text-[12px] text-[var(--t2)] mt-0.5">{s.desc}</div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
           {/* ── Info grid ───────────────────────────────────────── */}
           <div className="px-[52px] pb-8">
             <div className="rounded-xl border border-[#E2E8F0] p-6">
@@ -675,27 +760,7 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* ── Available actions ────────────────────────────────── */}
-          {availableActions.length > 0 && (
-            <div className="px-[52px] pb-6">
-              <div className="flex flex-wrap gap-3">
-                {availableActions.map((action, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleAction(action)}
-                    disabled={
-                      changeStatusMutation.isPending ||
-                      changeMaterialMutation.isPending ||
-                      changeHandoverMutation.isPending
-                    }
-                    className="px-5 py-2 rounded-lg bg-[#0EA5E9] text-white text-[13px] font-medium hover:bg-[#0284C7] transition-colors disabled:opacity-50"
-                  >
-                    {actionLabel(action)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+
 
           {/* ── Positions + History ──────────────────────────────── */}
           <div className="px-[52px] pb-10">
@@ -709,6 +774,29 @@ export default function OrderDetailPage() {
                   </svg>
                   <span className="text-[16px] font-medium text-[#0F172A]">Позиции</span>
                 </div>
+
+                {/* Action pill buttons */}
+                {isOwnerOrDesigner && (
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      onClick={() => setMeasurementModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#DCFCE7] text-[#16A34A] hover:bg-[#BBF7D0] transition-colors"
+                    >
+                      <Plus size={12} /> Добавить
+                    </button>
+                    <button
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#DBEAFE] text-[#2563EB] hover:bg-[#BFDBFE] transition-colors"
+                    >
+                      <Wallet size={12} /> Предоплата
+                    </button>
+                    <button
+                      onClick={() => setKPModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#DCFCE7] text-[#16A34A] hover:bg-[#BBF7D0] transition-colors"
+                    >
+                      <FileText size={12} /> Создать КП
+                    </button>
+                  </div>
+                )}
 
                 {items.length === 0 ? (
                   <p className="text-[14px] text-[#94A3B8] italic py-4">
@@ -783,6 +871,28 @@ export default function OrderDetailPage() {
         onSuccess={async () => {
           setProductionModalOpen(false);
           await refetchExecution();
+        }}
+      />
+
+      {/* ── Measurement Modal ──────────────────────────────────── */}
+      <CreateMeasurementModal
+        isOpen={measurementModalOpen}
+        onClose={() => setMeasurementModalOpen(false)}
+        orderId={orderId}
+        onSuccess={() => {
+          setMeasurementModalOpen(false);
+        }}
+      />
+
+      {/* ── KP (Quote) Modal ───────────────────────────────────── */}
+      <CreateKPModal
+        isOpen={kpModalOpen}
+        onClose={() => setKPModalOpen(false)}
+        orderId={orderId}
+        order={order}
+        onSuccess={(quoteId) => {
+          setKPModalOpen(false);
+          router.push(`/estimate?quote=${quoteId}`);
         }}
       />
 

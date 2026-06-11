@@ -1,6 +1,5 @@
 "use client";
-
-import Link from "next/link";
+
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { ErrorState, LoadingState } from "@/components/shared";
 import { Button } from "@/components/ui/button";
@@ -18,7 +17,8 @@ function ProductionCard({ task }: { task: ProductionTask }) {
         <div className="flex flex-wrap items-center gap-2">
           {task.actions.can_start_sewing ? <StatusPill label="следующее: начать пошив" tone="green" /> : null}
           {task.actions.can_mark_done ? <StatusPill label="следующее: отметить готово" tone="amber" /> : null}
-          <Button asChild size="sm"><Link href={`/orders/${task.id}?view=production`}>Открыть заказ</Link></Button>
+          {task.actions.can_start_sewing && <Button size="sm">Начать пошив</Button>}
+          {task.actions.can_mark_done && <Button size="sm" className="bg-[#16A34A] hover:bg-[#15803D] text-white">Отметить готово</Button>}
         </div>
       </CardContent>
     </Card>

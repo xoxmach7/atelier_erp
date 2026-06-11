@@ -25,3 +25,8 @@ export {
   type DraftStatusCardProps,
   type WorkflowInfoCardProps,
 } from "./draft-status";
+
+// Sprint 10: Modal forms + Task card
+export { CreateMeasurementModal } from "./create-measurement-modal";
+export { CreateKPModal } from "./create-kp-modal";
+export { MyTaskCard } from "./my-task-card";
