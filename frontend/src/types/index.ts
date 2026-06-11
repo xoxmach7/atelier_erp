@@ -221,6 +221,8 @@ export interface OrderCreateDTO {
   planned_completion?: string | null;
   // Notes
   notes?: string;
+  // Responsible user
+  responsible_user_id?: number;
 }
 
 /**

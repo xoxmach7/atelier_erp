@@ -2131,3 +2131,33 @@ class MeasurementViewSet(viewsets.ModelViewSet):
             mounting_type=data.get('mounting_type', ''),
             notes=data.get('comment', ''),
         )
+
+
+class StaffListView(APIView):
+    """GET /api/v1/staff/?role=designer — list users by role group.
+    Used by frontend to populate designer selects.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.contrib.auth.models import User, Group
+        role = request.query_params.get('role', '')
+        if role:
+            try:
+                group = Group.objects.get(name=role)
+                users = User.objects.filter(groups=group, is_active=True).order_by('last_name', 'first_name')
+            except Group.DoesNotExist:
+                users = User.objects.none()
+        else:
+            # All active staff
+            users = User.objects.filter(is_active=True).order_by('last_name', 'first_name')
+
+        data = [
+            {
+                'id': u.id,
+                'username': u.username,
+                'full_name': f"{u.first_name} {u.last_name}".strip() or u.username,
+            }
+            for u in users
+        ]
+        return Response(data)

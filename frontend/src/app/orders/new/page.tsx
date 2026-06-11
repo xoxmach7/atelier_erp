@@ -6,6 +6,7 @@ import { X, Search, User, Loader2, Plus } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { LoadingState } from "@/components/shared/loading-state";
 import { useCreateOrder } from "@/hooks/useOrders";
+import { useStaff } from "@/hooks/useStaff";
 import { useCustomers, useCreateCustomer } from "@/hooks/useCustomers";
 import type { CustomerDTO } from "@/hooks/useCustomers";
 
@@ -174,12 +175,14 @@ function NewOrderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const createOrder = useCreateOrder();
+  const { data: designers = [] } = useStaff("designer");
 
   const prefillCustomer = searchParams.get("customer");
 
   const [customerId, setCustomerId] = useState(prefillCustomer || "");
   const [customerName, setCustomerName] = useState("");
   const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const [responsibleUserId, setResponsibleUserId] = useState<string>("");
 
   // Form fields
   const [measurementDate, setMeasurementDate] = useState("");
@@ -203,6 +206,7 @@ function NewOrderContent() {
     try {
       const result = await createOrder.mutateAsync({
         customer_id: customerId,
+        responsible_user_id: responsibleUserId ? parseInt(responsibleUserId) : undefined,
         measurement_date: measurementDate || null,
         planned_completion: completionDate || null,
         installation_address_city: city,
@@ -274,15 +278,20 @@ function NewOrderContent() {
           {/* 2. Дизайнер */}
           <div className="mb-6">
             <label className="block text-[15px] text-[#0F172A] mb-2">
-              2. Дизайнер
+              2. Ответственный
             </label>
             <div className="relative">
               <select
                 className={`${inputClass} appearance-none pr-10`}
-                defaultValue=""
+                value={responsibleUserId}
+                onChange={(e) => setResponsibleUserId(e.target.value)}
               >
-                <option value="" disabled>Выберите дизайнера</option>
-                {/* TODO: загрузить список дизайнеров из API когда эндпоинт будет готов */}
+                <option value="">Не назначен</option>
+                {designers.map((d) => (
+                  <option key={d.id} value={String(d.id)}>
+                    {d.full_name}
+                  </option>
+                ))}
               </select>
               <svg
                 className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8]"

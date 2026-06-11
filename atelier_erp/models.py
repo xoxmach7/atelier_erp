@@ -417,6 +417,17 @@ class Order(UUIDModel, AuditedModel):
     # Notes
     notes = models.TextField(blank=True)
     
+    # Responsible user (designer/owner assigned to this order)
+    responsible_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='responsible_orders',
+        db_index=True,
+        help_text='Designer or owner responsible for this order'
+    )
+
     # Cancellation tracking
     cancel_reason = models.TextField(blank=True, help_text='Reason for order cancellation')
     cancelled_at = models.DateTimeField(null=True, blank=True, db_index=True)

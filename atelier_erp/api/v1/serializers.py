@@ -106,10 +106,11 @@ class OrderListSerializer(serializers.ModelSerializer):
         read_only_fields = ['order_number', 'created_at']
 
     def get_designer_name(self, obj) -> str:
-        user = getattr(obj, 'created_by', None)
+        user = obj.responsible_user or getattr(obj, 'created_by', None)
         if not user:
             return ""
-        return user.last_name or user.get_full_name() or user.username
+        full = f"{user.first_name} {user.last_name}".strip()
+        return full or user.username
 
     def get_ui_badge(self, obj) -> dict:
         return compute_ui_badge(obj)
@@ -323,9 +324,10 @@ class OrderDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ['order_number', 'created_at', 'updated_at']
     
     def get_designer_name(self, obj: Order) -> str:
-        if obj.created_by:
-            full = f"{obj.created_by.first_name} {obj.created_by.last_name}".strip()
-            return full or obj.created_by.username
+        user = obj.responsible_user or obj.created_by
+        if user:
+            full = f"{user.first_name} {user.last_name}".strip()
+            return full or user.username
         return ''
 
     def get_material_readiness_label(self, obj: Order) -> str:
@@ -431,7 +433,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             'notes', 'planned_completion',
             'installation_address_city', 'installation_address_street',
             'installation_address_building', 'installation_address_apartment',
-            'installation_address_notes', 'measurement_date'
+            'installation_address_notes', 'measurement_date', 'responsible_user_id'
         ]
 
     def validate(self, data):
@@ -477,7 +479,7 @@ class OrderUpdateSerializer(serializers.ModelSerializer):
             'notes', 'planned_completion',
             'installation_address_city', 'installation_address_street',
             'installation_address_building', 'installation_address_apartment',
-            'installation_address_notes',
+            'installation_address_notes', 'responsible_user_id',
         ]
 
     def update(self, instance, validated_data):
@@ -771,7 +773,4 @@ class OrderCompletionActUploadSerializer(serializers.Serializer):
         content_type = value.content_type
         if content_type not in self.ALLOWED_TYPES:
             raise serializers.ValidationError(
-                f'Разрешены только PDF и изображения (JPEG, PNG, WebP). Получено: {content_type}'
-            )
-
-        return value
+                f'Разрешены только PDF и изображения (JPEG, PNG, WebP). Получено: {content_typ
