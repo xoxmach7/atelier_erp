@@ -138,7 +138,7 @@ function ItemRow({ item }: { item: OrderItemDTO }) {
       >
         <div className="min-w-0">
           <div className="text-[14px] text-[#0F172A]">
-            {roomLabel || item.item_type || "Позиция"}
+            {roomLabel || item.fabric_name || "Позиция"}
           </div>
           {item.window_name && item.room_name && (
             <div className="text-[13px] text-[#94A3B8]">
