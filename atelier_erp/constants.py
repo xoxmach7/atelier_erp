@@ -234,12 +234,6 @@ class OrderFSMRules:
         'waiting_final_payment': ['completed', 'cancelled', 'on_installation'],
         'completed': [],  # Terminal state
         'cancelled': [],  # Terminal state
-        
-        # Legacy statuses (for backward compatibility during transition)
-        'measurement': ['new', 'cancelled'],
-        'design': ['new', 'cancelled'],
-        'production': ['in_production', 'cancelled'],
-        'installation': ['on_installation', 'cancelled'],
     }
     
     @classmethod

@@ -23,6 +23,7 @@ import type {
   DesignerTask,
 } from "@/services/http/work";
 import { formatAddress } from "@/utils/formatAddress";
+import { getStatusHex } from "@/lib/status-colors";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
@@ -46,20 +47,8 @@ function checkOverdue(dateStr: string | null | undefined): boolean {
 /*  Shared status badge (status→color from our design tokens)          */
 /* ------------------------------------------------------------------ */
 
-const STATUS_COLOR: Record<string, string> = {
-  new: "#0EA5E9",
-  in_work: "#32ED51",
-  in_production: "#7C3AED",
-  ready: "#32ED51",
-  on_installation: "#4F46E5",
-  waiting_final_payment: "#EBDD1D",
-  completed: "#94A3B8",
-  cancelled: "#DC2626",
-  draft: "#94A3B8",
-};
-
 function StatusChip({ status, label }: { status: string; label: string }) {
-  const color = STATUS_COLOR[status] ?? "#94A3B8";
+  const color = getStatusHex(status);
   return (
     <span
       style={{

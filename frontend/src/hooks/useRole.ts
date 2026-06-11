@@ -47,11 +47,11 @@ export function useRole(): { role: WebRole; isOwner: boolean; groups: string[] }
 export const ROLE_ALLOWED_PATHS: Record<WebRole, string[]> = {
   none: [],
   owner: ["*"],
-  designer: ["/dashboard", "/orders", "/customers", "/quotes", "/estimates", "/estimate", "/measurements", "/work/designer", "/work/quotes", "/settings"],
-  warehouse: ["/dashboard", "/orders", "/customers", "/inventory", "/work/warehouse", "/settings"],
-  production: ["/dashboard", "/orders", "/work/production", "/settings"],
-  installation: ["/dashboard", "/orders", "/installation", "/work/installation", "/settings"],
-  finance: ["/dashboard", "/orders", "/payments", "/work/finance", "/settings"],
+  designer: ["/dashboard", "/orders", "/customers", "/quotes", "/estimates", "/estimate", "/measurements", "/work/designer", "/work/quotes", "/workspace", "/settings"],
+  warehouse: ["/dashboard", "/orders", "/customers", "/inventory", "/work/warehouse", "/workspace", "/settings"],
+  production: ["/dashboard", "/orders", "/work/production", "/workspace", "/settings"],
+  installation: ["/dashboard", "/orders", "/installation", "/work/installation", "/workspace", "/settings"],
+  finance: ["/dashboard", "/orders", "/payments", "/work/finance", "/workspace", "/settings"],
 };
 
 export function canAccess(role: WebRole, pathname: string): boolean {

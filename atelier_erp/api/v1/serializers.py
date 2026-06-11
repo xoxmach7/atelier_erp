@@ -7,7 +7,21 @@ from decimal import Decimal
 
 from rest_framework import serializers
 from atelier_erp.models import Order, Task, Fabric, OrderItem, Customer, Quote, QuoteItem, Measurement, Payment, PhotoReport, OrderMaterial
-from atelier_erp.api.serializers import RelatedQuoteSerializer, FabricListSerializer
+# Inline definitions (previously imported from api/serializers.py)
+from atelier_erp.models import Fabric as _Fabric, Quote as _Quote
+
+class FabricListSerializer(serializers.ModelSerializer):
+    """Minimal fabric serializer"""
+    available_meters = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    class Meta:
+        model = _Fabric
+        fields = ['id', 'hanger_number', 'name', 'available_meters', 'price_per_meter', 'is_active']
+
+class RelatedQuoteSerializer(serializers.ModelSerializer):
+    """Serializer for quotes linked to an order"""
+    class Meta:
+        model = _Quote
+        fields = ['id', 'quote_number', 'status', 'total']
 from atelier_erp.constants import MaterialReadiness
 from atelier_erp.roles import Roles, user_in
 
@@ -254,6 +268,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     """Order detail view - full fields with execution tracking, workflow state, and available actions"""
     customer = CustomerMinimalSerializer(read_only=True)
     items = OrderItemSerializer(many=True, read_only=True)
+    designer_name = serializers.SerializerMethodField()
     
     # Status with labels
     status_label = serializers.CharField(source='get_status_display', read_only=True)
@@ -302,9 +317,16 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             'installation_address_notes',
             'source_quote', 'related_quotes', 'payments', 'measurements',
             'cancel_reason', 'cancelled_at',
+            'designer_name',
         ]
         read_only_fields = ['order_number', 'created_at', 'updated_at']
     
+    def get_designer_name(self, obj: Order) -> str:
+        if obj.created_by:
+            full = f"{obj.created_by.first_name} {obj.created_by.last_name}".strip()
+            return full or obj.created_by.username
+        return ''
+
     def get_material_readiness_label(self, obj: Order) -> str:
         from atelier_erp.constants import MaterialReadiness
         labels = {

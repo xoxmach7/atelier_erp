@@ -73,6 +73,8 @@ export interface OrderListItemDTO {
   planned_completion: string | null;
   created_at: string;
   designer_name?: string;
+  status_display?: string;
+  ui_badge?: { color: string; label: string };
 }
 
 /**
@@ -185,6 +187,10 @@ export interface OrderDetailDTO {
 
   // Metadata (called 'updated_at' in backend, not 'modified_at')
   updated_at: string;
+
+  // Computed fields from serializer
+  designer_name?: string;
+  ui_badge?: { color: string; label: string };
 }
 
 /**

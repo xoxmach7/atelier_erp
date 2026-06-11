@@ -45,7 +45,7 @@ from .serializers import (
     PhotoReportSerializer, PhotoReportUploadSerializer,
     OrderCompletionActSerializer, OrderCompletionActUploadSerializer
 )
-from atelier_erp.constants import OrderFSMRules, OrderExecutionGuide, MaterialReadiness, ProductionStage, HandoverStage
+from atelier_erp.constants import MaterialReadiness, ProductionStage, HandoverStage
 
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -238,34 +238,6 @@ class OrderViewSet(viewsets.ModelViewSet):
         summary = service.get_order_execution_summary(order, user=request.user)
         
         return Response(summary)
-    
-    @action(detail=True, methods=['get'])
-    def execution_info(self, request, pk=None):
-        """
-        [DEPRECATED] Use /execution/ instead.
-        Kept for backward compatibility.
-        
-        GET /api/v1/orders/{id}/execution_info/
-        """
-        order = self.get_object()
-        
-        allowed_transitions = OrderFSMRules.get_allowed_transitions(order.status)
-        guidance = OrderExecutionGuide.get_guidance(order.status)
-        
-        return Response({
-            'current_status': order.status,
-            'current_status_display': order.get_status_display(),
-            'material_readiness': order.material_readiness,
-            'material_readiness_display': order.get_material_readiness_display(),
-            'allowed_transitions': allowed_transitions,
-            'guidance': guidance,
-            'material_readiness_options': [
-                {'value': choice[0], 'label': choice[1]}
-                for choice in MaterialReadiness.choices
-            ],
-            'deprecated': True,
-            'use_endpoint': f'/api/v1/orders/{pk}/execution/',
-        })
     
     @action(
         detail=True,

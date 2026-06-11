@@ -81,7 +81,7 @@ function getCustomerPhone(order: OrderDetailDTO): string {
 }
 
 function getDesignerName(order: OrderDetailDTO): string {
-  return (order as OrderDetailDTO & { designer_name?: string }).designer_name || "—";
+  return order.designer_name || "—";
 }
 
 function getAddressParts(order: OrderDetailDTO): string {
