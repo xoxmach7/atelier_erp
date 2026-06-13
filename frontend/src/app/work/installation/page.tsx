@@ -60,6 +60,7 @@ function InstallationCard({
 
 function InstallationWorkspace() {
   const queue = useInstallationQueue();
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   type HandoverStage = 'not_required' | 'pending' | 'scheduled' | 'in_progress' | 'done';
@@ -79,8 +80,6 @@ function InstallationWorkspace() {
 
   const data = queue.data;
   const activeInstallation = [...(data?.ready_for_installation ?? []), ...(data?.in_installation ?? [])];
-
-  const router = useRouter();
 
   return (
     <ProtectedRoute>

@@ -46,6 +46,7 @@ function WarehouseCard({
 
 function WarehouseWorkspace() {
   const queue = useWarehouseQueue();
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   const sendMutation = useMutation({
@@ -59,8 +60,6 @@ function WarehouseWorkspace() {
   if (queue.isError) return <ErrorState title="Не удалось загрузить склад" description={queue.error?.message || "Проверьте API очереди склада."} />;
 
   const data = queue.data;
-
-  const router = useRouter();
 
   return (
     <ProtectedRoute>

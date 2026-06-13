@@ -53,6 +53,7 @@ function ProductionCard({
 
 function ProductionWorkspace() {
   const queue = useProductionQueue();
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   const stageMutation = useMutation({
@@ -69,8 +70,6 @@ function ProductionWorkspace() {
   if (queue.isError) return <ErrorState title="Не удалось загрузить пошив" description={queue.error?.message || "Проверьте API очереди производства."} />;
 
   const data = queue.data;
-
-  const router = useRouter();
 
   return (
     <ProtectedRoute>

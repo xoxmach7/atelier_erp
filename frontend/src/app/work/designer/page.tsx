@@ -53,6 +53,7 @@ function DesignerCard({
 
 function DesignerWorkspace() {
   const queue = useDesignerQueue();
+  const router = useRouter();
   const [measureTarget, setMeasureTarget] = useState<string | null>(null);
   const [kpTarget, setKPTarget] = useState<string | null>(null);
 
@@ -60,8 +61,6 @@ function DesignerWorkspace() {
   if (queue.isError) return <ErrorState title="Не удалось загрузить задачи дизайнера" description={queue.error?.message || "Проверьте API очереди дизайнера."} />;
 
   const data = queue.data;
-
-  const router = useRouter();
 
   return (
     <ProtectedRoute>
