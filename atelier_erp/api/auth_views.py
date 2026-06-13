@@ -47,6 +47,12 @@ class LogoutView(APIView):
 def me(request):
     """Текущий пользователь: id, имя, группы (роли)."""
     user = request.user
+    try:
+        tenant = user.tenant_membership.tenant
+        tenant_data = {'id': tenant.id, 'name': tenant.name, 'slug': tenant.slug}
+    except Exception:
+        tenant_data = None
+
     return Response({
         'id': user.id,
         'username': user.username,
@@ -56,4 +62,5 @@ def me(request):
         'is_staff': user.is_staff,
         'is_superuser': user.is_superuser,
         'groups': [group.name for group in user.groups.all()],
+        'tenant': tenant_data,
     })

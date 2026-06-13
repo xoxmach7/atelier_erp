@@ -60,6 +60,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'atelier_erp.middleware.TenantMiddleware',
 ]
 
 ROOT_URLCONF = 'atelier_erp.urls'
