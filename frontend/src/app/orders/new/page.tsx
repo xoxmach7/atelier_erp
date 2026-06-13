@@ -246,7 +246,7 @@ function NewOrderContent() {
         </button>
 
         <form onSubmit={handleSubmit} className="px-[52px] pt-16 pb-10">
-          <h1 className="text-[28px] font-light text-[#0F172A] mb-8 italic">
+          <h1 className="text-[28px] font-semibold text-[#0F172A] mb-8">
             Создание заказа
           </h1>
 

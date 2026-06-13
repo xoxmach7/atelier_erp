@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, ArrowLeft, Filter, Users, X, ChevronDown } from "lucide-react";
+import { Search, X, ChevronDown } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { StatusText } from "@/components/shared/status-text";
 import { useOrders } from "@/hooks/useOrders";
@@ -130,7 +130,6 @@ function OrdersContent() {
                       : "text-[#475569] hover:text-[#0EA5E9]"
                   }`}
                 >
-                  <Filter size={15} />
                   Фильтры
                   {hasActiveFilters && (
                     <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#0EA5E9] text-[11px] font-medium text-white">
@@ -143,7 +142,6 @@ function OrdersContent() {
                     href="/customers"
                     className="flex items-center gap-1.5 text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
                   >
-                    <Users size={15} />
                     Клиенты
                   </Link>
                 )}
@@ -163,10 +161,9 @@ function OrdersContent() {
               </div>
               <button
                 onClick={() => router.push("/dashboard")}
-                className="rounded-lg border border-[#E2E8F0] p-[7px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
-                title="На главную"
+                className="rounded-lg border border-[#E2E8F0] px-3 py-[7px] text-[13px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
               >
-                <ArrowLeft size={16} />
+                Назад
               </button>
             </div>
           </div>
@@ -247,7 +244,7 @@ function OrdersContent() {
           {/* Customer filter banner */}
           {customerIdFromUrl && (
             <div className="border-t border-[#F1F5F9] px-[52px] py-3 flex items-center gap-3 bg-[#E0F2FE]">
-              <Users size={14} className="text-[#0EA5E9]" />
+              
               <span className="text-[13px] text-[#0F172A]">
                 Показаны заказы выбранного клиента
               </span>
