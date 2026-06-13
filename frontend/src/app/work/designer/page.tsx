@@ -65,13 +65,7 @@ function DesignerWorkspace() {
 
   return (
     <ProtectedRoute>
-      <button
-        onClick={() => router.back()}
-        className="mb-3 text-[13px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
-      >
-        ← Назад
-      </button>
-      <WorkspaceHeader title="Дизайнер" description="Замеры, выбор ткани/тюля и подготовка КП." />
+      <WorkspaceHeader title="Дизайнер" description="Замеры, выбор ткани/тюля и подготовка КП." onBack={() => router.back()} />
 
       <div className="grid gap-6 xl:grid-cols-3">
         <TaskSection title="Нужно добавить замер" count={data?.needs_measurement.length || 0}>

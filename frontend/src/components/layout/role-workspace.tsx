@@ -28,20 +28,33 @@ export function formatDate(value: string | null | undefined): string {
 export function WorkspaceHeader({
   title,
   description,
+  onBack,
   children,
 }: {
   title: string;
   description: string;
+  onBack?: () => void;
   children?: React.ReactNode;
 }) {
   return (
-    <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-      <div>
-        <div className="text-sm font-medium text-sky-700">Рабочий экран</div>
-        <h1 className="mt-1 text-2xl font-semibold text-slate-950">{title}</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-500">{description}</p>
+    <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="mb-3 flex items-center gap-1.5 text-[14px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          Назад
+        </button>
+      )}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="text-sm font-medium text-sky-700">Рабочий экран</div>
+          <h1 className="mt-1 text-2xl font-semibold text-slate-950">{title}</h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500">{description}</p>
+        </div>
+        {children ? <div className="flex flex-wrap gap-2">{children}</div> : null}
       </div>
-      {children ? <div className="flex flex-wrap gap-2">{children}</div> : null}
     </div>
   );
 }

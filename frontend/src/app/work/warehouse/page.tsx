@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/protected-route";
@@ -59,9 +60,11 @@ function WarehouseWorkspace() {
 
   const data = queue.data;
 
+  const router = useRouter();
+
   return (
     <ProtectedRoute>
-      <WorkspaceHeader title="Склад" description="Какие материалы нужны по заказам и что уже готово." />
+      <WorkspaceHeader title="Склад" description="Какие материалы нужны по заказам и что уже готово."  onBack={() => router.back()} />
 
       <div className="grid gap-6 xl:grid-cols-3">
         <TaskSection title="Не готово" count={data?.not_ready.length || 0}>
