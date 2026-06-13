@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Tenge } from "lucide-react";
+import { X } from "lucide-react";
 
 interface CreatePrepaymentModalProps {
   isOpen: boolean;
@@ -98,7 +98,7 @@ export function CreatePrepaymentModal({
               className="w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0"
               style={{ background: "#0EA5E912" }}
             >
-              <Tenge size={18} className="text-[#0EA5E9]" />
+              <span className="text-[13px] font-semibold">₸</span>
             </div>
             <h2 className="text-[24px] font-bold text-[#0F172A]">Предоплата</h2>
           </div>
