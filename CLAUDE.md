@@ -70,7 +70,7 @@
 | 33 | orders/[id] редизайн v4 (Sheber дизайн, 4290→822 строки, InfoGrid+2-col+actions) | done 2026-06-10 (e21fddd) |
 | 34 | /workspace рабочий стол для всех ролей + sidebar link | done 2026-06-10 (e21fddd) |
 | 35 | status-text.tsx + globals.css — токены и статусы по Figma | done 2026-06-10 |
-| 17 | P4-ARCH: Multi-tenancy (Tenant модель + изоляция) | TODO — до второго клиента |
+| 17 | P4-ARCH: Multi-tenancy (Tenant модель + изоляция) | done 2026-06-13 (35d3149, feature/multi-tenancy) |
 | 18 | P4-OPS: Email-уведомления (SendGrid/SMTP) | TODO — после первого клиента |
 | 21 | P5: Автоматический онбординг нового ателье | TODO — после 5 клиентов |
 | 22 | P5: Биллинг-модель SaaS (Subscription) | TODO — после 5 клиентов |
