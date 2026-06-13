@@ -650,10 +650,11 @@ export default function OrderDetailPage() {
           <div className="flex items-center justify-between px-[52px] py-[30px]">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => router.push("/orders")}
-                className="rounded-lg border border-[#E2E8F0] p-[7px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+                onClick={() => router.back()}
+                className="flex items-center gap-1.5 text-[14px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
               >
-                <ArrowLeft size={16} />
+                <ArrowLeft size={15} />
+                Назад
               </button>
               <h1 className="text-[26px] font-semibold text-[#0F172A]">
                 Заказ №{order.order_number || orderId.slice(0, 6)}

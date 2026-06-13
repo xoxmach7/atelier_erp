@@ -64,16 +64,14 @@ function DesignerWorkspace() {
 
   return (
     <ProtectedRoute>
-      <WorkspaceHeader title="Дизайнер" description="Замеры, выбор ткани/тюля и подготовка КП." />
-
-      <div className="mb-4">
+      <WorkspaceHeader title="Дизайнер" description="Замеры, выбор ткани/тюля и подготовка КП.">
         <button
           onClick={() => router.push("/workspace")}
-          className="text-[13px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2 text-[13px] text-slate-500 hover:text-sky-600 hover:border-sky-300 transition-colors"
         >
           ← Рабочий стол
         </button>
-      </div>
+      </WorkspaceHeader>
 
       <div className="grid gap-6 xl:grid-cols-3">
         <TaskSection title="Нужно добавить замер" count={data?.needs_measurement.length || 0}>
