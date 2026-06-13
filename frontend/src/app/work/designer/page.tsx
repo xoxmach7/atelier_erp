@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { ErrorState, LoadingState } from "@/components/shared";
@@ -60,8 +61,16 @@ function DesignerWorkspace() {
 
   const data = queue.data;
 
+  const router = useRouter();
+
   return (
     <ProtectedRoute>
+      <button
+        onClick={() => router.back()}
+        className="mb-3 text-[13px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+      >
+        ← Назад
+      </button>
       <WorkspaceHeader title="Дизайнер" description="Замеры, выбор ткани/тюля и подготовка КП." />
 
       <div className="grid gap-6 xl:grid-cols-3">
