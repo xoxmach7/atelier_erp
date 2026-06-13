@@ -89,6 +89,7 @@
 | D1 | fix: item fallback label — fabric_name instead of item_type | done 2026-06-11 (fc581b1) |
 | D2 | Обновить демо-данные OrderItem room_name/window_name в БД | done 2026-06-11 (Railway shell) |
 | B1 | responsible_user FK на Order + StaffListView + designer select в форме | done 2026-06-11 (898ad43, 5c4c3ad) |
+| B1b | Лейбл «Дизайнер» в форме создания заказа + закрытие B1 | done 2026-06-13 |
 | 36 | orders/page.tsx: статус-пилюли, роле-фильтрация, скрытие финансов для воркеров | done 2026-06-13 (995118a) |
 | 37 | orders/[id]/page.tsx: матрица видимости по ролям (Склад/Пошив/Установщик) + чекбоксы материалов | done 2026-06-13 (995118a) |
 | 38 | create-prepayment-modal.tsx: % ↔ ₸ linked fields, method select | done 2026-06-13 (995118a) |

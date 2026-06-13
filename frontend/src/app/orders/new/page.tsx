@@ -278,7 +278,7 @@ function NewOrderContent() {
           {/* 2. Дизайнер */}
           <div className="mb-6">
             <label className="block text-[15px] text-[#0F172A] mb-2">
-              2. Ответственный
+              2. Дизайнер
             </label>
             <div className="relative">
               <select
