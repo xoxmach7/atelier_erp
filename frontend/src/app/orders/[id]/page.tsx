@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, ChevronUp, ArrowLeft, Info, Clock, Plus, FileText, Wallet } from "lucide-react";
+import { ChevronDown, ChevronUp, ArrowLeft, Info, Clock, Plus, FileText, Package, Scissors, Truck, Camera, MapPin, Check } from "lucide-react";
 import { CreateMeasurementModal } from "@/components/shared/create-measurement-modal";
 import { CreateKPModal } from "@/components/shared/create-kp-modal";
+import { CreatePrepaymentModal } from "@/components/shared/create-prepayment-modal";
 import { MyTaskCard } from "@/components/shared/my-task-card";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { LoadingState } from "@/components/shared/loading-state";
@@ -437,10 +438,10 @@ export default function OrderDetailPage() {
   const [measurementModalOpen, setMeasurementModalOpen] = useState(false);
   const [kpModalOpen, setKPModalOpen] = useState(false);
   const [prepayModalOpen, setPrepayModalOpen] = useState(false);
-  const [prepayAmount, setPrepayAmount] = useState("");
-  const [prepayMethod, setPrepayMethod] = useState<"cash" | "card" | "transfer" | "kaspi">("cash");
   const [prepayLoading, setPrepayLoading] = useState(false);
-  const [ownerViewRole, setOwnerViewRole] = useState<"designer" | "warehouse" | "production" | "installation">("designer");
+  // Warehouse: per-item checkboxes + transferred state
+  const [matChecked, setMatChecked] = useState<Record<string, boolean>>({});
+  const [matTransferred, setMatTransferred] = useState(false);
 
   /* ---- guard against literal [id] placeholder in URL ---- */
   if (
@@ -478,19 +479,17 @@ export default function OrderDetailPage() {
   const cancelMutation            = useCancelOrder();
   const createPaymentMutation     = useCreatePayment();
 
-  const handlePrepaySubmit = async () => {
-    const amount = parseFloat(prepayAmount.replace(/\s/g, "").replace(",", "."));
-    if (!amount || amount <= 0) return;
+  const handlePrepaySubmit = async (data: { amount: number; pct: number; method: string }) => {
+    if (!data.amount || data.amount <= 0) return;
     setPrepayLoading(true);
     try {
       await createPaymentMutation.mutateAsync({
         order: orderId,
-        amount: String(amount),
+        amount: String(data.amount),
         payment_type: "prepayment",
-        payment_method: prepayMethod,
+        payment_method: data.method as "cash" | "card" | "transfer" | "kaspi",
       });
       setPrepayModalOpen(false);
-      setPrepayAmount("");
       await refetchOrder();
     } catch {
       setActionError("Ошибка при записи предоплаты");
@@ -624,12 +623,18 @@ export default function OrderDetailPage() {
   const timeline = buildTimeline(order, execution);
   const availableActions = execution?.available_actions ?? [];
   const isOwnerOrDesigner = role === "owner" || role === "designer";
+  // Role visibility flags — mirrors v4 design
+  const showInfo       = isOwnerOrDesigner;
+  const showPositions  = isOwnerOrDesigner;
+  const showMaterials  = role === "warehouse";
+  const showProduction = role === "production";
+  const showInstaller  = role === "installation";
 
   /* ---- role-filtered quick links ---- */
   type QuickLink = { href: string; label: string; roles?: string[] };
   const quickLinks: QuickLink[] = [
     { href: `/measurements?order=${order.id}`,  label: "Замеры",     roles: ["owner", "designer"] },
-    { href: `/estimate?order=${order.id}`,       label: "КП",         roles: ["owner", "designer"] },
+    { href: `/orders/${orderId}/quote`,           label: "КП",         roles: ["owner", "designer"] },
     { href: `/orders/${orderId}/materials`,      label: "Материалы",  roles: ["owner", "designer", "warehouse"] },
     { href: `/orders/${orderId}/photos`,         label: "Фотоотчёт",  roles: ["owner", "designer", "installation"] },
     { href: `/orders/${orderId}/act`,            label: "АВР",        roles: ["owner", "designer", "installation"] },
@@ -693,66 +698,24 @@ export default function OrderDetailPage() {
               <div className="flex flex-wrap gap-2 mb-4">
                 {(["designer","warehouse","production","installation"] as const).map((r) => {
                   const labels: Record<string, string> = { designer: "Дизайнер", warehouse: "Склад", production: "Пошив", installation: "Установка" };
+                  const workLinks: Record<string, string> = { designer: "/work/designer", warehouse: "/work/warehouse", production: "/work/production", installation: "/work/installation" };
                   return (
-                    <button
+                    <Link
                       key={r}
-                      onClick={() => setOwnerViewRole(r)}
-                      className={`px-4 py-1.5 rounded-lg text-[13px] font-medium transition-colors border ${
-                        ownerViewRole === r
-                          ? "bg-[var(--a)] text-white border-[var(--a)]"
-                          : "bg-white text-[var(--t2)] border-[#E2E8F0] hover:border-[var(--a)]"
-                      }`}
+                      href={workLinks[r]}
+                      className="px-4 py-1.5 rounded-lg text-[13px] font-medium transition-colors border bg-white text-[var(--t2)] border-[#E2E8F0] hover:bg-[var(--a)] hover:text-white hover:border-[var(--a)]"
                     >
                       {labels[r]}
-                    </button>
+                    </Link>
                   );
                 })}
               </div>
-              {/* Task summary for selected role */}
-              {(() => {
-                const hasMeasurements = (order.measurements?.length ?? 0) > 0;
-                const hasQuote = order.source_quote != null || ((order as any).related_quotes?.length ?? 0) > 0;
-                const matReady = order.material_readiness;
-                const prodStage = execution?.production_stage ?? "not_started";
 
-                type Summary = { title: string; desc: string; done: boolean };
-                const summaries: Record<string, Summary> = {
-                  designer: !hasMeasurements
-                    ? { title: "Нужен замер", desc: "Замер ещё не добавлен", done: false }
-                    : !hasQuote
-                    ? { title: "Нужно КП", desc: "Замер есть — КП не создано", done: false }
-                    : { title: "Готово", desc: "Замер и КП готовы", done: true },
-                  warehouse: matReady === "ready"
-                    ? { title: "Материалы готовы", desc: "Все обеспечены", done: true }
-                    : matReady === "partially_ready"
-                    ? { title: "Частично", desc: "Часть в закупке", done: false }
-                    : { title: "Не готово", desc: "Материалы не обеспечены", done: false },
-                  production: prodStage === "done"
-                    ? { title: "Пошив завершён", desc: "Готово к передаче", done: true }
-                    : prodStage !== "not_started"
-                    ? { title: "В пошиве", desc: "Изделия в работе", done: false }
-                    : { title: "Не начат", desc: "Ожидает материалов", done: false },
-                  installation: ["completed","waiting_final_payment"].includes(order.status)
-                    ? { title: "Установка завершена", desc: "Работа выполнена", done: true }
-                    : order.status === "on_installation"
-                    ? { title: "На установке", desc: "Идёт установка", done: false }
-                    : order.status === "ready"
-                    ? { title: "Готов к выезду", desc: "Ждёт установщика", done: false }
-                    : { title: "Ожидание", desc: "Заказ ещё не готов", done: false },
-                };
-                const s = summaries[ownerViewRole];
-                return (
-                  <div className={`rounded-xl border-l-4 px-5 py-4 ${s.done ? "border-l-[var(--ok)] bg-[#DCFCE7]/50" : "border-l-[var(--a)] bg-white shadow-sm"}`}>
-                    <div className="text-[15px] font-semibold text-[var(--t1)]">{s.title}</div>
-                    <div className="text-[12px] text-[var(--t2)] mt-0.5">{s.desc}</div>
-                  </div>
-                );
-              })()}
             </div>
           )}
 
-          {/* ── Info grid ───────────────────────────────────────── */}
-          <div className="px-[52px] pb-8">
+          {/* ── Info grid (owner + designer only) ──────────────── */}
+          {showInfo && <div className="px-[52px] pb-8">
             <div className="rounded-xl border border-[#0EA5E9] p-6">
               <div className="flex items-center justify-center gap-2 mb-5">
                 <Info size={16} className="text-[#0EA5E9]" />
@@ -777,7 +740,7 @@ export default function OrderDetailPage() {
                 </InfoCell>
               </div>
             </div>
-          </div>
+          </div>}
 
           {/* ── Action error ─────────────────────────────────────── */}
           {actionError && (
@@ -790,8 +753,8 @@ export default function OrderDetailPage() {
 
 
 
-          {/* ── Positions + History ──────────────────────────────── */}
-          <div className="px-[52px] pb-10">
+          {/* ── Позиции + История (владелец / дизайнер) ─────────── */}
+          {showPositions && <div className="px-[52px] pb-10">
             <div className="flex gap-8">
               {/* Positions */}
               <div className="flex-1 rounded-xl border border-[#E2E8F0] p-6">
@@ -861,7 +824,224 @@ export default function OrderDetailPage() {
                 <HistoryTimeline events={timeline} />
               </div>
             </div>
-          </div>
+          </div>}
+
+          {/* ── Склад: Материалы + История ────────────────────────── */}
+          {showMaterials && (
+            <div className="px-[52px] pb-10">
+              <div className="flex gap-8">
+                {/* Материалы с чекбоксами */}
+                <div className="flex-1 rounded-xl border border-[#E2E8F0] p-6">
+                  <div className="flex items-center justify-between mb-5">
+                    <div className="flex items-center gap-2">
+                      <Package size={18} className="text-[#94A3B8]" />
+                      <span className="text-[16px] font-medium text-[#0F172A]">Материалы</span>
+                    </div>
+                    <span className={`text-[12px] font-semibold px-3 py-1 rounded-full ${
+                      order.material_readiness === "ready"
+                        ? "bg-[#DCFCE7] text-[#16A34A]"
+                        : order.material_readiness === "partially_ready"
+                        ? "bg-[#FEF3C7] text-[#D97706]"
+                        : "bg-[#FEE2E2] text-[#DC2626]"
+                    }`}>
+                      {order.material_readiness === "ready" ? "Всё готово" : order.material_readiness === "partially_ready" ? "Частично" : "Не готово"}
+                    </span>
+                  </div>
+
+                  {items.length === 0 ? (
+                    <p className="text-[14px] text-[#94A3B8] italic py-4">Позиции по заказу ещё не сформированы.</p>
+                  ) : (
+                    <div className="space-y-2 mb-4">
+                      {items.map((item) => {
+                        const checked = !!matChecked[item.id];
+                        const roomLabel = [item.room_name, item.window_name].filter(Boolean).join(" / ");
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => !matTransferred && setMatChecked(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
+                            className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
+                            style={{
+                              background: checked ? "#DCFCE7" : "#F1F5F9",
+                              border: `1px solid ${checked ? "#BBF7D0" : "transparent"}`,
+                            }}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[13px] font-semibold text-[#0F172A]">{roomLabel || "Позиция"}</div>
+                              <div className="flex gap-4 text-[11px] text-[#475569] mt-0.5 flex-wrap">
+                                {item.fabric_name && <span>Шторы: {item.fabric_name}</span>}
+                                {item.notes && <span>Тюль: {item.notes}</span>}
+                              </div>
+                            </div>
+                            <div
+                              className="w-6 h-6 rounded-[7px] shrink-0 flex items-center justify-center transition-all"
+                              style={{
+                                border: `2px solid ${checked ? "#16A34A" : "#CBD5E1"}`,
+                                background: checked ? "#16A34A" : "#fff",
+                              }}
+                            >
+                              {checked && <Check size={14} color="#fff" />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {items.length > 0 && (() => {
+                    const cnt = items.filter(i => matChecked[i.id]).length;
+                    if (matTransferred) {
+                      return (
+                        <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-[#DCFCE7] text-[#16A34A] text-[13px] font-semibold">
+                          <Check size={16} /> Передано швее на пошив
+                        </div>
+                      );
+                    }
+                    return (
+                      <button
+                        onClick={() => { if (cnt > 0) { setMatTransferred(true); } }}
+                        disabled={cnt === 0}
+                        className="w-full py-3 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-2 transition-all disabled:cursor-not-allowed"
+                        style={{
+                          background: cnt > 0 ? "#0EA5E9" : "#F1F5F9",
+                          color: cnt > 0 ? "#fff" : "#94A3B8",
+                        }}
+                      >
+                        <Scissors size={14} />
+                        Передать в цех на пошив{cnt > 0 ? ` (${cnt})` : ""}
+                      </button>
+                    );
+                  })()}
+                </div>
+
+                {/* История */}
+                <div className="w-[380px] shrink-0 rounded-xl border border-dashed border-[#CBD5E1] p-6">
+                  <div className="flex items-center gap-2 mb-5">
+                    <Clock size={18} className="text-[#94A3B8]" />
+                    <span className="text-[16px] font-medium text-[#0F172A]">История</span>
+                  </div>
+                  <HistoryTimeline events={timeline} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Пошив: Производство + История ────────────────────── */}
+          {showProduction && (
+            <div className="px-[52px] pb-10">
+              <div className="flex gap-8">
+                {/* Производство */}
+                <div className="flex-1 rounded-xl border border-[#E2E8F0] p-6">
+                  <div className="flex items-center justify-between mb-5">
+                    <div className="flex items-center gap-2">
+                      <Scissors size={18} className="text-[#94A3B8]" />
+                      <span className="text-[16px] font-medium text-[#0F172A]">Производство</span>
+                    </div>
+                    <span className={`text-[12px] font-semibold px-3 py-1 rounded-full ${
+                      execution?.production_stage === "done"
+                        ? "bg-[#DCFCE7] text-[#16A34A]"
+                        : execution?.production_stage === "sewing" || execution?.production_stage === "cutting"
+                        ? "bg-[#EDE9FE] text-[#7C3AED]"
+                        : "bg-[#F1F5F9] text-[#475569]"
+                    }`}>
+                      {execution?.production_stage === "done" ? "Готово" : execution?.production_stage === "sewing" ? "Пошив" : execution?.production_stage === "cutting" ? "Раскрой" : "Не начато"}
+                    </span>
+                  </div>
+                  {items.length === 0 ? (
+                    <p className="text-[14px] text-[#94A3B8] italic py-4">Позиции по заказу ещё не сформированы.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {items.map((item) => {
+                        const roomLabel = [item.room_name, item.window_name].filter(Boolean).join(" / ");
+                        return (
+                          <div key={item.id} className="p-3 rounded-xl bg-[#F1F5F9]">
+                            <div className="text-[13px] font-semibold text-[#0F172A]">{roomLabel || "Позиция"}</div>
+                            <div className="flex gap-4 text-[11px] text-[#475569] mt-0.5 flex-wrap">
+                              {item.fabric_name && <span>Ткань: {item.fabric_name}</span>}
+                              {item.notes && <span>Тюль: {item.notes}</span>}
+                              {item.window_width_cm && item.window_height_cm && (
+                                <span>{item.window_width_cm}×{item.window_height_cm} см</span>
+                              )}
+                              <span>Кол-во: {item.quantity}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* История */}
+                <div className="w-[380px] shrink-0 rounded-xl border border-dashed border-[#CBD5E1] p-6">
+                  <div className="flex items-center gap-2 mb-5">
+                    <Clock size={18} className="text-[#94A3B8]" />
+                    <span className="text-[16px] font-medium text-[#0F172A]">История</span>
+                  </div>
+                  <HistoryTimeline events={timeline} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Установщик: Адрес + Фото + АВР + История ────────── */}
+          {showInstaller && (
+            <div className="px-[52px] pb-10 grid grid-cols-2 gap-6">
+              {/* Адрес */}
+              <div className="rounded-xl border border-[#E2E8F0] p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <MapPin size={16} className="text-[#94A3B8]" />
+                  <span className="text-[15px] font-medium text-[#0F172A]">Адрес установки</span>
+                </div>
+                <div className="p-3 rounded-xl bg-[#F1F5F9] text-[14px] font-medium text-[#0F172A]">
+                  {getAddressParts(order)}
+                </div>
+                <div className="mt-3 text-[13px] text-[#475569]">
+                  Клиент: <b>{getCustomerName(order)}</b>
+                  {getCustomerPhone(order) && <span> · {getCustomerPhone(order)}</span>}
+                </div>
+              </div>
+
+              {/* Фотоотчёт */}
+              <div className="rounded-xl border border-[#E2E8F0] p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Camera size={16} className="text-[#94A3B8]" />
+                  <span className="text-[15px] font-medium text-[#0F172A]">Фотоотчёт</span>
+                </div>
+                <p className="text-[13px] text-[#94A3B8] italic mb-4">Фото ещё не загружены</p>
+                <Link
+                  href={`/orders/${orderId}/photos`}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#0EA5E9] text-white text-[13px] font-semibold hover:bg-[#0284C7] transition-colors"
+                >
+                  <Camera size={14} /> Загрузить фото
+                </Link>
+              </div>
+
+              {/* АВР */}
+              <div className="rounded-xl border border-[#E2E8F0] p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <FileText size={16} className="text-[#94A3B8]" />
+                  <span className="text-[15px] font-medium text-[#0F172A]">АВР — Акт выполненных работ</span>
+                </div>
+                <p className="text-[13px] text-[#475569] mb-4">
+                  Акт сформируется автоматически из данных заказа: клиент, адрес, перечень изделий и дата установки.
+                </p>
+                <Link
+                  href={`/orders/${orderId}/act`}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#0EA5E9] text-white text-[13px] font-semibold hover:bg-[#0284C7] transition-colors"
+                >
+                  <FileText size={14} /> Сгенерировать АВР
+                </Link>
+              </div>
+
+              {/* История */}
+              <div className="rounded-xl border border-dashed border-[#CBD5E1] p-6">
+                <div className="flex items-center gap-2 mb-5">
+                  <Clock size={18} className="text-[#94A3B8]" />
+                  <span className="text-[16px] font-medium text-[#0F172A]">История</span>
+                </div>
+                <HistoryTimeline events={timeline} />
+              </div>
+            </div>
+          )}
 
         </div>
       </div>
@@ -899,50 +1079,14 @@ export default function OrderDetailPage() {
         }}
       />
 
-      {/* ── Prepay Modal ──────────────────────────────────────── */}
-      <Dialog open={prepayModalOpen} onOpenChange={setPrepayModalOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Предоплата overlay</DialogTitle>
-            <DialogDescription />
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="flex items-center gap-3">
-              <label className="text-[14px] text-[#475569] whitespace-nowrap">Сумма:</label>
-              <input
-                type="text"
-                value={prepayAmount}
-                onChange={(e) => setPrepayAmount(e.target.value)}
-                placeholder="173 000"
-                className="flex-1 rounded-lg border border-[#E2E8F0] px-3 py-2 text-[14px] focus:outline-none focus:border-[#0EA5E9]"
-              />
-              <span className="text-[14px] text-[#94A3B8]">₸</span>
-            </div>
-                        <div className="flex items-center gap-3">
-              <label className="text-[14px] text-[#475569] whitespace-nowrap">Способ:</label>
-              <select
-                value={prepayMethod}
-                onChange={(e) => setPrepayMethod(e.target.value as typeof prepayMethod)}
-                className="flex-1 rounded-lg border border-[#E2E8F0] px-3 py-2 text-[14px] focus:outline-none focus:border-[#0EA5E9]"
-              >
-                <option value="cash">Наличные</option>
-                <option value="card">Карта</option>
-                <option value="transfer">Перевод</option>
-                <option value="kaspi">Kaspi</option>
-              </select>
-            </div>
-          </div>
-          <DialogFooter>
-            <button
-              onClick={handlePrepaySubmit}
-              disabled={prepayLoading || !prepayAmount}
-              className="w-full py-2.5 rounded-xl bg-[#0EA5E9] text-white text-[14px] font-semibold hover:bg-[#0284C7] disabled:opacity-50 transition-colors"
-            >
-              {prepayLoading ? "Сохранение..." : "Сохранить"}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* ── Предоплата ────────────────────────────────────────── */}
+      <CreatePrepaymentModal
+        isOpen={prepayModalOpen}
+        onClose={() => setPrepayModalOpen(false)}
+        onSave={handlePrepaySubmit}
+        orderTotal={total}
+        isLoading={prepayLoading}
+      />
 
       {/* ── Cancel / Delete confirm ──────────────────────────────── */}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>

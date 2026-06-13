@@ -6,27 +6,36 @@ import { Search, ArrowLeft, Filter, Users, X, ChevronDown } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { StatusText } from "@/components/shared/status-text";
 import { useOrders } from "@/hooks/useOrders";
+import { useRole } from "@/hooks/useRole";
 import Link from "next/link";
 
-const STATUS_OPTIONS = [
-  { value: "", label: "Все статусы" },
-  { value: "new", label: "Новый" },
-  { value: "in_work", label: "В работе" },
-  { value: "ready", label: "Готов" },
-  { value: "on_installation", label: "Установка" },
-  { value: "waiting_final_payment", label: "Ожидание оплаты" },
-  { value: "completed", label: "Завершён" },
-  { value: "cancelled", label: "Отменён" },
+// Simplified 4-state list status — mirrors v4 design
+function getListStatus(status: string): "active" | "waiting" | "overdue" | "done" {
+  if (status === "overdue") return "overdue";
+  if (["completed", "cancelled"].includes(status)) return "done";
+  if (["waiting_final_payment", "ready", "draft"].includes(status)) return "waiting";
+  return "active";
+}
+
+const LIST_STATUS_PILLS = [
+  { key: "" as const,        label: "Все",         color: "#0EA5E9" },
+  { key: "active" as const,  label: "В работе",    color: "#16A34A" },
+  { key: "waiting" as const, label: "В ожидании",  color: "#D97706" },
+  { key: "overdue" as const, label: "Просрочен",   color: "#DC2626" },
+  { key: "done" as const,    label: "Завершён",    color: "#64748B" },
 ] as const;
+
+type ListStatusKey = "" | "active" | "waiting" | "overdue" | "done";
 
 function OrdersContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { role, isOwner } = useRole();
 
   // Filters state
   const [search, setSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("");
+  const [listStatusFilter, setListStatusFilter] = useState<ListStatusKey>("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -34,7 +43,6 @@ function OrdersContent() {
   const queryOptions: Record<string, string | number | undefined> = {
     pageSize: 200,
     search: search || undefined,
-    status: statusFilter || undefined,
   };
 
   // customer filter from URL (?customer=id)
@@ -43,33 +51,57 @@ function OrdersContent() {
   const { data, isLoading } = useOrders(queryOptions);
   const allOrders = data?.results ?? [];
 
-  // Client-side filters: hide in_production, apply date range, apply customer
+  // Workers don't see completed/cancelled orders
+  const isWorker = !isOwner && role !== "designer" && role !== "none";
+  const showFinancial = isOwner || role === "designer";
+  const canCreateOrder = isOwner || role === "designer";
+
+  // Client-side filters
   const filtered = allOrders.filter((o) => {
+    // hide in_production from list always
     if (o.status === "in_production") return false;
+    // workers: hide completed/cancelled
+    if (isWorker && ["completed", "cancelled"].includes(o.status)) return false;
 
     // Customer filter from URL
     if (customerIdFromUrl && o.customer !== customerIdFromUrl) return false;
 
-    // Date range filter (client-side for now; can move to API params later)
+    // List status pill filter
+    if (listStatusFilter && getListStatus(o.status) !== listStatusFilter) return false;
+
+    // Date range filter
     if (dateFrom && o.created_at) {
-      const orderDate = o.created_at.slice(0, 10); // "YYYY-MM-DD"
-      if (orderDate < dateFrom) return false;
+      if (o.created_at.slice(0, 10) < dateFrom) return false;
     }
     if (dateTo && o.created_at) {
-      const orderDate = o.created_at.slice(0, 10);
-      if (orderDate > dateTo) return false;
+      if (o.created_at.slice(0, 10) > dateTo) return false;
     }
 
     return true;
   });
 
-  const hasActiveFilters = statusFilter || dateFrom || dateTo;
+  // Counts per list status (from base-filtered orders, before pill filter)
+  const baseOrders = allOrders.filter((o) => {
+    if (o.status === "in_production") return false;
+    if (isWorker && ["completed", "cancelled"].includes(o.status)) return false;
+    if (customerIdFromUrl && o.customer !== customerIdFromUrl) return false;
+    return true;
+  });
+
+  function countByLS(ls: Exclude<ListStatusKey, "">) {
+    return baseOrders.filter((o) => getListStatus(o.status) === ls).length;
+  }
+
+  const hasActiveFilters = !!listStatusFilter || !!dateFrom || !!dateTo;
 
   function clearFilters() {
-    setStatusFilter("");
+    setListStatusFilter("");
     setDateFrom("");
     setDateTo("");
   }
+
+  // colSpan depends on columns shown
+  const colCount = showFinancial ? 6 : 5;
 
   return (
     <ProtectedRoute>
@@ -79,15 +111,17 @@ function OrdersContent() {
           <div className="flex items-center justify-between px-[52px] py-[30px]">
             <div className="flex items-center gap-[72px]">
               <h1 className="text-[26px] font-semibold text-[#0F172A] whitespace-nowrap">
-                Управление заказами
+                {isOwner ? "Управление заказами" : "Мои заказы"}
               </h1>
               <div className="flex items-center gap-10">
-                <button
-                  onClick={() => router.push("/orders/new")}
-                  className="text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
-                >
-                  Добавить заказ
-                </button>
+                {canCreateOrder && (
+                  <button
+                    onClick={() => router.push("/orders/new")}
+                    className="text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+                  >
+                    Добавить заказ
+                  </button>
+                )}
                 <button
                   onClick={() => setShowFilters((v) => !v)}
                   className={`flex items-center gap-1.5 text-[15px] transition-colors ${
@@ -100,17 +134,19 @@ function OrdersContent() {
                   Фильтры
                   {hasActiveFilters && (
                     <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#0EA5E9] text-[11px] font-medium text-white">
-                      {[statusFilter, dateFrom, dateTo].filter(Boolean).length}
+                      {[listStatusFilter, dateFrom, dateTo].filter(Boolean).length}
                     </span>
                   )}
                 </button>
-                <Link
-                  href="/customers"
-                  className="flex items-center gap-1.5 text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
-                >
-                  <Users size={15} />
-                  Клиенты
-                </Link>
+                {isOwner && (
+                  <Link
+                    href="/customers"
+                    className="flex items-center gap-1.5 text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+                  >
+                    <Users size={15} />
+                    Клиенты
+                  </Link>
+                )}
               </div>
             </div>
 
@@ -135,34 +171,39 @@ function OrdersContent() {
             </div>
           </div>
 
+          {/* Status pills */}
+          <div className="px-[52px] pb-4 flex gap-2 flex-wrap">
+            {LIST_STATUS_PILLS.filter((p) => isOwner || p.key !== "done").map((pill) => {
+              const active = listStatusFilter === pill.key;
+              const count = pill.key === "" ? baseOrders.length : countByLS(pill.key);
+              return (
+                <button
+                  key={pill.key}
+                  onClick={() => setListStatusFilter(pill.key)}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[12px] font-semibold transition-all"
+                  style={{
+                    background: active ? pill.color + "14" : "transparent",
+                    border: `1.5px solid ${active ? pill.color : "#E2E8F0"}`,
+                    color: active ? pill.color : "#475569",
+                  }}
+                >
+                  {pill.key && (
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ background: active ? pill.color : "#94A3B8" }}
+                    />
+                  )}
+                  {pill.label}
+                  <span className="opacity-60">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
           {/* Filters panel */}
           {showFilters && (
             <div className="border-t border-[#F1F5F9] px-[52px] py-4">
               <div className="flex items-end gap-6 flex-wrap">
-                {/* Status */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[12px] font-medium text-[#94A3B8] uppercase tracking-wider">
-                    Статус
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      className="appearance-none rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 pr-8 text-[14px] text-[#0F172A] outline-none focus:border-[#0EA5E9] transition-colors w-[200px]"
-                    >
-                      {STATUS_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={14}
-                      className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94A3B8]"
-                    />
-                  </div>
-                </div>
-
                 {/* Date from */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[12px] font-medium text-[#94A3B8] uppercase tracking-wider">
@@ -228,20 +269,22 @@ function OrdersContent() {
                   <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Клиент</th>
                   <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Дата создания</th>
                   <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Дизайнер</th>
-                  <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Сумма</th>
+                  {showFinancial && (
+                    <th className="px-6 py-4 text-right text-[14px] font-medium text-white whitespace-nowrap">Сумма</th>
+                  )}
                   <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Статус</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={6} className="px-[52px] py-10 text-center text-[#94A3B8]">
+                    <td colSpan={colCount} className="px-[52px] py-10 text-center text-[#94A3B8]">
                       Загрузка...
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-[52px] py-10 text-center text-[#94A3B8]">
+                    <td colSpan={colCount} className="px-[52px] py-10 text-center text-[#94A3B8]">
                       Заказы не найдены
                     </td>
                   </tr>
@@ -256,7 +299,7 @@ function OrdersContent() {
                         {order.order_number || order.id}
                       </td>
                       <td className="px-6 py-4 text-[#0F172A]">
-                        {order.customer_name || "—"}
+                        <div>{order.customer_name || "—"}</div>
                       </td>
                       <td className="px-6 py-4 text-[#0F172A] whitespace-nowrap">
                         {order.created_at
@@ -268,11 +311,13 @@ function OrdersContent() {
                       <td className="px-6 py-4 text-[#0F172A]">
                         {order.designer_name || "—"}
                       </td>
-                      <td className="px-6 py-4 text-[#0F172A] whitespace-nowrap">
-                        {order.total_amount
-                          ? Number(order.total_amount).toLocaleString("ru-RU") + " ₸"
-                          : "—"}
-                      </td>
+                      {showFinancial && (
+                        <td className="px-6 py-4 text-[#0F172A] whitespace-nowrap text-right">
+                          {order.total_amount
+                            ? Number(order.total_amount).toLocaleString("ru-RU") + " ₸"
+                            : "—"}
+                        </td>
+                      )}
                       <td className="px-6 py-4">
                         <StatusText status={order.status} />
                       </td>
@@ -285,7 +330,7 @@ function OrdersContent() {
 
           {/* Footer */}
           <div className="border-t border-[#F1F5F9] px-[52px] py-3 text-[13px] text-[#94A3B8]">
-            Показано {filtered.length} из {allOrders.length} заказов
+            Показано {filtered.length} из {baseOrders.length} заказов
           </div>
         </div>
       </div>

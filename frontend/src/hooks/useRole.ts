@@ -8,8 +8,7 @@ export type WebRole =
   | "designer"
   | "warehouse"
   | "production"
-  | "installation"
-  | "finance";
+  | "installation";
 
 const GROUP_TO_ROLE: Record<string, WebRole> = {
   // canonical
@@ -51,7 +50,6 @@ export const ROLE_ALLOWED_PATHS: Record<WebRole, string[]> = {
   warehouse: ["/dashboard", "/orders", "/customers", "/inventory", "/work/warehouse", "/workspace", "/settings"],
   production: ["/dashboard", "/orders", "/work/production", "/workspace", "/settings"],
   installation: ["/dashboard", "/orders", "/installation", "/work/installation", "/workspace", "/settings"],
-  finance: ["/dashboard", "/orders", "/payments", "/work/finance", "/workspace", "/settings"],
 };
 
 export function canAccess(role: WebRole, pathname: string): boolean {

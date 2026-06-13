@@ -64,7 +64,7 @@ function DesignerWorkspace() {
     <ProtectedRoute>
       <WorkspaceHeader title="Дизайнер" description="Замеры, выбор ткани/тюля и подготовка КП." />
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid gap-6 xl:grid-cols-3">
         <TaskSection title="Нужно добавить замер" count={data?.needs_measurement.length || 0}>
           <div className="grid gap-3">
             {data?.needs_measurement.map((task) => (
@@ -93,27 +93,12 @@ function DesignerWorkspace() {
           </div>
         </TaskSection>
 
-        <TaskSection title="КП в работе / на согласовании" count={data?.quote_in_progress.length || 0}>
+        <TaskSection title="КП в работе" count={data?.quote_in_progress.length || 0}>
           <div className="grid gap-3">
             {data?.quote_in_progress.map((task) => (
               <DesignerCard key={task.id} task={task} mode="progress" />
             ))}
             {!data?.quote_in_progress.length ? <EmptyRoleState text="Нет заказов с КП в работе." /> : null}
-          </div>
-        </TaskSection>
-
-        <TaskSection title="Просрочено" count={data?.overdue.length || 0}>
-          <div className="grid gap-3">
-            {data?.overdue.map((task) => (
-              <DesignerCard
-                key={task.id}
-                task={task}
-                mode={task.measurement_summary.length ? "quote" : "measurement"}
-                onOpenMeasurement={setMeasureTarget}
-                onOpenKP={setKPTarget}
-              />
-            ))}
-            {!data?.overdue.length ? <EmptyRoleState text="Просроченных задач дизайнера нет." /> : null}
           </div>
         </TaskSection>
       </div>

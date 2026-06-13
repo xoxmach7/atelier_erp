@@ -123,6 +123,14 @@ export async function changeHandoverStage(
 }
 
 /**
+ * Send order to production (transition status → in_production)
+ * POST /api/v1/orders/{id}/send-to-production/
+ */
+export async function sendToProduction(orderId: string): Promise<ActionResponse> {
+  return post<ActionResponse>(`/v1/orders/${orderId}/send-to-production/`, {});
+}
+
+/**
  * Cancel order
  * POST /api/v1/orders/{id}/cancel/
  */

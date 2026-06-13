@@ -56,15 +56,14 @@ const ALL_NAV_SECTIONS: NavSection[] = [
       { title: "Склад", href: "/work/warehouse", icon: Boxes, roles: ["owner", "warehouse"] },
       { title: "Пошив", href: "/work/production", icon: Scissors, roles: ["owner", "production"] },
       { title: "Установка", href: "/work/installation", icon: Truck, roles: ["owner", "installation"] },
-      { title: "Финансы", href: "/work/finance", icon: BadgeDollarSign, roles: ["owner", "finance"] },
+      { title: "Финансы", href: "/work/finance", icon: BadgeDollarSign, roles: ["owner"] },
     ],
   },
   {
     title: "Действия",
     items: [
       { title: "Новый заказ", href: "/orders/new", icon: PlusCircle, roles: ["owner", "designer"] },
-      { title: "Создать КП", href: "/estimate", icon: Calculator, roles: ["owner", "designer"] },
-      { title: "Платежи", href: "/payments", icon: CreditCard, roles: ["owner", "finance"] },
+      { title: "Платежи", href: "/payments", icon: CreditCard, roles: ["owner"] },
     ],
   },
   {

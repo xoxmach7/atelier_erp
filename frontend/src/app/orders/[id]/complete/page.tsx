@@ -31,15 +31,16 @@ export default function OrderCompletePage() {
     enabled: !!orderId,
   });
 
+  const [completeError, setCompleteError] = useState<string | null>(null);
+
   const completeMutation = useMutation({
     mutationFn: () => changeOrderStatus(orderId, { status: "completed" }),
     onSuccess: () => {
-      alert("Заказ завершён");
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       router.push("/orders");
     },
     onError: (err: Error) => {
-      alert(err.message || "Не удалось завершить заказ");
+      setCompleteError(err.message || "Не удалось завершить заказ");
     },
   });
 
@@ -142,6 +143,11 @@ export default function OrderCompletePage() {
             <p className="text-sm text-muted-foreground mt-3">
               Выполните все пункты чеклиста, чтобы завершить заказ
             </p>
+          )}
+          {completeError && (
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600">{completeError}</p>
+            </div>
           )}
         </CardContent>
       </Card>

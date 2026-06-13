@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -50,6 +51,7 @@ export function CreateKPModal({
   order: orderProp,
   onSuccess,
 }: CreateKPModalProps) {
+  const router = useRouter();
   // Fetch order if not provided as prop
   const { data: fetchedOrder } = useOrder(orderProp ? null : orderId);
   const order = orderProp ?? fetchedOrder;
@@ -149,6 +151,7 @@ export function CreateKPModal({
       onSuccess?.(result.id);
       resetForm();
       onClose();
+      router.push(`/orders/${orderId}/quote`);
     } catch {
       // Error handled by mutation state
     }

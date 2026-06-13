@@ -1484,7 +1484,7 @@ class DesignerWorkQueueView(BaseWorkQueueView):
         data.update({
             'measurement_summary': _measurement_summary(order),
             'measurements_url': f'/measurements?order={order.id}',
-            'estimate_url': f'/estimate?customer={customer_id}&order={order.id}',
+            'estimate_url': f'/orders/{order.id}/quote',
         })
         return data
 
@@ -1528,7 +1528,7 @@ class QuotesWorkQueueView(BaseWorkQueueView):
             {
                 **_base_order(order),
                 'measurement_summary': _measurement_summary(order),
-                'estimate_url': f'/estimate?customer={order.customer_id}&order={order.id}',
+                'estimate_url': f'/orders/{order.id}/quote',
             }
             for order in orders.filter(has_measurements=True, has_quotes=False)[:limit]
         ]
