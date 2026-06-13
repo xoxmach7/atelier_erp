@@ -779,7 +779,7 @@ export default function OrderDetailPage() {
                       onClick={() => setPrepayModalOpen(true)}
                       className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#DBEAFE] text-[#2563EB] hover:bg-[#BFDBFE] transition-colors"
                     >
-                      <Wallet size={12} /> Предоплата
+                      ₸ Предоплата
                     </button>
                     <button
                       onClick={() => setKPModalOpen(true)}
