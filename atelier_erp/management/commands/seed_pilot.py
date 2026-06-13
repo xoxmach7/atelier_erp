@@ -9,6 +9,7 @@ import random
 import string
 
 from atelier_erp.roles import Roles
+from atelier_erp.models import Tenant, TenantMembership
 
 
 def rand_password(n=12):
@@ -31,6 +32,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--atelier', type=str, default='pilot', help='Atelier name prefix for usernames')
         parser.add_argument('--reset', action='store_true', help='Regenerate passwords for existing pilot users')
+        parser.add_argument('--tenant-slug', type=str, default='', help='Slug тенанта для привязки пользователей (опционально)')
 
     def handle(self, *args, **options):
         prefix = options['atelier'].lower().replace(' ', '_')[:12]

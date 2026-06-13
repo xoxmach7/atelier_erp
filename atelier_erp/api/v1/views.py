@@ -16,6 +16,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 
 from atelier_erp.api.permissions import IsManagerOrAdmin, IsOwnerOrDesigner, IsWarehouseOrOwner, IsInstallationOrOwner, IsInstallationOrOwnerOrReadOnly, IsSeamstressOrOwner
+from atelier_erp.tenant_utils import TenantModelMixin, TenantViaOrderMixin
 from atelier_erp.roles import Roles, user_in
 from atelier_erp.services.numbering import next_number
 from django_filters.rest_framework import DjangoFilterBackend
@@ -48,7 +49,7 @@ from .serializers import (
 from atelier_erp.constants import MaterialReadiness, ProductionStage, HandoverStage
 
 
-class OrderViewSet(viewsets.ModelViewSet):
+class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
     """
     Order API v1
     List/Retrieve: GET /api/v1/orders/
@@ -1913,7 +1914,7 @@ class InventoryAvailabilityViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
 
-class QuoteViewSet(viewsets.ModelViewSet):
+class QuoteViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
     """
     Quote (Commercial Proposal) API v1
 
@@ -2039,7 +2040,7 @@ class QuoteViewSet(viewsets.ModelViewSet):
 # Customer ViewSet
 # ---------------------------------------------------------------------------
 
-class CustomerViewSet(viewsets.ModelViewSet):
+class CustomerViewSet(TenantModelMixin, viewsets.ModelViewSet):
     """
     CRUD for customers.
     GET  /api/v1/customers/          — list (search by name/phone)
@@ -2067,7 +2068,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
 # Payment ViewSet
 # ---------------------------------------------------------------------------
 
-class PaymentViewSet(viewsets.ModelViewSet):
+class PaymentViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
     """
     Payments — финансовые данные, только Owner.
     Designer видит платежи конкретного заказа через OrderDetailSerializer,
@@ -2091,7 +2092,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
 # Measurement ViewSet
 # ---------------------------------------------------------------------------
 
-class MeasurementViewSet(viewsets.ModelViewSet):
+class MeasurementViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
     """
     Measurements (замеры) — Owner/Designer CRUD.
     GET  /api/v1/measurements/?order=<id>  — list filtered by order

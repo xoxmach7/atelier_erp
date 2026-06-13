@@ -77,6 +77,14 @@ class Customer(UUIDModel, TimestampedModel):
         )]
     )
     email = models.EmailField(blank=True, null=True, db_index=True)
+    tenant = models.ForeignKey(
+        'Tenant',
+        on_delete=models.CASCADE,
+        related_name='+',
+        null=True,
+        blank=True,
+        db_index=True,
+    )
     address_city = models.CharField(max_length=100, blank=True, db_index=True)
     address_street = models.CharField(max_length=255, blank=True)
     address_building = models.CharField(max_length=50, blank=True)
@@ -341,6 +349,14 @@ class Order(UUIDModel, AuditedModel):
         on_delete=models.PROTECT,
         related_name='orders',
         db_index=True
+    )
+    tenant = models.ForeignKey(
+        'Tenant',
+        on_delete=models.CASCADE,
+        related_name='+',
+        null=True,
+        blank=True,
+        db_index=True,
     )
     
     # Status (FSM state)
@@ -809,7 +825,7 @@ class Measurement(UUIDModel):
     """Window measurements for order"""
     
     order = models.ForeignKey(
-        Order,
+                Order,
         on_delete=models.CASCADE,
         related_name='measurements',
         db_index=True
@@ -1303,6 +1319,14 @@ class ProductionAssignment(UUIDModel, AuditedModel):
         related_name='production_assignment',
         db_index=True
     )
+    tenant = models.ForeignKey(
+        'Tenant',
+        on_delete=models.CASCADE,
+        related_name='+',
+        null=True,
+        blank=True,
+        db_index=True,
+    )
     assigned_to = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -1386,8 +1410,16 @@ class SeamstressPayment(UUIDModel, AuditedModel):
         related_name='payment',
         db_index=True
     )
+    tenant = models.ForeignKey(
+        'Tenant',
+        on_delete=models.CASCADE,
+        related_name='+',
+        null=True,
+        blank=True,
+        db_index=True,
+    )
     seamstress = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+                settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='seamstress_payments',
         db_index=True
@@ -1516,6 +1548,14 @@ class NumberSequence(models.Model):
     """
 
     prefix = models.CharField(max_length=8)
+    tenant = models.ForeignKey(
+        'Tenant',
+        on_delete=models.CASCADE,
+        related_name='+',
+        null=True,
+        blank=True,
+        db_index=True,
+    )
     year = models.PositiveIntegerField()
     last_value = models.PositiveIntegerField(default=0)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1530,3 +1570,46 @@ class NumberSequence(models.Model):
 
     def __str__(self):
         return f'{self.prefix}-{self.year}: {self.last_value}'
+
+
+# ─── Multi-tenancy ────────────────────────────────────────────────────────────
+
+class Tenant(models.Model):
+    """Одно ателье = один тенант."""
+
+    name = models.CharField(max_length=255, verbose_name='Название ателье')
+    slug = models.SlugField(max_length=64, unique=True, verbose_name='Slug')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'tenant'
+        verbose_name = 'Тенант'
+        verbose_name_plural = 'Тенанты'
+
+    def __str__(self):
+        return self.name
+
+
+class TenantMembership(models.Model):
+    """Связь User ↔ Tenant. Каждый пользователь принадлежит одному ателье."""
+
+    user = models.OneToOneField(
+        'auth.User',
+        on_delete=models.CASCADE,
+        related_name='tenant_membership',
+    )
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.CASCADE,
+        related_name='memberships',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'tenant_membership'
+        verbose_name = 'Членство в тенанте'
+        verbose_name_plural = 'Членства в тенантах'
+
+    def __str__(self):
+        return f'{self.user.username} → {self.tenant.name}'
