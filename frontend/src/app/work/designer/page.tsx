@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { ErrorState, LoadingState } from "@/components/shared";
@@ -60,18 +59,10 @@ function DesignerWorkspace() {
   if (queue.isError) return <ErrorState title="Не удалось загрузить задачи дизайнера" description={queue.error?.message || "Проверьте API очереди дизайнера."} />;
 
   const data = queue.data;
-  const router = useRouter();
 
   return (
     <ProtectedRoute>
-      <WorkspaceHeader title="Дизайнер" description="Замеры, выбор ткани/тюля и подготовка КП.">
-        <button
-          onClick={() => router.push("/workspace")}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2 text-[13px] text-slate-500 hover:text-sky-600 hover:border-sky-300 transition-colors"
-        >
-          ← Рабочий стол
-        </button>
-      </WorkspaceHeader>
+      <WorkspaceHeader title="Дизайнер" description="Замеры, выбор ткани/тюля и подготовка КП." />
 
       <div className="grid gap-6 xl:grid-cols-3">
         <TaskSection title="Нужно добавить замер" count={data?.needs_measurement.length || 0}>
