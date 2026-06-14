@@ -115,9 +115,9 @@ function InfoCell({
   className?: string;
 }) {
   return (
-    <div className={`flex flex-col items-center text-center px-4 py-1 md:py-0 ${className}`}>
-      <span className="text-[12px] text-[#94A3B8] mb-1">{label}</span>
-      <span className="text-[14px] text-[#0F172A]">{children}</span>
+    <div className={`flex flex-col items-center px-4 py-1 md:py-0 ${className}`}>
+      <span className="text-[12px] text-[#94A3B8] mb-1 text-center">{label}</span>
+      <div className="text-[14px] text-[#0F172A] text-center">{children}</div>
     </div>
   );
 }
