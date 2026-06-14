@@ -152,7 +152,7 @@ function ItemRow({
     try {
       await updateQtyMutation.mutateAsync({ itemId: item.id, quantity: next });
     } catch {
-      setLocalQty(localQty); // revert on error
+      setLocalQty(localQty);
     }
   }
 
@@ -160,72 +160,41 @@ function ItemRow({
     if (!confirm("Удалить позицию?")) return;
     try {
       await deleteMutation.mutateAsync(item.id);
-    } catch {/* errors visible via query refetch */}
+    } catch {/* refetch handles UI */}
   }
 
   return (
     <div className="border-b border-dashed border-[#E2E8F0] last:border-0">
-      <div className="flex items-center py-3 px-1 gap-2">
-        {/* Expand toggle */}
-        <button
-          type="button"
-          onClick={() => setOpen(!open)}
-          className="flex-1 flex items-center justify-between text-left hover:bg-[#FAFBFC] transition-colors rounded"
-        >
-          <div className="min-w-0">
-            <div className="text-[14px] text-[#0F172A]">
-              {roomLabel || item.fabric_name || "Позиция"}
+      {/* Collapsed header — just name + price + chevron */}
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between py-3 px-1 text-left hover:bg-[#FAFBFC] transition-colors"
+      >
+        <div className="min-w-0">
+          <div className="text-[14px] text-[#0F172A]">
+            {roomLabel || item.fabric_name || "Позиция"}
+          </div>
+          {item.window_name && item.room_name && (
+            <div className="text-[13px] text-[#94A3B8]">
+              {item.window_name}{" "}
+              {item.window_width_cm && item.window_height_cm
+                ? `(${item.window_width_cm}×${item.window_height_cm})`
+                : ""}
             </div>
-            {item.window_name && item.room_name && (
-              <div className="text-[13px] text-[#94A3B8]">
-                {item.window_name}{" "}
-                {item.window_width_cm && item.window_height_cm
-                  ? `(${item.window_width_cm}×${item.window_height_cm})`
-                  : ""}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-3 shrink-0 ml-2">
-            <span className="text-[14px] font-medium text-[#0F172A]">{displayTotal}</span>
-            {open ? (
-              <ChevronUp size={16} className="text-[#94A3B8]" />
-            ) : (
-              <ChevronDown size={16} className="text-[#94A3B8]" />
-            )}
-          </div>
-        </button>
+          )}
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-[14px] font-medium text-[#0F172A]">{displayTotal}</span>
+          {open ? (
+            <ChevronUp size={16} className="text-[#94A3B8]" />
+          ) : (
+            <ChevronDown size={16} className="text-[#94A3B8]" />
+          )}
+        </div>
+      </button>
 
-        {/* Quantity +/- and delete — only when editable */}
-        {editable && (
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={() => handleQty(-1)}
-              disabled={localQty <= 1 || updateQtyMutation.isPending}
-              className="w-7 h-7 rounded-full flex items-center justify-center text-[#475569] hover:bg-[#F1F5F9] disabled:opacity-40 transition-colors"
-            >
-              <Minus size={13} />
-            </button>
-            <span className="w-6 text-center text-[13px] font-medium text-[#0F172A]">
-              {localQty}
-            </span>
-            <button
-              onClick={() => handleQty(1)}
-              disabled={updateQtyMutation.isPending}
-              className="w-7 h-7 rounded-full flex items-center justify-center text-[#475569] hover:bg-[#F1F5F9] transition-colors"
-            >
-              <Plus size={13} />
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={deleteMutation.isPending}
-              className="w-7 h-7 rounded-full flex items-center justify-center text-[#94A3B8] hover:text-[#DC2626] hover:bg-[#FEE2E2] disabled:opacity-40 transition-colors ml-1"
-            >
-              <Trash2 size={13} />
-            </button>
-          </div>
-        )}
-      </div>
-
+      {/* Expanded details — fabric info + qty controls + delete */}
       {open && (
         <div className="px-1 pb-3 text-[13px] text-[#475569] space-y-1">
           {item.fabric_name && (
@@ -244,9 +213,56 @@ function ItemRow({
               <span className="text-[#94A3B8]">Тип крепления:</span> {item.folds_count} складок
             </div>
           )}
-          <div>
-            <span className="text-[#94A3B8]">Количество:</span> {localQty}
+
+          {/* Quantity row — static for viewers, interactive for editors */}
+          <div className="flex items-center gap-2">
+            <span className="text-[#94A3B8]">Количество:</span>
+            {editable ? (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleQty(-1); }}
+                  disabled={localQty <= 1 || updateQtyMutation.isPending}
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-[#475569] hover:bg-[#F1F5F9] disabled:opacity-40 transition-colors"
+                >
+                  <Minus size={12} />
+                </button>
+                <span className="w-6 text-center text-[13px] font-medium text-[#0F172A]">
+                  {localQty}
+                </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleQty(1); }}
+                  disabled={updateQtyMutation.isPending}
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-[#475569] hover:bg-[#F1F5F9] transition-colors"
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
+            ) : (
+              <span>{localQty}</span>
+            )}
           </div>
+
+          {/* Edit / Delete — only for editors */}
+          {editable && (
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                className="flex items-center gap-1 text-[12px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+                title="Редактировать"
+              >
+                <Pencil size={13} />
+                Изменить
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+                disabled={deleteMutation.isPending}
+                className="flex items-center gap-1 text-[12px] text-[#94A3B8] hover:text-[#DC2626] disabled:opacity-40 transition-colors"
+                title="Удалить"
+              >
+                <Trash2 size={13} />
+                Удалить
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -263,35 +279,51 @@ interface TimelineEvent {
   color: "green" | "gray" | "yellow" | "empty";
 }
 
+function fmtDateTime(v: string | null | undefined): string {
+  if (!v) return "";
+  const d = new Date(v);
+  return (
+    d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }) +
+    " " +
+    d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+  );
+}
+
 function buildTimeline(
   order: OrderDetailDTO,
   execution?: OrderExecutionDTO
 ): TimelineEvent[] {
   const events: TimelineEvent[] = [];
 
-  const createdDate =
-    order.created_at
-      ? fmtDate(order.created_at) +
-        " " +
-        new Date(order.created_at).toLocaleTimeString("ru-RU", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "";
+  // Заказ создан
+  events.push({
+    date: fmtDateTime(order.created_at),
+    label: "Заказ создан",
+    color: "gray",
+  });
 
-  events.push({ date: createdDate, label: "Заказ создан", color: "gray" });
-
-  if (
-    order.source_quote ||
-    (order.related_quotes && order.related_quotes.length > 0)
-  ) {
-    events.push({ date: "", label: "КП создано", color: "gray" });
+  // КП — берём дату из related_quotes или source_quote
+  const kpDate =
+    order.related_quotes?.[0]?.created_at ||
+    order.source_quote?.created_at ||
+    null;
+  if (kpDate || order.source_quote || (order.related_quotes && order.related_quotes.length > 0)) {
+    events.push({
+      date: fmtDateTime(kpDate),
+      label: "КП создано",
+      color: "gray",
+    });
   }
 
+  // Платежи — по дате
   if (order.payments && order.payments.length > 0) {
-    order.payments.forEach((p) => {
+    const sorted = [...order.payments].sort((a, b) =>
+      new Date(a.received_at || a.created_at).getTime() -
+      new Date(b.received_at || b.created_at).getTime()
+    );
+    sorted.forEach((p) => {
       events.push({
-        date: fmtDate(p.received_at || p.created_at),
+        date: fmtDateTime(p.received_at || p.created_at),
         label:
           p.payment_type === "prepayment"
             ? "Предоплата внесена"
@@ -303,33 +335,53 @@ function buildTimeline(
     });
   }
 
+  // Материалы готовы
   if (order.material_readiness === "ready") {
-    events.push({ date: "", label: "Материалы собраны", color: "gray" });
-  }
-
-  const prodStage = execution?.production_stage;
-  if (prodStage && prodStage !== "not_started") {
     events.push({
-      date: "",
-      label: prodStage === "done" ? "Изделия готовы" : "Изделия в производстве",
-      color: prodStage === "done" ? "gray" : "green",
+      date: fmtDateTime(order.materials_ready_at),
+      label: "Материалы собраны",
+      color: "gray",
     });
   }
 
-  const handover = execution?.handover_stage;
+  // Производство
+  const prodStage = execution?.production_stage ?? order.production_stage;
+  if (prodStage && prodStage !== "not_started") {
+    if (prodStage === "done") {
+      events.push({
+        date: fmtDateTime(order.production_done_at),
+        label: "Изделия готовы",
+        color: "gray",
+      });
+    } else {
+      events.push({
+        date: fmtDateTime(order.production_started_at),
+        label: "Изделия в производстве",
+        color: "green",
+      });
+    }
+  }
+
+  // Установка
+  const handover = execution?.handover_stage ?? order.handover_stage;
   if (handover === "done") {
-    events.push({ date: "", label: "Изделия установлены", color: "gray" });
+    events.push({
+      date: fmtDateTime(order.handover_done_at),
+      label: "Изделия установлены",
+      color: "gray",
+    });
   } else if (handover === "in_progress") {
     events.push({ date: "", label: "Установка выполняется", color: "green" });
   } else if (handover === "scheduled") {
     events.push({ date: "", label: "Установка запланирована", color: "yellow" });
-  } else {
+  } else if (handover && handover !== "not_required") {
     events.push({ date: "", label: "Изделия не установлены", color: "empty" });
   }
 
+  // Завершён
   if (order.status === "completed") {
     events.push({
-      date: fmtDate(order.actual_completion),
+      date: fmtDateTime(order.actual_completion) || fmtDateTime(order.cancelled_at),
       label: "Заказ завершён",
       color: "gray",
     });
@@ -789,7 +841,7 @@ export default function OrderDetailPage() {
                 <Info size={16} className="text-[#0EA5E9]" />
                 <span className="text-[15px] font-medium text-[#0F172A]">Информация</span>
               </div>
-              <div className="flex items-start justify-between divide-x divide-[#CBD5E1]">
+              <div className="flex items-start justify-between divide-x divide-[#94A3B8]">
                 <InfoCell label="Клиент">
                   <div className="font-medium">{getCustomerName(order)}</div>
                   {getCustomerPhone(order) && (
@@ -864,7 +916,7 @@ export default function OrderDetailPage() {
                     {items.map((item) => (
                       <ItemRow key={item.id} item={item} orderId={orderId} editable={isOwnerOrDesigner} />
                     ))}
-                    <div className="flex items-center justify-between pt-4 mt-2 border-t border-[#E2E8F0]">
+                    <div className="flex items-center justify-between pt-4 mt-2">
                       <span className="text-[16px] font-bold text-[#0F172A]">ИТОГО</span>
                       <span className="text-[16px] font-bold text-[#0F172A]">
                         {fmtCurrency(order.total_amount)}

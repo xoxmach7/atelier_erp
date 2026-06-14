@@ -138,6 +138,7 @@ export interface SourceQuoteDTO {
   quote_number: string;
   total: string;
   status: string;
+  created_at?: string | null;
 }
 
 /**
@@ -151,6 +152,8 @@ export interface OrderDetailDTO {
   order_number: string;
   status: OrderStatus;
   material_readiness: MaterialReadiness; // Operational layer: material availability for production
+  production_stage?: string | null;
+  handover_stage?: string | null;
   total_amount: string;
   paid_amount: string;
   balance_due: string;
@@ -187,6 +190,14 @@ export interface OrderDetailDTO {
 
   // Metadata (called 'updated_at' in backend, not 'modified_at')
   updated_at: string;
+
+  // Stage timestamps (set by backend when stage changes)
+  materials_ready_at?: string | null;
+  production_started_at?: string | null;
+  production_done_at?: string | null;
+  handover_done_at?: string | null;
+  cancel_reason?: string;
+  cancelled_at?: string | null;
 
   // Computed fields from serializer
   designer_name?: string;

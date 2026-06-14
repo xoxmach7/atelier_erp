@@ -447,6 +447,13 @@ class Order(UUIDModel, AuditedModel):
     # Cancellation tracking
     cancel_reason = models.TextField(blank=True, help_text='Reason for order cancellation')
     cancelled_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    # Stage timestamps — set automatically when stage changes
+    materials_ready_at = models.DateTimeField(null=True, blank=True, help_text='When material_readiness became ready')
+    production_started_at = models.DateTimeField(null=True, blank=True, help_text='When production_stage first left not_started')
+    production_done_at = models.DateTimeField(null=True, blank=True, help_text='When production_stage became done')
+    handover_done_at = models.DateTimeField(null=True, blank=True, help_text='When handover_stage became done')
+
     cancelled_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

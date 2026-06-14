@@ -926,8 +926,13 @@ class OrderExecutionService:
         
         # Update order
         old_value = order.material_readiness
+        from django.utils import timezone
         order.material_readiness = material_readiness
-        order.save(update_fields=['material_readiness', 'updated_at'])
+        update_fields = ['material_readiness', 'updated_at']
+        if material_readiness == 'ready' and not order.materials_ready_at:
+            order.materials_ready_at = timezone.now()
+            update_fields.append('materials_ready_at')
+        order.save(update_fields=update_fields)
         
         # Create history entry via OrderService if available
         if self.order_service:
@@ -969,8 +974,17 @@ class OrderExecutionService:
         
         # Update order
         old_value = order.production_stage
+        from django.utils import timezone
         order.production_stage = production_stage
-        order.save(update_fields=['production_stage', 'updated_at'])
+        update_fields = ['production_stage', 'updated_at']
+        now = timezone.now()
+        if production_stage != 'not_started' and not order.production_started_at:
+            order.production_started_at = now
+            update_fields.append('production_started_at')
+        if production_stage == 'done' and not order.production_done_at:
+            order.production_done_at = now
+            update_fields.append('production_done_at')
+        order.save(update_fields=update_fields)
         
         # Create history entry
         if self.order_service:
@@ -1034,9 +1048,12 @@ class OrderExecutionService:
             )
         
         # Update order
+        from django.utils import timezone
         old_value = order.handover_stage
         old_status = order.status
         order.handover_stage = handover_stage
+        if handover_stage == 'done' and not order.handover_done_at:
+            order.handover_done_at = timezone.now()
         
         # Auto-transition status after handover done
         status_changed = False

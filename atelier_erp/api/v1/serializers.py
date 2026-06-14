@@ -21,7 +21,7 @@ class RelatedQuoteSerializer(serializers.ModelSerializer):
     """Serializer for quotes linked to an order"""
     class Meta:
         model = _Quote
-        fields = ['id', 'quote_number', 'status', 'total']
+        fields = ['id', 'quote_number', 'status', 'total', 'created_at']
 from atelier_erp.constants import MaterialReadiness
 from atelier_erp.roles import Roles, user_in
 
@@ -319,6 +319,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             'installation_address_notes',
             'source_quote', 'related_quotes', 'payments', 'measurements',
             'cancel_reason', 'cancelled_at',
+            'materials_ready_at', 'production_started_at', 'production_done_at', 'handover_done_at',
             'designer_name',
         ]
         read_only_fields = ['order_number', 'created_at', 'updated_at']
