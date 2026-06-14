@@ -4,8 +4,10 @@ import Link from "next/link";
 import { BarChart2, TrendingDown, TrendingUp, ChevronDown, RefreshCw } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useAuth } from "@/contexts/auth-context";
+import { useRole } from "@/hooks/useRole";
 import { ErrorState, LoadingState } from "@/components/shared";
 import { useOwnerQueue, useDashboard } from "@/hooks/useWorkQueues";
+import { useRouter } from "next/navigation";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -125,6 +127,14 @@ function DashboardContent() {
   const queue     = useOwnerQueue();
   const dashboard = useDashboard();
   const { logout, user } = useAuth();
+  const { role } = useRole();
+  const router = useRouter();
+
+  // Дизайнер не видит дашборд — только заказы
+  if (role === "designer") {
+    router.replace("/orders");
+    return null;
+  }
 
   if (queue.isLoading || dashboard.isLoading)
     return <LoadingState message="Загрузка..." />;

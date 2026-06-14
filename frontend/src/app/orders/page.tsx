@@ -53,7 +53,7 @@ function OrdersContent() {
 
   // Workers don't see completed/cancelled orders
   const isWorker = !isOwner && role !== "designer" && role !== "none";
-  const showFinancial = isOwner || role === "designer";
+  const showFinancial = isOwner;
   const canCreateOrder = isOwner || role === "designer";
 
   // Client-side filters

@@ -115,7 +115,7 @@ function InfoCell({
   className?: string;
 }) {
   return (
-    <div className={`flex flex-col items-center text-center px-3 py-2 md:py-0 w-1/2 md:w-auto ${className}`}>
+    <div className={`flex flex-col items-center text-center px-4 py-1 md:py-0 ${className}`}>
       <span className="text-[12px] text-[#94A3B8] mb-1">{label}</span>
       <span className="text-[14px] text-[#0F172A]">{children}</span>
     </div>
@@ -992,7 +992,7 @@ export default function OrderDetailPage() {
                 <img src="/icons/info.png" width={18} height={18} alt="" />
                 <span className="text-[15px] font-medium text-[#0F172A]">Информация</span>
               </div>
-              <div className="flex flex-wrap md:flex-nowrap items-start justify-between divide-y md:divide-y-0 md:divide-x divide-[#94A3B8]">
+              <div className="flex flex-wrap justify-center divide-x-0 md:divide-x divide-[#94A3B8] gap-y-2 md:gap-y-0">
                 <InfoCell label="Клиент">
                   <div className="font-medium">{getCustomerName(order)}</div>
                   {getCustomerPhone(order) && (
