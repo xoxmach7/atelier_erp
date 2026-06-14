@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, ChevronUp, ArrowLeft, Info, History, LayoutList, Minus, Pencil, Trash2, Plus, FileText, Package, Scissors, Camera, MapPin, Check } from "lucide-react";
+import { ChevronDown, ChevronUp, ArrowLeft, Minus, Plus, FileText, Package, Scissors, Camera, MapPin, Check } from "lucide-react";
 import { CreateMeasurementModal } from "@/components/shared/create-measurement-modal";
 import { CreateKPModal } from "@/components/shared/create-kp-modal";
 import { CreatePrepaymentModal } from "@/components/shared/create-prepayment-modal";
@@ -242,24 +242,22 @@ function ItemRow({
             )}
           </div>
 
-          {/* Edit / Delete — only for editors */}
+          {/* Edit / Delete icons — only for editors */}
           {editable && (
             <div className="flex items-center gap-2 pt-1">
               <button
-                className="flex items-center gap-1 text-[12px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+                className="opacity-90 hover:opacity-100 transition-opacity"
                 title="Редактировать"
               >
-                <Pencil size={13} />
-                Изменить
+                <img src="/icons/edit.png" width={28} height={28} alt="Редактировать" />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); handleDelete(); }}
                 disabled={deleteMutation.isPending}
-                className="flex items-center gap-1 text-[12px] text-[#94A3B8] hover:text-[#DC2626] disabled:opacity-40 transition-colors"
+                className="opacity-90 hover:opacity-100 disabled:opacity-40 transition-opacity"
                 title="Удалить"
               >
-                <Trash2 size={13} />
-                Удалить
+                <img src="/icons/delete.png" width={28} height={28} alt="Удалить" />
               </button>
             </div>
           )}
@@ -838,7 +836,7 @@ export default function OrderDetailPage() {
           {showInfo && <div className="px-[52px] pb-8">
             <div className="rounded-xl border border-[#0EA5E9] p-6">
               <div className="flex items-center justify-center gap-2 mb-5">
-                <Info size={16} className="text-[#0EA5E9]" />
+                <img src="/icons/info.png" width={18} height={18} alt="" />
                 <span className="text-[15px] font-medium text-[#0F172A]">Информация</span>
               </div>
               <div className="flex items-start justify-between divide-x divide-[#94A3B8]">
@@ -879,30 +877,35 @@ export default function OrderDetailPage() {
               {/* Positions */}
               <div className="flex-1 rounded-xl border border-[#E2E8F0] p-6">
                 <div className="flex items-center gap-2 mb-5">
-                  <LayoutList size={18} className="text-[#94A3B8]" />
+                  <img src="/icons/positions.png" width={20} height={20} alt="" />
                   <span className="text-[16px] font-medium text-[#0F172A]">Позиции</span>
                 </div>
 
                 {/* Action pill buttons */}
                 {isOwnerOrDesigner && (
                   <div className="flex gap-2 mb-4">
-                    <button
-                      onClick={() => setMeasurementModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#DCFCE7] text-[#16A34A] hover:bg-[#BBF7D0] transition-colors"
-                    >
-                      <Plus size={12} /> Добавить
-                    </button>
+                    {/* Добавить замер — только дизайнер */}
+                    {role === "designer" && (
+                      <button
+                        onClick={() => setMeasurementModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#0EA5E9] text-white hover:bg-[#0284C7] transition-colors"
+                      >
+                        <Plus size={12} /> Добавить
+                      </button>
+                    )}
                     <button
                       onClick={() => setPrepayModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#DBEAFE] text-[#2563EB] hover:bg-[#BFDBFE] transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#0EA5E9] text-white hover:bg-[#0284C7] transition-colors"
                     >
-                      ₸ Предоплата
+                      <img src="/icons/tenge.png" width={13} height={13} alt="" className="opacity-90" />
+                      Предоплата
                     </button>
                     <button
                       onClick={() => setKPModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#DCFCE7] text-[#16A34A] hover:bg-[#BBF7D0] transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#0EA5E9] text-white hover:bg-[#0284C7] transition-colors"
                     >
-                      <FileText size={12} /> Создать КП
+                      <img src="/icons/kp.png" width={13} height={13} alt="" className="opacity-90" />
+                      Создать КП
                     </button>
                   </div>
                 )}
@@ -930,7 +933,7 @@ export default function OrderDetailPage() {
               {/* History */}
               <div className="w-[380px] shrink-0 rounded-xl border border-dashed border-[#CBD5E1] p-6">
                 <div className="flex items-center gap-2 mb-5">
-                  <History size={18} className="text-[#94A3B8]" />
+                  <img src="/icons/history.png" width={20} height={20} alt="" />
                   <span className="text-[16px] font-medium text-[#0F172A]">История</span>
                 </div>
                 <HistoryTimeline events={timeline} />
@@ -1028,7 +1031,7 @@ export default function OrderDetailPage() {
                 {/* История */}
                 <div className="w-[380px] shrink-0 rounded-xl border border-dashed border-[#CBD5E1] p-6">
                   <div className="flex items-center gap-2 mb-5">
-                    <History size={18} className="text-[#94A3B8]" />
+                    <img src="/icons/history.png" width={20} height={20} alt="" />
                     <span className="text-[16px] font-medium text-[#0F172A]">История</span>
                   </div>
                   <HistoryTimeline events={timeline} />
@@ -1085,7 +1088,7 @@ export default function OrderDetailPage() {
                 {/* История */}
                 <div className="w-[380px] shrink-0 rounded-xl border border-dashed border-[#CBD5E1] p-6">
                   <div className="flex items-center gap-2 mb-5">
-                    <History size={18} className="text-[#94A3B8]" />
+                    <img src="/icons/history.png" width={20} height={20} alt="" />
                     <span className="text-[16px] font-medium text-[#0F172A]">История</span>
                   </div>
                   <HistoryTimeline events={timeline} />
@@ -1147,7 +1150,7 @@ export default function OrderDetailPage() {
               {/* История */}
               <div className="rounded-xl border border-dashed border-[#CBD5E1] p-6">
                 <div className="flex items-center gap-2 mb-5">
-                  <History size={18} className="text-[#94A3B8]" />
+                  <img src="/icons/history.png" width={20} height={20} alt="" />
                   <span className="text-[16px] font-medium text-[#0F172A]">История</span>
                 </div>
                 <HistoryTimeline events={timeline} />
