@@ -49,7 +49,7 @@ function BarChart({ data }: { data: { label: string; value: number }[] }) {
             return (
               <div key={i} className="flex flex-1 flex-col items-center h-full justify-end">
                 <div
-                  className="w-full rounded-t-[4px] min-h-[4px] transition-all duration-300 bg-[#0EA5E9]"
+                  className="w-full rounded-t-[4px] min-h-[4px] transition-all duration-300 bg-[#60CCED]"
                   style={{ height: `${pct}%` }}
                 />
               </div>
@@ -82,7 +82,7 @@ function ChartPanel({
   return (
     <div className="flex-1 bg-white rounded-[7px] p-6 flex flex-col min-w-0 min-h-[300px]">
       <div className="flex items-center justify-center gap-2 mb-5">
-        <span className="text-[#0EA5E9]">{icon}</span>
+        <span className="text-[#60CCED]">{icon}</span>
         <span className="text-[15px] font-semibold text-[#475569]">{title}</span>
       </div>
       <BarChart data={data} />

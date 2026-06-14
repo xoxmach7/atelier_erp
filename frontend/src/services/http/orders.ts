@@ -3,7 +3,7 @@
  * Handles all HTTP operations for orders
  */
 
-import { get, post, patch } from "./client";
+import { get, post, patch, del } from "./client";
 import type {
   OrderListItemDTO,
   OrderDetailDTO,
@@ -412,4 +412,18 @@ export interface CompletionChecklistDTO {
 
 export async function getCompletionChecklist(orderId: string): Promise<CompletionChecklistDTO> {
   return get<CompletionChecklistDTO>(`/v1/orders/${orderId}/completion-checklist/`);
+}
+
+// ── Order Item management ──────────────────────────────────────────────────
+
+export async function deleteOrderItem(orderId: string, itemId: string): Promise<void> {
+  return del(`/v1/orders/${orderId}/items/${itemId}/`);
+}
+
+export async function updateOrderItemQuantity(
+  orderId: string,
+  itemId: string,
+  quantity: number
+): Promise<{ id: string; quantity: number; unit_price: string; total_price: string }> {
+  return patch(`/v1/orders/${orderId}/items/${itemId}/`, { quantity });
 }

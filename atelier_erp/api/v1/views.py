@@ -921,6 +921,62 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
+
+    @action(
+        detail=True,
+        methods=['patch', 'delete'],
+        url_path='items/(?P<item_id>[^/.]+)',
+        url_name='manage-item',
+        permission_classes=[IsAuthenticated, IsOwnerOrDesigner],
+    )
+    def manage_item(self, request, pk=None, item_id=None):
+        """
+        PATCH /api/v1/orders/{id}/items/{item_id}/  — изменить количество позиции
+        DELETE /api/v1/orders/{id}/items/{item_id}/ — удалить позицию
+        """
+        from django.db.models import Sum
+        from decimal import Decimal
+
+        order = self.get_object()
+        try:
+            item = order.items.get(id=item_id)
+        except OrderItem.DoesNotExist:
+            return Response({"detail": "Позиция не найдена."}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == "DELETE":
+            item.delete()
+            total = order.items.aggregate(s=Sum("total_price"))["s"] or Decimal("0")
+            order.total_amount = total
+            order.save(update_fields=["total_amount"])
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        # PATCH
+        quantity = request.data.get("quantity")
+        if quantity is None:
+            return Response({"detail": "Поле quantity обязательно."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            qty = int(quantity)
+            if qty < 1:
+                raise ValueError
+        except (ValueError, TypeError):
+            return Response({"detail": "quantity должно быть >= 1."}, status=status.HTTP_400_BAD_REQUEST)
+
+        item.quantity = qty
+        if item.unit_price:
+            item.total_price = Decimal(str(item.unit_price)) * qty
+        item.save(update_fields=["quantity", "total_price"])
+
+        total = order.items.aggregate(s=Sum("total_price"))["s"] or Decimal("0")
+        order.total_amount = total
+        order.save(update_fields=["total_amount"])
+
+        return Response({
+            "id": str(item.id),
+            "quantity": item.quantity,
+            "unit_price": str(item.unit_price or "0"),
+            "total_price": str(item.total_price or "0"),
+        })
+
     def _mvp_transition(self, request, pk, target_status):
         """Helper for simple state transitions"""
         order = self.get_object()

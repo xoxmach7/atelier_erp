@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, ChevronUp, ArrowLeft, Info, Clock, Plus, FileText, Package, Scissors, Truck, Camera, MapPin, Check } from "lucide-react";
+import { ChevronDown, ChevronUp, ArrowLeft, Info, History, LayoutList, Minus, Pencil, Trash2, Plus, FileText, Package, Scissors, Camera, MapPin, Check } from "lucide-react";
 import { CreateMeasurementModal } from "@/components/shared/create-measurement-modal";
 import { CreateKPModal } from "@/components/shared/create-kp-modal";
 import { CreatePrepaymentModal } from "@/components/shared/create-prepayment-modal";
@@ -40,6 +40,8 @@ import {
   useChangeProductionStage,
   useChangeHandoverStage,
   useCancelOrder,
+  useDeleteOrderItem,
+  useUpdateOrderItemQuantity,
 } from "@/hooks/useOrders";
 import { useRole } from "@/hooks/useRole";
 import { useCreatePayment } from "@/hooks/usePayments";
@@ -122,43 +124,107 @@ function InfoCell({
 /*  ItemRow (expandable)                                                */
 /* ------------------------------------------------------------------ */
 
-function ItemRow({ item }: { item: OrderItemDTO }) {
+function ItemRow({
+  item,
+  orderId,
+  editable = false,
+}: {
+  item: OrderItemDTO;
+  orderId: string;
+  editable?: boolean;
+}) {
   const [open, setOpen] = useState(false);
+  const [localQty, setLocalQty] = useState(item.quantity ?? 1);
+  const deleteMutation = useDeleteOrderItem(orderId);
+  const updateQtyMutation = useUpdateOrderItemQuantity(orderId);
 
   const roomLabel = [item.room_name, item.window_name].filter(Boolean).join(" / ");
-  const price = item.total_price
-    ? parseFloat(item.total_price).toLocaleString("ru-RU") + " ₸"
-    : "—";
+  const unitPrice = item.unit_price ? parseFloat(item.unit_price) : 0;
+  const displayTotal = unitPrice > 0
+    ? (unitPrice * localQty).toLocaleString("ru-RU") + " ₸"
+    : item.total_price
+      ? parseFloat(item.total_price).toLocaleString("ru-RU") + " ₸"
+      : "—";
+
+  async function handleQty(delta: number) {
+    const next = Math.max(1, localQty + delta);
+    setLocalQty(next);
+    try {
+      await updateQtyMutation.mutateAsync({ itemId: item.id, quantity: next });
+    } catch {
+      setLocalQty(localQty); // revert on error
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm("Удалить позицию?")) return;
+    try {
+      await deleteMutation.mutateAsync(item.id);
+    } catch {/* errors visible via query refetch */}
+  }
 
   return (
     <div className="border-b border-dashed border-[#E2E8F0] last:border-0">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between py-3 px-1 text-left hover:bg-[#FAFBFC] transition-colors"
-      >
-        <div className="min-w-0">
-          <div className="text-[14px] text-[#0F172A]">
-            {roomLabel || item.fabric_name || "Позиция"}
-          </div>
-          {item.window_name && item.room_name && (
-            <div className="text-[13px] text-[#94A3B8]">
-              {item.window_name}{" "}
-              {item.window_width_cm && item.window_height_cm
-                ? `(${item.window_width_cm}×${item.window_height_cm})`
-                : ""}
+      <div className="flex items-center py-3 px-1 gap-2">
+        {/* Expand toggle */}
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="flex-1 flex items-center justify-between text-left hover:bg-[#FAFBFC] transition-colors rounded"
+        >
+          <div className="min-w-0">
+            <div className="text-[14px] text-[#0F172A]">
+              {roomLabel || item.fabric_name || "Позиция"}
             </div>
-          )}
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <span className="text-[14px] font-medium text-[#0F172A]">{price}</span>
-          {open ? (
-            <ChevronUp size={16} className="text-[#94A3B8]" />
-          ) : (
-            <ChevronDown size={16} className="text-[#94A3B8]" />
-          )}
-        </div>
-      </button>
+            {item.window_name && item.room_name && (
+              <div className="text-[13px] text-[#94A3B8]">
+                {item.window_name}{" "}
+                {item.window_width_cm && item.window_height_cm
+                  ? `(${item.window_width_cm}×${item.window_height_cm})`
+                  : ""}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3 shrink-0 ml-2">
+            <span className="text-[14px] font-medium text-[#0F172A]">{displayTotal}</span>
+            {open ? (
+              <ChevronUp size={16} className="text-[#94A3B8]" />
+            ) : (
+              <ChevronDown size={16} className="text-[#94A3B8]" />
+            )}
+          </div>
+        </button>
+
+        {/* Quantity +/- and delete — only when editable */}
+        {editable && (
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => handleQty(-1)}
+              disabled={localQty <= 1 || updateQtyMutation.isPending}
+              className="w-7 h-7 rounded-full flex items-center justify-center text-[#475569] hover:bg-[#F1F5F9] disabled:opacity-40 transition-colors"
+            >
+              <Minus size={13} />
+            </button>
+            <span className="w-6 text-center text-[13px] font-medium text-[#0F172A]">
+              {localQty}
+            </span>
+            <button
+              onClick={() => handleQty(1)}
+              disabled={updateQtyMutation.isPending}
+              className="w-7 h-7 rounded-full flex items-center justify-center text-[#475569] hover:bg-[#F1F5F9] transition-colors"
+            >
+              <Plus size={13} />
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+              className="w-7 h-7 rounded-full flex items-center justify-center text-[#94A3B8] hover:text-[#DC2626] hover:bg-[#FEE2E2] disabled:opacity-40 transition-colors ml-1"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+        )}
+      </div>
 
       {open && (
         <div className="px-1 pb-3 text-[13px] text-[#475569] space-y-1">
@@ -179,7 +245,7 @@ function ItemRow({ item }: { item: OrderItemDTO }) {
             </div>
           )}
           <div>
-            <span className="text-[#94A3B8]">Количество:</span> {item.quantity}
+            <span className="text-[#94A3B8]">Количество:</span> {localQty}
           </div>
         </div>
       )}
@@ -253,7 +319,9 @@ function buildTimeline(
   const handover = execution?.handover_stage;
   if (handover === "done") {
     events.push({ date: "", label: "Изделия установлены", color: "gray" });
-  } else if (handover === "in_progress" || handover === "scheduled") {
+  } else if (handover === "in_progress") {
+    events.push({ date: "", label: "Установка выполняется", color: "green" });
+  } else if (handover === "scheduled") {
     events.push({ date: "", label: "Установка запланирована", color: "yellow" });
   } else {
     events.push({ date: "", label: "Изделия не установлены", color: "empty" });
@@ -263,7 +331,7 @@ function buildTimeline(
     events.push({
       date: fmtDate(order.actual_completion),
       label: "Заказ завершён",
-      color: "green",
+      color: "gray",
     });
   }
 
@@ -651,10 +719,9 @@ export default function OrderDetailPage() {
             <div className="flex items-center gap-4">
               <button
                 onClick={() => router.back()}
-                className="flex items-center gap-1.5 text-[14px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+                className="text-[#475569] hover:text-[#0EA5E9] transition-colors"
               >
-                <ArrowLeft size={15} />
-                Назад
+                <ArrowLeft size={24} />
               </button>
               <h1 className="text-[26px] font-semibold text-[#0F172A]">
                 Заказ №{order.order_number || orderId.slice(0, 6)}
@@ -722,7 +789,7 @@ export default function OrderDetailPage() {
                 <Info size={16} className="text-[#0EA5E9]" />
                 <span className="text-[15px] font-medium text-[#0F172A]">Информация</span>
               </div>
-              <div className="flex items-start justify-between divide-x divide-[#F1F5F9]">
+              <div className="flex items-start justify-between divide-x divide-[#CBD5E1]">
                 <InfoCell label="Клиент">
                   <div className="font-medium">{getCustomerName(order)}</div>
                   {getCustomerPhone(order) && (
@@ -760,10 +827,7 @@ export default function OrderDetailPage() {
               {/* Positions */}
               <div className="flex-1 rounded-xl border border-[#E2E8F0] p-6">
                 <div className="flex items-center gap-2 mb-5">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
-                    <rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
-                  </svg>
+                  <LayoutList size={18} className="text-[#94A3B8]" />
                   <span className="text-[16px] font-medium text-[#0F172A]">Позиции</span>
                 </div>
 
@@ -798,20 +862,15 @@ export default function OrderDetailPage() {
                 ) : (
                   <>
                     {items.map((item) => (
-                      <ItemRow key={item.id} item={item} />
+                      <ItemRow key={item.id} item={item} orderId={orderId} editable={isOwnerOrDesigner} />
                     ))}
-                    <div className="flex items-center justify-between pt-4 mt-2 border-t border-[#0F172A]">
+                    <div className="flex items-center justify-between pt-4 mt-2 border-t border-[#E2E8F0]">
                       <span className="text-[16px] font-bold text-[#0F172A]">ИТОГО</span>
                       <span className="text-[16px] font-bold text-[#0F172A]">
                         {fmtCurrency(order.total_amount)}
                       </span>
                     </div>
-                    {paid > 0 && (
-                      <div className="mt-3 text-[13px] text-[#475569]">
-                        Внесено: <span className="font-medium text-[#0F172A]">{paid.toLocaleString("ru-RU")} ₸</span>
-                        {order.total_amount && <span className="text-[#94A3B8]"> ({prepayPercent}%)</span>}
-                      </div>
-                    )}
+
                   </>
                 )}
               </div>
@@ -819,7 +878,7 @@ export default function OrderDetailPage() {
               {/* History */}
               <div className="w-[380px] shrink-0 rounded-xl border border-dashed border-[#CBD5E1] p-6">
                 <div className="flex items-center gap-2 mb-5">
-                  <Clock size={18} className="text-[#94A3B8]" />
+                  <History size={18} className="text-[#94A3B8]" />
                   <span className="text-[16px] font-medium text-[#0F172A]">История</span>
                 </div>
                 <HistoryTimeline events={timeline} />
@@ -917,7 +976,7 @@ export default function OrderDetailPage() {
                 {/* История */}
                 <div className="w-[380px] shrink-0 rounded-xl border border-dashed border-[#CBD5E1] p-6">
                   <div className="flex items-center gap-2 mb-5">
-                    <Clock size={18} className="text-[#94A3B8]" />
+                    <History size={18} className="text-[#94A3B8]" />
                     <span className="text-[16px] font-medium text-[#0F172A]">История</span>
                   </div>
                   <HistoryTimeline events={timeline} />
@@ -974,7 +1033,7 @@ export default function OrderDetailPage() {
                 {/* История */}
                 <div className="w-[380px] shrink-0 rounded-xl border border-dashed border-[#CBD5E1] p-6">
                   <div className="flex items-center gap-2 mb-5">
-                    <Clock size={18} className="text-[#94A3B8]" />
+                    <History size={18} className="text-[#94A3B8]" />
                     <span className="text-[16px] font-medium text-[#0F172A]">История</span>
                   </div>
                   <HistoryTimeline events={timeline} />
@@ -1036,7 +1095,7 @@ export default function OrderDetailPage() {
               {/* История */}
               <div className="rounded-xl border border-dashed border-[#CBD5E1] p-6">
                 <div className="flex items-center gap-2 mb-5">
-                  <Clock size={18} className="text-[#94A3B8]" />
+                  <History size={18} className="text-[#94A3B8]" />
                   <span className="text-[16px] font-medium text-[#0F172A]">История</span>
                 </div>
                 <HistoryTimeline events={timeline} />

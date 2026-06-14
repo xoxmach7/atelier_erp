@@ -20,6 +20,8 @@ import {
   getOrderCompletionAct,
   createOrderCompletionAct,
   uploadSignedCompletionAct,
+  deleteOrderItem,
+  updateOrderItemQuantity,
 } from "@/services/http/orders";
 import type {
   OrderListItemDTO,
@@ -315,6 +317,36 @@ export function useUploadSignedCompletionAct() {
       queryClient.invalidateQueries({
         queryKey: [EXECUTION_QUERY_KEY, variables.orderId],
       });
+    },
+  });
+}
+
+/**
+ * Hook for deleting an order item
+ */
+export function useDeleteOrderItem(orderId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: (itemId) => deleteOrderItem(orderId, itemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+    },
+  });
+}
+
+/**
+ * Hook for updating order item quantity
+ */
+export function useUpdateOrderItemQuantity(orderId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    { id: string; quantity: number; unit_price: string; total_price: string },
+    Error,
+    { itemId: string; quantity: number }
+  >({
+    mutationFn: ({ itemId, quantity }) => updateOrderItemQuantity(orderId, itemId, quantity),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order", orderId] });
     },
   });
 }

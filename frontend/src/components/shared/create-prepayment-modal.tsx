@@ -27,7 +27,6 @@ export function CreatePrepaymentModal({
 
   const [pct, setPct] = useState(String(initialPct));
   const [amount, setAmount] = useState(initialAmount > 0 ? String(initialAmount) : "");
-  const [method, setMethod] = useState<"cash" | "card" | "transfer" | "kaspi">("cash");
 
   useEffect(() => {
     if (isOpen) {
@@ -60,7 +59,7 @@ export function CreatePrepaymentModal({
     const amountNum = parseInt(amount.replace(/\s/g, ""), 10) || 0;
     const pctNum = parseInt(pct, 10) || 0;
     if (amountNum <= 0) return;
-    onSave({ amount: amountNum, pct: pctNum, method });
+    onSave({ amount: amountNum, pct: pctNum, method: "cash" });
   }
 
   if (!isOpen) return null;
@@ -87,20 +86,14 @@ export function CreatePrepaymentModal({
 
         <div className="p-7 pb-8">
           {/* Header */}
-          <div className="flex items-center gap-3 mb-7">
+          <div className="flex items-center justify-between mb-7">
+            <h2 className="text-[24px] font-bold text-[#0F172A]">Предоплата</h2>
             <button
               onClick={onClose}
               className="text-[#475569] hover:text-[#0F172A] transition-colors p-0.5"
             >
               <X size={22} />
             </button>
-            <div
-              className="w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0"
-              style={{ background: "#0EA5E912" }}
-            >
-              <span className="text-[13px] font-semibold">₸</span>
-            </div>
-            <h2 className="text-[24px] font-bold text-[#0F172A]">Предоплата</h2>
           </div>
 
           <div className="flex flex-col gap-5">
@@ -132,30 +125,6 @@ export function CreatePrepaymentModal({
               />
               <span className="text-[16px] text-[#475569]">₸</span>
             </div>
-
-            {/* Method */}
-            <div className="flex items-center gap-4">
-              <label className="text-[15px] font-medium text-[#0F172A] w-44 shrink-0">
-                Способ оплаты:
-              </label>
-              <select
-                value={method}
-                onChange={(e) => setMethod(e.target.value as typeof method)}
-                className="flex-1 rounded-[10px] bg-[#E9E9E9] border-none px-3 py-[11px] text-[15px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#0EA5E9] cursor-pointer"
-              >
-                <option value="cash">Наличные</option>
-                <option value="card">Карта</option>
-                <option value="transfer">Перевод</option>
-                <option value="kaspi">Kaspi</option>
-              </select>
-            </div>
-
-            {/* Total hint */}
-            {orderTotal > 0 && (
-              <div className="text-[13px] text-[#94A3B8] -mt-1">
-                Сумма заказа: {orderTotal.toLocaleString("ru-RU")} ₸
-              </div>
-            )}
 
             {/* Submit */}
             <button

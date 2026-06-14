@@ -122,21 +122,66 @@ function OrdersContent() {
                     Добавить заказ
                   </button>
                 )}
-                <button
-                  onClick={() => setShowFilters((v) => !v)}
-                  className={`flex items-center gap-1.5 text-[15px] transition-colors ${
-                    showFilters || hasActiveFilters
-                      ? "text-[#0EA5E9]"
-                      : "text-[#475569] hover:text-[#0EA5E9]"
-                  }`}
-                >
-                  Фильтры
-                  {hasActiveFilters && (
-                    <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#0EA5E9] text-[11px] font-medium text-white">
-                      {[listStatusFilter, dateFrom, dateTo].filter(Boolean).length}
-                    </span>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowFilters((v) => !v)}
+                    className={`flex items-center gap-1.5 text-[15px] transition-colors ${
+                      showFilters || hasActiveFilters
+                        ? "text-[#0EA5E9]"
+                        : "text-[#475569] hover:text-[#0EA5E9]"
+                    }`}
+                  >
+                    Фильтры
+                    {hasActiveFilters && (
+                      <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#0EA5E9] text-[11px] font-medium text-white">
+                        {[listStatusFilter, dateFrom, dateTo].filter(Boolean).length}
+                      </span>
+                    )}
+                  </button>
+
+                  {showFilters && (
+                    <div className="absolute left-0 top-[calc(100%+10px)] z-30 w-[360px] bg-white rounded-xl shadow-xl border border-[#E2E8F0] p-5">
+                      <div className="flex flex-col gap-4">
+                        {/* Date from */}
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[12px] font-medium text-[#94A3B8] uppercase tracking-wider">
+                            Дата от
+                          </label>
+                          <input
+                            type="date"
+                            value={dateFrom}
+                            onChange={(e) => setDateFrom(e.target.value)}
+                            className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-[14px] text-[#0F172A] outline-none focus:border-[#0EA5E9] transition-colors"
+                          />
+                        </div>
+
+                        {/* Date to */}
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[12px] font-medium text-[#94A3B8] uppercase tracking-wider">
+                            Дата до
+                          </label>
+                          <input
+                            type="date"
+                            value={dateTo}
+                            onChange={(e) => setDateTo(e.target.value)}
+                            className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-[14px] text-[#0F172A] outline-none focus:border-[#0EA5E9] transition-colors"
+                          />
+                        </div>
+
+                        {/* Clear filters */}
+                        {hasActiveFilters && (
+                          <button
+                            onClick={clearFilters}
+                            className="flex items-center gap-1 rounded-lg px-3 py-2 text-[13px] text-[#DC2626] hover:bg-[#FEE2E2] transition-colors"
+                          >
+                            <X size={14} />
+                            Сбросить фильтры
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   )}
-                </button>
+                </div>
                 {isOwner && (
                   <Link
                     href="/customers"
@@ -196,50 +241,6 @@ function OrdersContent() {
               );
             })}
           </div>
-
-          {/* Filters panel */}
-          {showFilters && (
-            <div className="border-t border-[#F1F5F9] px-[52px] py-4">
-              <div className="flex items-end gap-6 flex-wrap">
-                {/* Date from */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[12px] font-medium text-[#94A3B8] uppercase tracking-wider">
-                    Дата от
-                  </label>
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-[14px] text-[#0F172A] outline-none focus:border-[#0EA5E9] transition-colors"
-                  />
-                </div>
-
-                {/* Date to */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[12px] font-medium text-[#94A3B8] uppercase tracking-wider">
-                    Дата до
-                  </label>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-[14px] text-[#0F172A] outline-none focus:border-[#0EA5E9] transition-colors"
-                  />
-                </div>
-
-                {/* Clear filters */}
-                {hasActiveFilters && (
-                  <button
-                    onClick={clearFilters}
-                    className="flex items-center gap-1 rounded-lg px-3 py-2 text-[13px] text-[#DC2626] hover:bg-[#FEE2E2] transition-colors"
-                  >
-                    <X size={14} />
-                    Сбросить
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Customer filter banner */}
           {customerIdFromUrl && (
