@@ -116,8 +116,8 @@ function InfoCell({
 }) {
   return (
     <div className={`flex flex-col items-center justify-center px-4 py-3 flex-1 ${className}`}>
-      <span className="text-[12px] text-[#94A3B8] mb-1 text-center">{label}</span>
-      <div className="text-[14px] text-[#0F172A] text-center">{children}</div>
+      <span className="text-[12px] font-semibold text-[#0F172A] mb-1 text-center">{label}</span>
+      <div className="text-[14px] font-normal text-[#475569] text-center">{children}</div>
     </div>
   );
 }
@@ -147,7 +147,7 @@ function EditItemModal({
     window_width_cm: item.window_width_cm != null ? String(item.window_width_cm) : "",
     window_height_cm: item.window_height_cm != null ? String(item.window_height_cm) : "",
     unit_price: item.unit_price ?? "",
-    quantity: String(item.quantity ?? 1),
+    quantity: String(Math.round(Number(item.quantity ?? 1))),
   });
 
   if (!open) return null;
@@ -273,7 +273,7 @@ function ItemRow({
 }) {
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [localQty, setLocalQty] = useState(item.quantity ?? 1);
+  const [localQty, setLocalQty] = useState(Math.round(Number(item.quantity ?? 1)));
   const deleteMutation = useDeleteOrderItem(orderId);
   const updateQtyMutation = useUpdateOrderItemQuantity(orderId);
 
@@ -992,7 +992,7 @@ export default function OrderDetailPage() {
                 <img src="/icons/info.png" width={18} height={18} alt="" />
                 <span className="text-[15px] font-medium text-[#0F172A]">Информация</span>
               </div>
-              <div className="flex items-stretch justify-around divide-x divide-[#94A3B8]">
+              <div className="grid grid-cols-2 gap-y-3 sm:grid-cols-3 lg:flex lg:items-stretch lg:justify-around lg:gap-0 lg:divide-x lg:divide-[#94A3B8]">
                 <InfoCell label="Клиент">
                   <div className="font-medium">{getCustomerName(order)}</div>
                   {getCustomerPhone(order) && (
@@ -1229,7 +1229,7 @@ export default function OrderDetailPage() {
                               {item.window_width_cm && item.window_height_cm && (
                                 <span>{item.window_width_cm}×{item.window_height_cm} см</span>
                               )}
-                              <span>Кол-во: {item.quantity}</span>
+                              <span>Кол-во: {Math.round(Number(item.quantity))}</span>
                             </div>
                           </div>
                         );
