@@ -116,8 +116,8 @@ function InfoCell({
 }) {
   return (
     <div className={`flex flex-col items-center justify-center px-4 py-3 flex-1 ${className}`}>
-      <span className="text-[12px] font-semibold text-[#0F172A] mb-1 text-center">{label}</span>
-      <div className="text-[14px] font-normal text-[#475569] text-center">{children}</div>
+      <span className="text-[14px] sm:text-[17px] lg:text-[22px] font-medium text-[#0F172A] mb-1 text-center">{label}</span>
+      <div className="text-[14px] sm:text-[17px] lg:text-[22px] font-normal text-[#0F172A] text-center">{children}</div>
     </div>
   );
 }
@@ -989,14 +989,14 @@ export default function OrderDetailPage() {
           {showInfo && <div className="px-4 sm:px-[52px] pb-8">
             <div className="rounded-xl border border-[#E2E8F0] p-6">
               <div className="flex items-center justify-center gap-2 mb-5">
-                <img src="/icons/info.png" width={18} height={18} alt="" />
-                <span className="text-[15px] font-medium text-[#0F172A]">Информация</span>
+                <img src="/icons/info.png" width={22} height={22} alt="" />
+                <span className="text-[18px] lg:text-[24px] font-medium text-[#0F172A]">Информация</span>
               </div>
               <div className="grid grid-cols-2 gap-y-3 sm:grid-cols-3 lg:flex lg:items-stretch lg:justify-around lg:gap-0 lg:divide-x lg:divide-[#94A3B8]">
                 <InfoCell label="Клиент">
                   <div className="font-medium">{getCustomerName(order)}</div>
                   {getCustomerPhone(order) && (
-                    <div className="text-[12px] text-[#94A3B8]">{getCustomerPhone(order)}</div>
+                    <div className="text-[12px] sm:text-[14px] lg:text-[16px] font-normal text-[#94A3B8]">{getCustomerPhone(order)}</div>
                   )}
                 </InfoCell>
                 <InfoCell label="Создан">{fmtDate(order.created_at)}</InfoCell>
@@ -1006,8 +1006,8 @@ export default function OrderDetailPage() {
                 </InfoCell>
                 <InfoCell label="Дата замера">{fmtDate(order.measurement_date)}</InfoCell>
                 <InfoCell label="Завершение">{fmtDate(order.planned_completion)}</InfoCell>
-                <InfoCell label="Адрес установки" className="max-w-[200px]">
-                  <span className="text-[13px] leading-snug">{getAddressParts(order)}</span>
+                <InfoCell label="Адрес установки" className="lg:max-w-[260px]">
+                  <span className="text-[13px] sm:text-[15px] lg:text-[18px] leading-snug">{getAddressParts(order)}</span>
                 </InfoCell>
               </div>
             </div>
