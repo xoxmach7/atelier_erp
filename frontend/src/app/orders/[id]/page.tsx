@@ -992,7 +992,7 @@ export default function OrderDetailPage() {
                 <img src="/icons/info.png" width={18} height={18} alt="" />
                 <span className="text-[15px] font-medium text-[#0F172A]">Информация</span>
               </div>
-              <div className="flex flex-wrap justify-center divide-x-0 md:divide-x divide-[#94A3B8] gap-y-2 md:gap-y-0">
+              <div className="flex items-start justify-between divide-x divide-[#94A3B8]">
                 <InfoCell label="Клиент">
                   <div className="font-medium">{getCustomerName(order)}</div>
                   {getCustomerPhone(order) && (
