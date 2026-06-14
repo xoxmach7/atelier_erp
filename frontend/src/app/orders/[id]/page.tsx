@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -42,6 +43,7 @@ import {
   useCancelOrder,
   useDeleteOrderItem,
   useUpdateOrderItemQuantity,
+  useUpdateOrderItem,
 } from "@/hooks/useOrders";
 import { useRole } from "@/hooks/useRole";
 import { useCreatePayment } from "@/hooks/usePayments";
@@ -113,9 +115,145 @@ function InfoCell({
   className?: string;
 }) {
   return (
-    <div className={`flex flex-col items-center text-center px-4 ${className}`}>
+    <div className={`flex flex-col items-center text-center px-3 py-2 md:py-0 w-1/2 md:w-auto ${className}`}>
       <span className="text-[12px] text-[#94A3B8] mb-1">{label}</span>
       <span className="text-[14px] text-[#0F172A]">{children}</span>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  EditItemModal                                                       */
+/* ------------------------------------------------------------------ */
+
+function EditItemModal({
+  item,
+  orderId,
+  open,
+  onClose,
+}: {
+  item: OrderItemDTO;
+  orderId: string;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const updateMutation = useUpdateOrderItem(orderId);
+  const [form, setForm] = React.useState({
+    room_name: item.room_name ?? "",
+    window_name: item.window_name ?? "",
+    sewing_type: item.sewing_type ?? "",
+    notes: item.notes ?? "",
+    folds_count: item.folds_count != null ? String(item.folds_count) : "",
+    window_width_cm: item.window_width_cm != null ? String(item.window_width_cm) : "",
+    window_height_cm: item.window_height_cm != null ? String(item.window_height_cm) : "",
+    unit_price: item.unit_price ?? "",
+    quantity: String(item.quantity ?? 1),
+  });
+
+  if (!open) return null;
+
+  function set(field: string, val: string) {
+    setForm((prev) => ({ ...prev, [field]: val }));
+  }
+
+  async function handleSave() {
+    const payload: Record<string, unknown> = {
+      room_name: form.room_name,
+      window_name: form.window_name,
+      sewing_type: form.sewing_type,
+      notes: form.notes,
+      unit_price: form.unit_price,
+      quantity: parseInt(form.quantity) || 1,
+      folds_count: form.folds_count ? parseInt(form.folds_count) : null,
+      window_width_cm: form.window_width_cm ? parseInt(form.window_width_cm) : null,
+      window_height_cm: form.window_height_cm ? parseInt(form.window_height_cm) : null,
+    };
+    await updateMutation.mutateAsync({ itemId: item.id, data: payload });
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-6">
+          <span className="text-[16px] font-semibold text-[#0F172A]">Редактировать позицию</span>
+          <button onClick={onClose} className="text-[#94A3B8] hover:text-[#475569] text-xl leading-none">✕</button>
+        </div>
+
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[12px] text-[#94A3B8] mb-1 block">Комната</label>
+              <input value={form.room_name} onChange={(e) => set("room_name", e.target.value)}
+                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:border-[#60CCED]" />
+            </div>
+            <div>
+              <label className="text-[12px] text-[#94A3B8] mb-1 block">Окно</label>
+              <input value={form.window_name} onChange={(e) => set("window_name", e.target.value)}
+                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:border-[#60CCED]" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[12px] text-[#94A3B8] mb-1 block">Ширина (см)</label>
+              <input type="number" value={form.window_width_cm} onChange={(e) => set("window_width_cm", e.target.value)}
+                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:border-[#60CCED]" />
+            </div>
+            <div>
+              <label className="text-[12px] text-[#94A3B8] mb-1 block">Высота (см)</label>
+              <input type="number" value={form.window_height_cm} onChange={(e) => set("window_height_cm", e.target.value)}
+                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:border-[#60CCED]" />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[12px] text-[#94A3B8] mb-1 block">Тип пошива (ткань)</label>
+            <input value={form.sewing_type} onChange={(e) => set("sewing_type", e.target.value)}
+              className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:border-[#60CCED]" />
+          </div>
+
+          <div>
+            <label className="text-[12px] text-[#94A3B8] mb-1 block">Тюль / заметки</label>
+            <input value={form.notes} onChange={(e) => set("notes", e.target.value)}
+              className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:border-[#60CCED]" />
+          </div>
+
+          <div>
+            <label className="text-[12px] text-[#94A3B8] mb-1 block">Тип крепления (складок)</label>
+            <input type="number" value={form.folds_count} onChange={(e) => set("folds_count", e.target.value)}
+              className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:border-[#60CCED]" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[12px] text-[#94A3B8] mb-1 block">Цена за ед. (₸)</label>
+              <input type="number" value={form.unit_price} onChange={(e) => set("unit_price", e.target.value)}
+                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:border-[#60CCED]" />
+            </div>
+            <div>
+              <label className="text-[12px] text-[#94A3B8] mb-1 block">Количество</label>
+              <input type="number" min={1} value={form.quantity} onChange={(e) => set("quantity", e.target.value)}
+                className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:border-[#60CCED]" />
+            </div>
+          </div>
+        </div>
+
+        {updateMutation.isError && (
+          <p className="text-[12px] text-[#DC2626] mt-3">Ошибка сохранения. Попробуйте снова.</p>
+        )}
+
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-[#E2E8F0] text-[13px] text-[#475569] hover:bg-[#F8FAFC] transition-colors">
+            Отмена
+          </button>
+          <button onClick={handleSave} disabled={updateMutation.isPending}
+            className="flex-1 py-2.5 rounded-xl bg-[#0EA5E9] text-white text-[13px] font-semibold hover:bg-[#0284C7] disabled:opacity-50 transition-colors">
+            {updateMutation.isPending ? "Сохранение…" : "Сохранить"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -134,6 +272,7 @@ function ItemRow({
   editable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [localQty, setLocalQty] = useState(item.quantity ?? 1);
   const deleteMutation = useDeleteOrderItem(orderId);
   const updateQtyMutation = useUpdateOrderItemQuantity(orderId);
@@ -164,6 +303,7 @@ function ItemRow({
   }
 
   return (
+    <>
     <div className="border-b border-dashed border-[#E2E8F0] last:border-0">
       {/* Collapsed header — just name + price + chevron */}
       <button
@@ -194,27 +334,51 @@ function ItemRow({
         </div>
       </button>
 
-      {/* Expanded details — fabric info + qty controls + delete */}
+      {/* Expanded details — fabric info + qty controls + edit/delete */}
       {open && (
         <div className="px-1 pb-3 text-[13px] text-[#475569] space-y-1">
-          {item.fabric_name && (
-            <div>
-              <span className="text-[#94A3B8]">Ткань:</span> {item.fabric_name}
-              {item.sewing_type && ` (${item.sewing_type})`}
+          {/* Fabric details row — with edit/delete on the right */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="space-y-1 min-w-0">
+              {item.fabric_name && (
+                <div>
+                  <span className="text-[#94A3B8]">Ткань:</span> {item.fabric_name}
+                  {item.sewing_type && ` (${item.sewing_type})`}
+                </div>
+              )}
+              {item.notes && (
+                <div>
+                  <span className="text-[#94A3B8]">Тюль:</span> {item.notes}
+                </div>
+              )}
+              {item.folds_count && (
+                <div>
+                  <span className="text-[#94A3B8]">Тип крепления:</span> {item.folds_count} складок
+                </div>
+              )}
             </div>
-          )}
-          {item.notes && (
-            <div>
-              <span className="text-[#94A3B8]">Тюль:</span> {item.notes}
-            </div>
-          )}
-          {item.folds_count && (
-            <div>
-              <span className="text-[#94A3B8]">Тип крепления:</span> {item.folds_count} складок
-            </div>
-          )}
+            {editable && (
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setEditOpen(true); }}
+                  className="opacity-90 hover:opacity-100 transition-opacity"
+                  title="Редактировать"
+                >
+                  <img src="/icons/edit.png" width={28} height={28} alt="Редактировать" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+                  disabled={deleteMutation.isPending}
+                  className="opacity-90 hover:opacity-100 disabled:opacity-40 transition-opacity"
+                  title="Удалить"
+                >
+                  <img src="/icons/delete.png" width={28} height={28} alt="Удалить" />
+                </button>
+              </div>
+            )}
+          </div>
 
-          {/* Quantity row — static for viewers, interactive for editors */}
+          {/* Quantity row */}
           <div className="flex items-center gap-2">
             <span className="text-[#94A3B8]">Количество:</span>
             {editable ? (
@@ -241,29 +405,18 @@ function ItemRow({
               <span>{localQty}</span>
             )}
           </div>
-
-          {/* Edit / Delete icons — only for editors */}
-          {editable && (
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                className="opacity-90 hover:opacity-100 transition-opacity"
-                title="Редактировать"
-              >
-                <img src="/icons/edit.png" width={28} height={28} alt="Редактировать" />
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); handleDelete(); }}
-                disabled={deleteMutation.isPending}
-                className="opacity-90 hover:opacity-100 disabled:opacity-40 transition-opacity"
-                title="Удалить"
-              >
-                <img src="/icons/delete.png" width={28} height={28} alt="Удалить" />
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>
+    {editOpen && (
+      <EditItemModal
+        item={item}
+        orderId={orderId}
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+      />
+    )}
+  </>
   );
 }
 
@@ -761,11 +914,11 @@ export default function OrderDetailPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-[#F0F4F8] p-6">
+      <div className="min-h-screen bg-[#F0F4F8] p-3 sm:p-6">
         <div className="bg-white rounded-xl shadow-sm">
 
           {/* ── Header ──────────────────────────────────────────── */}
-          <div className="flex items-center justify-between px-[52px] py-[30px]">
+          <div className="flex items-center justify-between px-4 sm:px-[52px] py-5 sm:py-[30px]">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => router.back()}
@@ -797,7 +950,7 @@ export default function OrderDetailPage() {
 
           {/* ── Role view for non-owners ─────────────────────── */}
           {role !== "owner" && (
-            <div className="px-[52px] pb-2">
+            <div className="px-4 sm:px-[52px] pb-2">
               <MyTaskCard
                 order={order}
                 execution={execution}
@@ -809,7 +962,7 @@ export default function OrderDetailPage() {
 
           {/* ── Owner: role switcher ──────────────────────────── */}
           {role === "owner" && (
-            <div className="px-[52px] pb-6">
+            <div className="px-4 sm:px-[52px] pb-6">
               <div className="text-[11px] font-bold uppercase tracking-wide text-[var(--t3)] mb-2">
                 Режим просмотра
               </div>
@@ -833,13 +986,13 @@ export default function OrderDetailPage() {
           )}
 
           {/* ── Info grid (owner + designer only) ──────────────── */}
-          {showInfo && <div className="px-[52px] pb-8">
-            <div className="rounded-xl border border-[#0EA5E9] p-6">
+          {showInfo && <div className="px-4 sm:px-[52px] pb-8">
+            <div className="rounded-xl border border-[#E2E8F0] p-6">
               <div className="flex items-center justify-center gap-2 mb-5">
                 <img src="/icons/info.png" width={18} height={18} alt="" />
                 <span className="text-[15px] font-medium text-[#0F172A]">Информация</span>
               </div>
-              <div className="flex items-start justify-between divide-x divide-[#94A3B8]">
+              <div className="flex flex-wrap md:flex-nowrap items-start justify-between divide-y md:divide-y-0 md:divide-x divide-[#94A3B8]">
                 <InfoCell label="Клиент">
                   <div className="font-medium">{getCustomerName(order)}</div>
                   {getCustomerPhone(order) && (
@@ -862,7 +1015,7 @@ export default function OrderDetailPage() {
 
           {/* ── Action error ─────────────────────────────────────── */}
           {actionError && (
-            <div className="px-[52px] pb-4">
+            <div className="px-4 sm:px-[52px] pb-4">
               <div className="rounded-lg bg-[#FEE2E2] border border-[#FECACA] px-4 py-3 text-[13px] text-[#DC2626]">
                 {actionError}
               </div>
@@ -872,11 +1025,11 @@ export default function OrderDetailPage() {
 
 
           {/* ── Позиции + История (владелец / дизайнер) ─────────── */}
-          {showPositions && <div className="px-[52px] pb-10">
-            <div className="flex gap-8">
+          {showPositions && <div className="px-4 sm:px-[52px] pb-10">
+            <div className="flex flex-col md:flex-row gap-4 md:gap-8">
               {/* Positions */}
               <div className="flex-1 rounded-xl border border-[#E2E8F0] p-6">
-                <div className="flex items-center gap-2 mb-5">
+                <div className="flex items-center justify-center gap-2 mb-5">
                   <img src="/icons/positions.png" width={20} height={20} alt="" />
                   <span className="text-[16px] font-medium text-[#0F172A]">Позиции</span>
                 </div>
@@ -895,7 +1048,7 @@ export default function OrderDetailPage() {
                     )}
                     <button
                       onClick={() => setPrepayModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#0EA5E9] text-white hover:bg-[#0284C7] transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
                     >
                       <img src="/icons/tenge.png" width={13} height={13} alt="" className="opacity-90" />
                       Предоплата
@@ -943,8 +1096,8 @@ export default function OrderDetailPage() {
 
           {/* ── Склад: Материалы + История ────────────────────────── */}
           {showMaterials && (
-            <div className="px-[52px] pb-10">
-              <div className="flex gap-8">
+            <div className="px-4 sm:px-[52px] pb-10">
+              <div className="flex flex-col md:flex-row gap-4 md:gap-8">
                 {/* Материалы с чекбоксами */}
                 <div className="flex-1 rounded-xl border border-[#E2E8F0] p-6">
                   <div className="flex items-center justify-between mb-5">
@@ -1042,8 +1195,8 @@ export default function OrderDetailPage() {
 
           {/* ── Пошив: Производство + История ────────────────────── */}
           {showProduction && (
-            <div className="px-[52px] pb-10">
-              <div className="flex gap-8">
+            <div className="px-4 sm:px-[52px] pb-10">
+              <div className="flex flex-col md:flex-row gap-4 md:gap-8">
                 {/* Производство */}
                 <div className="flex-1 rounded-xl border border-[#E2E8F0] p-6">
                   <div className="flex items-center justify-between mb-5">
@@ -1099,7 +1252,7 @@ export default function OrderDetailPage() {
 
           {/* ── Установщик: Адрес + Фото + АВР + История ────────── */}
           {showInstaller && (
-            <div className="px-[52px] pb-10 grid grid-cols-2 gap-6">
+            <div className="px-4 sm:px-[52px] pb-10 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               {/* Адрес */}
               <div className="rounded-xl border border-[#E2E8F0] p-6">
                 <div className="flex items-center gap-2 mb-4">

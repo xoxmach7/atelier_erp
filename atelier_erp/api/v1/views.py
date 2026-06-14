@@ -931,11 +931,11 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
     )
     def manage_item(self, request, pk=None, item_id=None):
         """
-        PATCH /api/v1/orders/{id}/items/{item_id}/  — изменить количество позиции
+        PATCH /api/v1/orders/{id}/items/{item_id}/  — частичное обновление позиции
         DELETE /api/v1/orders/{id}/items/{item_id}/ — удалить позицию
         """
         from django.db.models import Sum
-        from decimal import Decimal
+        from decimal import Decimal, InvalidOperation
 
         order = self.get_object()
         try:
@@ -950,21 +950,59 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
             order.save(update_fields=["total_amount"])
             return Response(status=status.HTTP_204_NO_CONTENT)
 
-        # PATCH
-        quantity = request.data.get("quantity")
-        if quantity is None:
-            return Response({"detail": "Поле quantity обязательно."}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            qty = int(quantity)
-            if qty < 1:
-                raise ValueError
-        except (ValueError, TypeError):
-            return Response({"detail": "quantity должно быть >= 1."}, status=status.HTTP_400_BAD_REQUEST)
+        # PATCH — partial update, any combination of fields
+        data = request.data
+        update_fields = []
+        errors = {}
 
-        item.quantity = qty
-        if item.unit_price:
-            item.total_price = Decimal(str(item.unit_price)) * qty
-        item.save(update_fields=["quantity", "total_price"])
+        # quantity
+        if "quantity" in data:
+            try:
+                qty = int(data["quantity"])
+                if qty < 1:
+                    raise ValueError
+                item.quantity = qty
+                update_fields.append("quantity")
+            except (ValueError, TypeError):
+                errors["quantity"] = "Должно быть целым числом >= 1."
+
+        # unit_price
+        if "unit_price" in data:
+            try:
+                item.unit_price = Decimal(str(data["unit_price"]))
+                update_fields.append("unit_price")
+            except (InvalidOperation, ValueError):
+                errors["unit_price"] = "Некорректная сумма."
+
+        # text fields
+        for field in ["room_name", "window_name", "sewing_type", "notes"]:
+            if field in data:
+                setattr(item, field, str(data[field]))
+                update_fields.append(field)
+
+        # nullable int fields
+        for field in ["folds_count", "window_width_cm", "window_height_cm"]:
+            if field in data:
+                val = data[field]
+                try:
+                    setattr(item, field, int(val) if val not in (None, "", "null") else None)
+                    update_fields.append(field)
+                except (ValueError, TypeError):
+                    errors[field] = "Должно быть целым числом или пустым."
+
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+
+        if not update_fields:
+            return Response({"detail": "Нет полей для обновления."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Пересчитать total_price если изменилась цена или количество
+        if "unit_price" in update_fields or "quantity" in update_fields:
+            item.total_price = (item.unit_price or Decimal("0")) * (item.quantity or 1)
+            if "total_price" not in update_fields:
+                update_fields.append("total_price")
+
+        item.save(update_fields=update_fields)
 
         total = order.items.aggregate(s=Sum("total_price"))["s"] or Decimal("0")
         order.total_amount = total
@@ -972,6 +1010,13 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
 
         return Response({
             "id": str(item.id),
+            "room_name": item.room_name,
+            "window_name": item.window_name,
+            "sewing_type": item.sewing_type,
+            "notes": item.notes,
+            "folds_count": item.folds_count,
+            "window_width_cm": item.window_width_cm,
+            "window_height_cm": item.window_height_cm,
             "quantity": item.quantity,
             "unit_price": str(item.unit_price or "0"),
             "total_price": str(item.total_price or "0"),

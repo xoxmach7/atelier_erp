@@ -22,7 +22,9 @@ import {
   uploadSignedCompletionAct,
   deleteOrderItem,
   updateOrderItemQuantity,
+  updateOrderItem,
 } from "@/services/http/orders";
+import type { UpdateOrderItemPayload } from "@/services/http/orders";
 import type {
   OrderListItemDTO,
   OrderDetailDTO,
@@ -345,6 +347,23 @@ export function useUpdateOrderItemQuantity(orderId: string) {
     { itemId: string; quantity: number }
   >({
     mutationFn: ({ itemId, quantity }) => updateOrderItemQuantity(orderId, itemId, quantity),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+    },
+  });
+}
+
+/**
+ * Hook for full edit of an order item
+ */
+export function useUpdateOrderItem(orderId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    { id: string; total_price: string },
+    Error,
+    { itemId: string; data: UpdateOrderItemPayload }
+  >({
+    mutationFn: ({ itemId, data }) => updateOrderItem(orderId, itemId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["order", orderId] });
     },

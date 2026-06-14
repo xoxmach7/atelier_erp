@@ -427,3 +427,23 @@ export async function updateOrderItemQuantity(
 ): Promise<{ id: string; quantity: number; unit_price: string; total_price: string }> {
   return patch(`/v1/orders/${orderId}/items/${itemId}/`, { quantity });
 }
+
+export interface UpdateOrderItemPayload {
+  room_name?: string;
+  window_name?: string;
+  sewing_type?: string;
+  notes?: string;
+  folds_count?: number | null;
+  window_width_cm?: number | null;
+  window_height_cm?: number | null;
+  quantity?: number;
+  unit_price?: string;
+}
+
+export async function updateOrderItem(
+  orderId: string,
+  itemId: string,
+  data: UpdateOrderItemPayload
+): Promise<UpdateOrderItemPayload & { id: string; total_price: string }> {
+  return patch(`/v1/orders/${orderId}/items/${itemId}/`, data);
+}
