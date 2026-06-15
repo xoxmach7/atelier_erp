@@ -364,7 +364,7 @@ function ItemRow({
                   className="opacity-90 hover:opacity-100 transition-opacity"
                   title="Редактировать"
                 >
-                  <img src="/icons/edit.png" width={28} height={28} alt="Редактировать" />
+                  <img src="/icons/edit.png" width={22} height={22} alt="Редактировать" />
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDelete(); }}
@@ -372,7 +372,7 @@ function ItemRow({
                   className="opacity-90 hover:opacity-100 disabled:opacity-40 transition-opacity"
                   title="Удалить"
                 >
-                  <img src="/icons/delete.png" width={28} height={28} alt="Удалить" />
+                  <img src="/icons/delete.png" width={22} height={22} alt="Удалить" />
                 </button>
               </div>
             )}
@@ -568,9 +568,9 @@ function HistoryTimeline({ events }: { events: TimelineEvent[] }) {
           </div>
           <div className="pb-5 min-w-0">
             {ev.date && (
-              <div className="text-[11px] text-[#94A3B8] leading-tight">{ev.date}</div>
+              <div className="text-[12px] text-[#94A3B8] leading-tight">{ev.date}</div>
             )}
-            <div className="text-[13px] text-[#0F172A] leading-snug">{ev.label}</div>
+            <div className="text-[15px] text-[#0F172A] leading-snug">{ev.label}</div>
           </div>
         </div>
       ))}
@@ -994,7 +994,7 @@ export default function OrderDetailPage() {
                 <img src="/icons/info.png" width={18} height={18} alt="" />
                 <span className="text-[15px] lg:text-[17px] font-medium text-[#0F172A]">Информация</span>
               </div>
-              <div className="grid grid-cols-2 gap-y-3 sm:grid-cols-3 lg:flex lg:items-stretch lg:justify-around lg:gap-0 lg:divide-x lg:divide-[#94A3B8]">
+              <div className="grid grid-cols-2 gap-y-3 sm:grid-cols-3 lg:flex lg:items-stretch lg:justify-around lg:gap-0 lg:divide-x-[1.5px] lg:divide-[#D2D2D2]">
                 <InfoCell label="Клиент">
                   <div className="font-medium">{getCustomerName(order)}</div>
                   {getCustomerPhone(order) && (
@@ -1043,23 +1043,23 @@ export default function OrderDetailPage() {
                     {role === "designer" && (
                       <button
                         onClick={() => setMeasurementModalOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
                       >
-                        <Plus size={12} /> Добавить
+                        <Plus size={14} /> Добавить
                       </button>
                     )}
                     <button
                       onClick={() => setPrepayModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
                     >
-                      <img src="/icons/tenge.png" width={13} height={13} alt="" className="opacity-90" />
+                      <img src="/icons/tenge.png" width={14} height={14} alt="" className="opacity-90" />
                       Предоплата
                     </button>
                     <button
                       onClick={() => setKPModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
                     >
-                      <img src="/icons/kp.png" width={13} height={13} alt="" className="opacity-90" />
+                      <img src="/icons/kp.png" width={14} height={14} alt="" className="opacity-90" />
                       Создать КП
                     </button>
                   </div>
@@ -1087,7 +1087,7 @@ export default function OrderDetailPage() {
 
               {/* History */}
               <div className="w-[380px] shrink-0 rounded-xl border border-dashed border-[#CBD5E1] p-6">
-                <div className="flex items-center gap-2 mb-5">
+                <div className="flex items-center justify-center gap-2 mb-5">
                   <img src="/icons/history.png" width={20} height={20} alt="" />
                   <span className="text-[16px] font-medium text-[#0F172A]">История</span>
                 </div>
@@ -1304,7 +1304,7 @@ export default function OrderDetailPage() {
 
               {/* История */}
               <div className="rounded-xl border border-dashed border-[#CBD5E1] p-6">
-                <div className="flex items-center gap-2 mb-5">
+                <div className="flex items-center justify-center gap-2 mb-5">
                   <img src="/icons/history.png" width={20} height={20} alt="" />
                   <span className="text-[16px] font-medium text-[#0F172A]">История</span>
                 </div>

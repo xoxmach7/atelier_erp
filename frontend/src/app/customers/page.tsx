@@ -2,7 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Plus, Pencil, Trash2, ArrowLeft, Users, Phone, Mail, MapPin } from "lucide-react";
+import { Search, ArrowLeft, Users, Mail } from "lucide-react";
+
+/** Формат телефона → +7 (777) 777-77-77. Для нестандартных значений возвращает как есть. */
+function formatPhone(raw: string | null | undefined): string {
+  if (!raw) return "—";
+  let d = raw.replace(/\D/g, "");
+  if (d.length === 11 && d[0] === "8") d = "7" + d.slice(1);
+  if (d.length === 10) d = "7" + d;
+  if (d.length !== 11 || d[0] !== "7") return raw;
+  return `+7 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9, 11)}`;
+}
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { LoadingState } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
@@ -182,15 +192,20 @@ export default function CustomersPage() {
         <div className="bg-white rounded-xl shadow-sm">
           {/* Top bar */}
           <div className="flex items-center justify-between px-[52px] py-[30px]">
-            <div className="flex items-center gap-[72px]">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => router.back()}
+                className="text-[#475569] hover:text-[#0EA5E9] transition-colors"
+              >
+                <ArrowLeft size={24} />
+              </button>
               <h1 className="text-[26px] font-semibold text-[#0F172A] whitespace-nowrap">
                 Клиенты
               </h1>
               <button
                 onClick={openCreate}
-                className="flex items-center gap-1.5 text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+                className="ml-[48px] text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
               >
-                <Plus size={16} />
                 Добавить клиента
               </button>
             </div>
@@ -206,13 +221,6 @@ export default function CustomersPage() {
                   className="border-none bg-transparent text-[14px] text-[#0F172A] outline-none w-[200px] placeholder:text-[#94A3B8]"
                 />
               </div>
-              <button
-                onClick={() => router.push("/dashboard")}
-                className="rounded-lg border border-[#E2E8F0] p-[7px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
-                title="На главную"
-              >
-                <ArrowLeft size={16} />
-              </button>
             </div>
           </div>
 
@@ -243,7 +251,7 @@ export default function CustomersPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-[#0EA5E9]">
+                    <tr className="bg-[#60CCED]">
                       <th className="px-[52px] py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Имя</th>
                       <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Телефон</th>
                       <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Email</th>
@@ -264,10 +272,7 @@ export default function CustomersPage() {
                           {c.full_name}
                         </td>
                         <td className="px-6 py-4 text-[#0F172A]">
-                          <span className="flex items-center gap-1.5">
-                            <Phone size={13} className="text-[#94A3B8]" />
-                            {c.phone}
-                          </span>
+                          {formatPhone(c.phone)}
                         </td>
                         <td className="px-6 py-4 text-[#475569]">
                           {c.email ? (
@@ -280,30 +285,23 @@ export default function CustomersPage() {
                           )}
                         </td>
                         <td className="px-6 py-4 text-[#475569]">
-                          {c.address_city ? (
-                            <span className="flex items-center gap-1.5">
-                              <MapPin size={13} className="text-[#94A3B8]" />
-                              {c.address_city}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
+                          {c.address_city || "—"}
                         </td>
                         <td className="px-6 py-4 pr-[52px]">
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => openEdit(c)}
-                              className="rounded-md p-1.5 text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0EA5E9] transition-colors"
+                              className="opacity-90 hover:opacity-100 transition-opacity"
                               title="Редактировать"
                             >
-                              <Pencil size={15} />
+                              <img src="/icons/edit.png" width={22} height={22} alt="Редактировать" />
                             </button>
                             <button
                               onClick={() => setDeletingCustomer(c)}
-                              className="rounded-md p-1.5 text-[#475569] hover:bg-[#FEE2E2] hover:text-[#DC2626] transition-colors"
+                              className="opacity-90 hover:opacity-100 transition-opacity"
                               title="Удалить"
                             >
-                              <Trash2 size={15} />
+                              <img src="/icons/delete.png" width={22} height={22} alt="Удалить" />
                             </button>
                           </div>
                         </td>
