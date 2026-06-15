@@ -120,7 +120,7 @@ function OrdersContent() {
           <div className="flex items-center justify-between px-[52px] py-[30px]">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => router.back()}
+                onClick={() => router.push("/dashboard")}
                 className="text-[#475569] hover:text-[#0EA5E9] transition-colors"
               >
                 <ArrowLeft size={24} />
