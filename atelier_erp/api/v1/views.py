@@ -34,7 +34,7 @@ from atelier_erp.services.exceptions import (
 
 from .serializers import (
     OrderListSerializer, OrderDetailSerializer, OrderCreateSerializer, OrderUpdateSerializer, OrderStatusUpdateSerializer,
-    MeasurementSerializer, MeasurementCreateSerializer,
+    MeasurementSerializer, MeasurementCreateSerializer, MeasurementWriteSerializer,
     PaymentSerializer,
     CustomerSerializer,
     QuoteSerializer, QuoteCreateSerializer,
@@ -2216,30 +2216,16 @@ class MeasurementViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsOwnerOrDesigner]
 
     def get_serializer_class(self):
-        if self.action == 'create':
-            return MeasurementCreateSerializer
+        # Запись (создание/редактирование) — write-серилайзер с полями модели,
+        # сохраняет обе ткани. Чтение — detail-серилайзер.
+        if self.action in ('create', 'update', 'partial_update'):
+            return MeasurementWriteSerializer
         return MeasurementSerializer
 
     def get_queryset(self):
         return Measurement.objects.select_related(
             'curtain_fabric', 'tulle_fabric'
         ).all()
-
-    def perform_create(self, serializer):
-        """Map MeasurementCreateSerializer fields to Measurement model fields."""
-        from django.shortcuts import get_object_or_404
-        data = serializer.validated_data
-        order_id = self.request.data.get('order')
-        order = get_object_or_404(Order, pk=order_id)
-        Measurement.objects.create(
-            order=order,
-            room_name=data.get('room_name', ''),
-            window_name=data.get('window_number', ''),
-            width_cm=int(data.get('width', 0)),
-            height_cm=int(data.get('height', 0)),
-            mounting_type=data.get('mounting_type', ''),
-            notes=data.get('comment', ''),
-        )
 
 
 class StaffListView(APIView):
@@ -2253,7 +2239,7 @@ class StaffListView(APIView):
         role = request.query_params.get('role', '')
         if role:
             try:
-                group = Group.objects.get(name=role)
+                group = Group.objects.get(name__iexact=role)
                 users = User.objects.filter(groups=group, is_active=True).order_by('last_name', 'first_name')
             except Group.DoesNotExist:
                 users = User.objects.none()

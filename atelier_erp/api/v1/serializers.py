@@ -192,6 +192,23 @@ class MeasurementCreateSerializer(serializers.Serializer):
     comment = serializers.CharField(required=False, allow_blank=True)
 
 
+class MeasurementWriteSerializer(serializers.ModelSerializer):
+    """Создание/редактирование замера из веб- и мобайл-формы.
+
+    Принимает поля модели напрямую (width_cm/height_cm/window_name/curtain_fabric/
+    tulle_fabric/...), сохраняет ОБЕ ткани с метражом. Лишние ключи в payload
+    игнорируются. Используется MeasurementViewSet для create/update.
+    """
+    class Meta:
+        model = Measurement
+        fields = [
+            'id', 'order', 'room_name', 'window_name',
+            'width_cm', 'height_cm', 'mounting_type',
+            'curtain_fabric', 'curtain_meters',
+            'tulle_fabric', 'tulle_meters', 'notes',
+        ]
+
+
 class QuoteItemSerializer(serializers.ModelSerializer):
     """Quote item serializer for embedding in quote detail"""
     class Meta:
