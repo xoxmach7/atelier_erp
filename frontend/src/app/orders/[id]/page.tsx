@@ -938,12 +938,14 @@ export default function OrderDetailPage() {
                 >
                   Редактировать информацию
                 </Link>
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="text-[15px] text-[#475569] hover:text-[#DC2626] transition-colors"
-                >
-                  Удалить заказ
-                </button>
+                {role === "owner" && (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="text-[15px] text-[#475569] hover:text-[#DC2626] transition-colors"
+                  >
+                    Удалить заказ
+                  </button>
+                )}
               </div>
             )}
           </div>
