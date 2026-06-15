@@ -47,11 +47,11 @@ export default function LoginPage() {
         {/* Logo */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/logo_final_clean.webp"
+          src="/logo_transparent.png"
           alt="Sheber"
-          width={100}
-          height={100}
-          className="mb-5 rounded-2xl"
+          width={140}
+          height={140}
+          className="mb-5"
         />
 
         {/* Title */}
@@ -90,7 +90,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={submitting || !username || !password}
-            className="mt-1 w-full rounded-lg bg-[#0EA5E9] py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[#0284C7] disabled:opacity-70"
+            className="mt-1 w-full rounded-lg bg-[#60CCED] py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[#4DBCE0] disabled:opacity-70"
           >
             {submitting ? "Вход..." : "Войти"}
           </button>
@@ -98,7 +98,7 @@ export default function LoginPage() {
       </div>
 
       {/* Footer */}
-      <p className="mt-8 text-sm font-medium tracking-wide text-white/55">
+      <p className="mt-8 text-base font-semibold tracking-wide text-white/90">
         SheberSolution
       </p>
     </div>

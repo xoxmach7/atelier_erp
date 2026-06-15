@@ -11,6 +11,7 @@ export interface User {
   is_staff: boolean;
   is_superuser: boolean;
   groups: string[];
+  tenant?: { id: string; name: string; slug: string } | null;
 }
 
 export interface TokenPair {

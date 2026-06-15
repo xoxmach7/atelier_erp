@@ -33,16 +33,19 @@ function startOfYear() {
 
 function BarChart({ data }: { data: { label: string; value: number }[] }) {
   const maxVal = Math.max(...data.map((d) => d.value), 1);
-  const yLabels = [maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0, -1].map(fmtAxis);
+  const yLabels = [maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0].map(fmtAxis);
 
   return (
     <div className="flex gap-2 flex-1">
-      <div className="flex flex-col justify-between w-10 shrink-0 pb-6">
-        {yLabels.map((label, i) => (
-          <span key={i} className="text-[10px] text-[#94A3B8] text-right leading-none">
-            {label}
-          </span>
-        ))}
+      <div className="flex flex-col w-10 shrink-0 pb-6">
+        <span className="text-[10px] text-[#94A3B8] text-right leading-none mb-1.5">₸</span>
+        <div className="flex flex-1 flex-col justify-between">
+          {yLabels.map((label, i) => (
+            <span key={i} className="text-[10px] text-[#94A3B8] text-right leading-none">
+              {label}
+            </span>
+          ))}
+        </div>
       </div>
       <div className="flex-1 flex flex-col gap-1">
         <div className="flex items-end gap-[6px] flex-1">
@@ -155,10 +158,10 @@ function DashboardContent() {
   const revenuePoints = chart.map((p) => ({ label: monthLabel(p.month), value: p.revenue }));
   const expensePoints = chart.map((p) => ({ label: monthLabel(p.month), value: Math.max(p.revenue - p.paid, 0) }));
 
-  const orgName = user?.last_name || user?.first_name || user?.username || "Название организации";
+  const orgName = user?.tenant?.name || "Название организации";
 
   return (
-    <div className="min-h-screen bg-[#F0F4F8] p-8">
+    <div className="min-h-screen bg-[#FAFAFA] p-8">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>

@@ -279,7 +279,7 @@ function OrdersContent() {
                   <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Дата создания</th>
                   <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Дизайнер</th>
                   {showFinancial && (
-                    <th className="px-6 py-4 text-right text-[14px] font-medium text-white whitespace-nowrap">Сумма</th>
+                    <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Сумма</th>
                   )}
                   <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Статус</th>
                 </tr>
@@ -321,7 +321,7 @@ function OrdersContent() {
                         {order.designer_name || "—"}
                       </td>
                       {showFinancial && (
-                        <td className="px-6 py-4 text-[#0F172A] whitespace-nowrap text-right">
+                        <td className="px-6 py-4 text-[#0F172A] whitespace-nowrap text-left">
                           {order.total_amount
                             ? Number(order.total_amount).toLocaleString("ru-RU") + " ₸"
                             : "—"}

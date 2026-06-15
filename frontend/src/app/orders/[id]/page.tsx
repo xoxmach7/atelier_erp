@@ -1052,7 +1052,7 @@ export default function OrderDetailPage() {
                       onClick={() => setPrepayModalOpen(true)}
                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
                     >
-                      <img src="/icons/tenge.png" width={14} height={14} alt="" className="opacity-90" />
+                      <img src="/icons/tenge.png" width={12} height={12} alt="" className="opacity-90" />
                       Предоплата
                     </button>
                     <button
