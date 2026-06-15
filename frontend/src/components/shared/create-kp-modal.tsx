@@ -27,6 +27,11 @@ function fmtCurrency(v: number): string {
   return v.toLocaleString("ru-RU") + " ₸";
 }
 
+/** Итоговая цена позиции — total_price с бэкенда (единый источник истины: unit_price × quantity) */
+function lineTotalOf(item: OrderItemDTO): number {
+  return parseFloat(item.total_price || "0");
+}
+
 /* ------------------------------------------------------------------ */
 /*  Props                                                               */
 /* ------------------------------------------------------------------ */
@@ -71,7 +76,7 @@ export function CreateKPModal({
   // Calculate totals
   const totals = useMemo(() => {
     const subtotal = items.reduce(
-      (sum, item) => sum + parseFloat(item.total_price || "0"),
+      (sum, item) => sum + lineTotalOf(item),
       0
     );
     const discountAmt = discountPercent
@@ -115,19 +120,21 @@ export function CreateKPModal({
     const payload: CreateQuoteInput = {
       customer: customerId,
       order: orderId,
+      order_id: orderId,
       status: "draft",
       valid_until: validUntil.toISOString().split("T")[0],
       subtotal: totals.subtotal,
       discount_amount: totals.discountAmt,
       installation_cost: totals.installAmt,
       delivery_cost: 0,
-      prepayment_percent: 50,
+      prepayment_percent: 0.5,
       items: items.map((item) => ({
         room_name: item.room_name || "Комната",
         window_name: item.window_name || "Окно",
         window_width_cm: item.window_width_cm ?? 0,
         window_height_cm: item.window_height_cm ?? 0,
         folds_count: item.folds_count ?? 0,
+        line_total: lineTotalOf(item),
         fabric: item.fabric || null,
         fabric_meters: 0,
         fabric_cost: 0,
@@ -213,7 +220,7 @@ export function CreateKPModal({
                         )}
                       </div>
                       <span className="text-[13px] font-semibold text-[var(--t1)]">
-                        {fmtCurrency(parseFloat(item.total_price || "0"))}
+                        {fmtCurrency(lineTotalOf(item))}
                       </span>
                     </div>
                   ))}

@@ -230,20 +230,20 @@ export default function OrderQuotePage() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p className="text-slate-600">Клиент: {q.customer_name}</p>
-            <p className="text-slate-600">Подытог: {fmtMoney(q.subtotal)} ₽</p>
+            <p className="text-slate-600">Подытог: {fmtMoney(q.subtotal)} ₸</p>
             {parseFloat(q.discount_amount) > 0 && (
-              <p className="text-slate-600">Скидка: -{fmtMoney(q.discount_amount)} ₽</p>
+              <p className="text-slate-600">Скидка: -{fmtMoney(q.discount_amount)} ₸</p>
             )}
             {parseFloat(q.delivery_cost) > 0 && (
-              <p className="text-slate-600">Доставка: +{fmtMoney(q.delivery_cost)} ₽</p>
+              <p className="text-slate-600">Доставка: +{fmtMoney(q.delivery_cost)} ₸</p>
             )}
             {parseFloat(q.installation_cost) > 0 && (
-              <p className="text-slate-600">Монтаж: +{fmtMoney(q.installation_cost)} ₽</p>
+              <p className="text-slate-600">Монтаж: +{fmtMoney(q.installation_cost)} ₸</p>
             )}
-            <p className="text-lg font-semibold">Итого: {fmtMoney(q.total)} ₽</p>
+            <p className="text-lg font-semibold">Итого: {fmtMoney(q.total)} ₸</p>
             <p className="text-slate-600">
               Предоплата ({Math.round(parseFloat(q.prepayment_percent) * 100)}%):{" "}
-              {fmtMoney(parseFloat(q.total) * parseFloat(q.prepayment_percent))} ₽
+              {fmtMoney(parseFloat(q.total) * parseFloat(q.prepayment_percent))} ₸
             </p>
 
             {q.items.length > 0 && (
@@ -267,7 +267,7 @@ export default function OrderQuotePage() {
                           {item.window_width_cm}×{item.window_height_cm} см
                         </td>
                         <td className="px-3 py-2 text-right font-medium">
-                          {fmtMoney(item.line_total)} ₽
+                          {fmtMoney(item.line_total)} ₸
                         </td>
                       </tr>
                     ))}
@@ -332,7 +332,7 @@ export default function OrderQuotePage() {
                         type="number"
                         value={item.fabric_cost}
                         onChange={(e) => updateItem(idx, "fabric_cost", e.target.value)}
-                        placeholder="₽"
+                        placeholder="₸"
                       />
                     </div>
                   </div>
@@ -354,7 +354,7 @@ export default function OrderQuotePage() {
                         type="number"
                         value={item.tulle_cost}
                         onChange={(e) => updateItem(idx, "tulle_cost", e.target.value)}
-                        placeholder="₽"
+                        placeholder="₸"
                       />
                     </div>
                   </div>
@@ -366,7 +366,7 @@ export default function OrderQuotePage() {
                         type="number"
                         value={item.sewing_cost}
                         onChange={(e) => updateItem(idx, "sewing_cost", e.target.value)}
-                        placeholder="₽"
+                        placeholder="₸"
                       />
                     </div>
                     <div className="space-y-2">
@@ -375,7 +375,7 @@ export default function OrderQuotePage() {
                         type="number"
                         value={item.installation_price}
                         onChange={(e) => updateItem(idx, "installation_price", e.target.value)}
-                        placeholder="₽"
+                        placeholder="₸"
                       />
                     </div>
                   </div>
@@ -386,12 +386,12 @@ export default function OrderQuotePage() {
                       type="number"
                       value={item.accessories_cost}
                       onChange={(e) => updateItem(idx, "accessories_cost", e.target.value)}
-                      placeholder="₽"
+                      placeholder="₸"
                     />
                   </div>
 
                   <p className="text-sm font-medium">
-                    Итого позиции: {fmtMoney(item.line_total)} ₽
+                    Итого позиции: {fmtMoney(item.line_total)} ₸
                   </p>
                 </div>
               ))}
@@ -424,7 +424,7 @@ export default function OrderQuotePage() {
 
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Скидка (₽)</Label>
+                  <Label>Скидка (₸)</Label>
                   <Input
                     type="number"
                     value={discountAmount}
@@ -433,7 +433,7 @@ export default function OrderQuotePage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Доставка (₽)</Label>
+                  <Label>Доставка (₸)</Label>
                   <Input
                     type="number"
                     value={deliveryCost}
@@ -442,7 +442,7 @@ export default function OrderQuotePage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Монтаж общий (₽)</Label>
+                  <Label>Монтаж общий (₸)</Label>
                   <Input
                     type="number"
                     value={installationCost}
@@ -455,7 +455,7 @@ export default function OrderQuotePage() {
               <div className="flex items-center justify-between bg-slate-50 p-4 rounded-md">
                 <span className="font-medium">Итоговая сумма:</span>
                 <span className="text-xl font-semibold text-primary">
-                  {fmtMoney(calculateGrandTotal())} ₽
+                  {fmtMoney(calculateGrandTotal())} ₸
                 </span>
               </div>
 

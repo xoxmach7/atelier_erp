@@ -2185,6 +2185,13 @@ class PaymentViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
     ordering = ['-received_at']
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
+    def get_permissions(self):
+        # Создание/запись платежа (предоплата) доступно владельцу и дизайнеру.
+        # Просмотр полного списка всех платежей — только владельцу.
+        if self.action == 'create':
+            return [IsAuthenticated(), IsOwnerOrDesigner()]
+        return super().get_permissions()
+
     def get_queryset(self):
         return Payment.objects.select_related('order').all()
 

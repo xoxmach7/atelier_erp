@@ -331,7 +331,8 @@ export function useDeleteOrderItem(orderId: string) {
   return useMutation<void, Error, string>({
     mutationFn: (itemId) => deleteOrderItem(orderId, itemId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY, "detail", orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY] });
     },
   });
 }
@@ -348,7 +349,8 @@ export function useUpdateOrderItemQuantity(orderId: string) {
   >({
     mutationFn: ({ itemId, quantity }) => updateOrderItemQuantity(orderId, itemId, quantity),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY, "detail", orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY] });
     },
   });
 }
@@ -365,7 +367,8 @@ export function useUpdateOrderItem(orderId: string) {
   >({
     mutationFn: ({ itemId, data }) => updateOrderItem(orderId, itemId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY, "detail", orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY] });
     },
   });
 }

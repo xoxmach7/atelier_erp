@@ -147,6 +147,10 @@ class PaymentSerializer(serializers.ModelSerializer):
             'id', 'order', 'order_number', 'amount', 'payment_type',
             'payment_method', 'notes', 'received_at', 'created_at'
         ]
+        extra_kwargs = {
+            # received_at проставляется моделью (save) если не передан — не делаем обязательным
+            'received_at': {'required': False},
+        }
 
 
 class MeasurementSerializer(serializers.ModelSerializer):

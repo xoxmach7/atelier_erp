@@ -70,6 +70,7 @@ export interface CreateQuoteInput {
   task?: string;
   customer: string;
   order?: string;  // Link to existing order when creating quote from order context
+  order_id?: string;  // v1 /quotes/ endpoint requires order_id (UUID)
   status?: string;
   valid_until?: string | null;
   subtotal?: number;
@@ -83,6 +84,7 @@ export interface CreateQuoteInput {
     window_width_cm: number;
     window_height_cm: number;
     folds_count?: number;
+    line_total?: number;  // v1 /quotes/ requires line_total per item (drives subtotal)
     // Main fabric (curtain / портьера)
     fabric?: string | null;
     fabric_meters?: number;
