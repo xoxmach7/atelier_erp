@@ -228,18 +228,19 @@ export function CreateKPModal({
               )}
             </div>
 
-            {/* Valid days (скидка убрана — не используется) */}
+            {/* Скидка (поле «Действует (дней)» убрано — срок 7 дней по умолчанию в state) */}
             <div className="space-y-1.5">
               <Label className="text-[13px] font-medium text-[var(--t1)]">
-                Действует (дней)
+                Скидка (%)
               </Label>
               <Input
                 className={inputCls}
                 type="number"
-                min={1}
-                placeholder="7"
-                value={validDays}
-                onChange={(e) => setValidDays(e.target.value)}
+                min={0}
+                max={100}
+                placeholder="0"
+                value={discountPercent}
+                onChange={(e) => setDiscountPercent(e.target.value)}
               />
             </div>
 
