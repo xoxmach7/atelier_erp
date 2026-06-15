@@ -28,7 +28,7 @@ const LIST_STATUS_PILLS = [
 // Укрупнённый статус для СПИСКА заказов (детальный — внутри заказа: история + блок роли)
 const LIST_STATUS_DISPLAY: Record<"active" | "waiting" | "overdue" | "done", { label: string; color: string }> = {
   active:  { label: "В работе",   color: "#16A34A" },
-  waiting: { label: "Ожидание",   color: "#D97706" },
+  waiting: { label: "Ожидание",   color: "#EBDD1D" },
   overdue: { label: "Просрочено", color: "#DC2626" },
   done:    { label: "Завершён",   color: "#64748B" },
 };
