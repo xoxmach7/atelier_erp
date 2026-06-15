@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { LoadingState } from "@/components/shared/loading-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MOUNTING_OPTIONS, getMountingTypeLabel } from "@/lib/mounting-types";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -162,7 +163,7 @@ export default function OrderMeasurementsPage() {
                 {m.width_cm} × {m.height_cm} см
               </div>
               {m.mounting_type && (
-                <p className="text-slate-600">Крепление: {m.mounting_type}</p>
+                <p className="text-slate-600">Крепление: {getMountingTypeLabel(m.mounting_type)}</p>
               )}
               {m.curtain_fabric && (
                 <p className="text-slate-600">
@@ -316,14 +317,21 @@ export default function OrderMeasurementsPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="mounting_type">Тип крепления</Label>
-                <Input
-                  id="mounting_type"
-                  placeholder="Потолочный карниз"
+                <Select
                   value={form.mounting_type || ""}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, mounting_type: e.target.value }))
+                  onValueChange={(value) =>
+                    setForm((prev) => ({ ...prev, mounting_type: value }))
                   }
-                />
+                >
+                  <SelectTrigger id="mounting_type">
+                    <SelectValue placeholder="Выберите тип" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MOUNTING_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">

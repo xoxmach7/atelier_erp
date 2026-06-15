@@ -20,18 +20,8 @@ import {
 } from "@/components/ui/select";
 import { useFabrics } from "@/hooks/useFabrics";
 import { useCreateMeasurement } from "@/hooks/useMeasurements";
+import { MOUNTING_OPTIONS } from "@/lib/mounting-types";
 import type { MeasurementDTO } from "@/types";
-
-/* ------------------------------------------------------------------ */
-/*  Fabric / Tulle / Mount option lists                                */
-/* ------------------------------------------------------------------ */
-
-const MOUNTING_OPTIONS = [
-  { value: "ceiling", label: "Потолочный" },
-  { value: "wall", label: "Стеновой" },
-  { value: "niche", label: "Ниша" },
-  { value: "window_recess", label: "Оконный проём" },
-];
 
 /* ------------------------------------------------------------------ */
 /*  Props                                                               */

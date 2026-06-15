@@ -43,6 +43,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { MOUNTING_OPTIONS, getMountingTypeLabel } from "@/lib/mounting-types";
 import {
   PageHeader,
   EmptyState,
@@ -405,7 +406,7 @@ function MeasurementCard({ measurement, orders, onDelete }: MeasurementCardProps
         <div className="mt-3 flex items-center gap-2 flex-wrap">
           {measurement.mounting_type && (
             <span className="text-xs text-[var(--t3)] bg-[var(--bg)] px-2 py-0.5 rounded-full">
-              {measurement.mounting_type.replace("_", " ")}
+              {getMountingTypeLabel(measurement.mounting_type)}
             </span>
           )}
           {measurement.notes && (
@@ -694,10 +695,9 @@ function MeasurementForm({ formData, setFormData, orders }: MeasurementFormProps
             <SelectValue placeholder="Выберите тип крепления..." />
           </SelectTrigger>
           <SelectContent className="bg-[var(--card-sheber)] border-[var(--border-sheber)]">
-            <SelectItem value="ceiling" className="text-[var(--t1)] focus:bg-[var(--bg)]">Потолок</SelectItem>
-            <SelectItem value="wall" className="text-[var(--t1)] focus:bg-[var(--bg)]">Стена</SelectItem>
-            <SelectItem value="niche" className="text-[var(--t1)] focus:bg-[var(--bg)]">Ниша</SelectItem>
-            <SelectItem value="window_recess" className="text-[var(--t1)] focus:bg-[var(--bg)]">Оконный проем</SelectItem>
+            {MOUNTING_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value} className="text-[var(--t1)] focus:bg-[var(--bg)]">{o.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
