@@ -2,18 +2,19 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, X, ChevronDown } from "lucide-react";
+import { Search, X, ChevronDown, LogOut } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { StatusText } from "@/components/shared/status-text";
 import { useOrders } from "@/hooks/useOrders";
 import { useRole } from "@/hooks/useRole";
+import { useAuth } from "@/contexts/auth-context";
 import Link from "next/link";
 
 // Simplified 4-state list status — mirrors v4 design
 function getListStatus(status: string): "active" | "waiting" | "overdue" | "done" {
   if (status === "overdue") return "overdue";
   if (["completed", "cancelled"].includes(status)) return "done";
-  if (["waiting_final_payment", "ready", "draft"].includes(status)) return "waiting";
+  if (["waiting_final_payment", "draft"].includes(status)) return "waiting";
   return "active";
 }
 
@@ -31,6 +32,7 @@ function OrdersContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { role, isOwner } = useRole();
+  const { logout } = useAuth();
 
   // Filters state
   const [search, setSearch] = useState("");
@@ -160,17 +162,19 @@ function OrdersContent() {
                 />
               </div>
               <button
-                onClick={() => router.push("/dashboard")}
-                className="rounded-lg border border-[#E2E8F0] px-3 py-[7px] text-[13px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+                onClick={() => logout()}
+                title="Выйти"
+                className="flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] px-3 py-[7px] text-[13px] text-[#475569] hover:text-[#DC2626] hover:border-[#DC2626] transition-colors"
               >
-                Назад
+                <LogOut size={15} />
+                Выйти
               </button>
             </div>
           </div>
 
           {/* Status pills */}
           <div className="px-[52px] pb-4 flex gap-2 flex-wrap">
-            {LIST_STATUS_PILLS.filter((p) => isOwner || p.key !== "done").map((pill) => {
+            {LIST_STATUS_PILLS.filter((p) => isOwner || role === "designer" || p.key !== "done").map((pill) => {
               const active = listStatusFilter === pill.key;
               const count = pill.key === "" ? baseOrders.length : countByLS(pill.key);
               return (
@@ -261,7 +265,7 @@ function OrdersContent() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-[#0EA5E9]">
+                <tr className="bg-[#60CCED]">
                   <th className="px-[52px] py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">№</th>
                   <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Клиент</th>
                   <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Дата создания</th>
