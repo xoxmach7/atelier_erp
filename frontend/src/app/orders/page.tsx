@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, X, ChevronDown, LogOut } from "lucide-react";
+import { Search, X, ChevronDown, LogOut, ArrowLeft } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { StatusText } from "@/components/shared/status-text";
 import { useOrders } from "@/hooks/useOrders";
@@ -111,11 +111,17 @@ function OrdersContent() {
         <div className="bg-white rounded-xl shadow-sm">
           {/* Top bar */}
           <div className="flex items-center justify-between px-[52px] py-[30px]">
-            <div className="flex items-center gap-[72px]">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => router.back()}
+                className="text-[#475569] hover:text-[#0EA5E9] transition-colors"
+              >
+                <ArrowLeft size={24} />
+              </button>
               <h1 className="text-[26px] font-semibold text-[#0F172A] whitespace-nowrap">
-                {isOwner ? "Управление заказами" : "Мои заказы"}
+                Управление заказами
               </h1>
-              <div className="flex items-center gap-10">
+              <div className="flex items-center gap-10 ml-[48px]">
                 {canCreateOrder && (
                   <button
                     onClick={() => router.push("/orders/new")}
@@ -139,7 +145,7 @@ function OrdersContent() {
                     </span>
                   )}
                 </button>
-                {isOwner && (
+                {canCreateOrder && (
                   <Link
                     href="/customers"
                     className="flex items-center gap-1.5 text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
@@ -172,7 +178,8 @@ function OrdersContent() {
             </div>
           </div>
 
-          {/* Status pills */}
+          {/* Status pills — показываются только при открытых Фильтрах */}
+          {showFilters && (
           <div className="px-[52px] pb-4 flex gap-2 flex-wrap">
             {LIST_STATUS_PILLS.filter((p) => isOwner || role === "designer" || p.key !== "done").map((pill) => {
               const active = listStatusFilter === pill.key;
@@ -200,6 +207,7 @@ function OrdersContent() {
               );
             })}
           </div>
+          )}
 
           {/* Filters panel */}
           {showFilters && (
