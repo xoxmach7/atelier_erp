@@ -249,7 +249,7 @@ function EditItemModal({
             Отмена
           </button>
           <button onClick={handleSave} disabled={updateMutation.isPending}
-            className="flex-1 py-2.5 rounded-xl bg-[#0EA5E9] text-white text-[13px] font-semibold hover:bg-[#0284C7] disabled:opacity-50 transition-colors">
+            className="flex-1 py-2.5 rounded-xl bg-[#60CCED] text-white text-[13px] font-semibold hover:bg-[#4DBCE0] disabled:opacity-50 transition-colors">
             {updateMutation.isPending ? "Сохранение…" : "Сохранить"}
           </button>
         </div>
@@ -660,7 +660,7 @@ function ProductionStageModal({
             <Button
               type="submit"
               disabled={!selected || mutation.isPending}
-              className="bg-[#0EA5E9] hover:bg-[#0284C7] text-white"
+              className="bg-[#60CCED] hover:bg-[#4DBCE0] text-white"
             >
               {mutation.isPending ? "Сохранение..." : "Сохранить"}
             </Button>
@@ -1041,7 +1041,7 @@ export default function OrderDetailPage() {
                     {role === "designer" && (
                       <button
                         onClick={() => setMeasurementModalOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#0EA5E9] text-white hover:bg-[#0284C7] transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
                       >
                         <Plus size={12} /> Добавить
                       </button>
@@ -1055,7 +1055,7 @@ export default function OrderDetailPage() {
                     </button>
                     <button
                       onClick={() => setKPModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#0EA5E9] text-white hover:bg-[#0284C7] transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
                     >
                       <img src="/icons/kp.png" width={13} height={13} alt="" className="opacity-90" />
                       Создать КП
@@ -1277,7 +1277,7 @@ export default function OrderDetailPage() {
                 <p className="text-[13px] text-[#94A3B8] italic mb-4">Фото ещё не загружены</p>
                 <Link
                   href={`/orders/${orderId}/photos`}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#0EA5E9] text-white text-[13px] font-semibold hover:bg-[#0284C7] transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#60CCED] text-white text-[13px] font-semibold hover:bg-[#4DBCE0] transition-colors"
                 >
                   <Camera size={14} /> Загрузить фото
                 </Link>
@@ -1294,7 +1294,7 @@ export default function OrderDetailPage() {
                 </p>
                 <Link
                   href={`/orders/${orderId}/act`}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#0EA5E9] text-white text-[13px] font-semibold hover:bg-[#0284C7] transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#60CCED] text-white text-[13px] font-semibold hover:bg-[#4DBCE0] transition-colors"
                 >
                   <FileText size={14} /> Сгенерировать АВР
                 </Link>
