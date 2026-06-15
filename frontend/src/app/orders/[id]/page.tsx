@@ -526,7 +526,7 @@ function buildTimeline(
   } else if (handover === "scheduled") {
     events.push({ date: "", label: "Установка запланирована", color: "yellow" });
   } else if (handover && handover !== "not_required") {
-    events.push({ date: "", label: "Изделия не установлены", color: "empty" });
+    events.push({ date: "", label: "Изделия не установлены", color: "yellow" });
   }
 
   // Завершён
@@ -542,16 +542,18 @@ function buildTimeline(
 }
 
 function TimelineDot({ color }: { color: TimelineEvent["color"] }) {
-  const base = "w-[14px] h-[14px] rounded-full shrink-0 border-2";
+  const base = "w-[18px] h-[18px] rounded-full shrink-0";
   switch (color) {
     case "green":
-      return <div className={`${base} bg-[#32ED51] border-[#32ED51]`} />;
+      // Текущий этап — зелёный с белой обводкой и зелёным кольцом
+      return <div className={`${base} bg-[#32ED51] border-2 border-white ring-2 ring-[#32ED51]`} />;
     case "yellow":
-      return <div className={`${base} bg-[#EBDD1D] border-[#EBDD1D]`} />;
+      // Следующий/ожидается — полый жёлтый
+      return <div className={`${base} bg-white border-2 border-[#EBDD1D]`} />;
     case "gray":
-      return <div className={`${base} bg-[#94A3B8] border-[#94A3B8]`} />;
+      return <div className={`${base} bg-[#94A3B8]`} />;
     case "empty":
-      return <div className={`${base} bg-white border-[#CBD5E1]`} />;
+      return <div className={`${base} bg-white border-2 border-[#CBD5E1]`} />;
   }
 }
 
@@ -561,7 +563,7 @@ function HistoryTimeline({ events }: { events: TimelineEvent[] }) {
       {events.map((ev, i) => (
         <div key={i} className="flex gap-3 relative">
           {i < events.length - 1 && (
-            <div className="absolute left-[6px] top-[18px] bottom-[-4px] w-[2px] bg-[#E2E8F0]" />
+            <div className="absolute left-[8px] top-[24px] bottom-[-2px] w-[2px] bg-[#E2E8F0]" />
           )}
           <div className="pt-[3px]">
             <TimelineDot color={ev.color} />
@@ -921,7 +923,7 @@ export default function OrderDetailPage() {
           <div className="flex items-center justify-between px-4 sm:px-[52px] py-5 sm:py-[30px]">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => router.back()}
+                onClick={() => router.push("/orders")}
                 className="text-[#475569] hover:text-[#0EA5E9] transition-colors"
               >
                 <ArrowLeft size={24} />

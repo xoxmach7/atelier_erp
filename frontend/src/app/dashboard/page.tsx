@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart2, TrendingDown, TrendingUp, ChevronDown, RefreshCw } from "lucide-react";
+import { BarChart2, TrendingDown, TrendingUp, RefreshCw } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useAuth } from "@/contexts/auth-context";
 import { useRole } from "@/hooks/useRole";
@@ -100,7 +100,7 @@ function ChartPanel({
 function StatCard({
   label,
   value,
-  valueColor = "text-[#0EA5E9]",
+  valueColor = "text-[#60CCED]",
   href,
 }: {
   label: string;
@@ -111,15 +111,15 @@ function StatCard({
   return (
     <Link
       href={href}
-      className="group flex flex-1 flex-col justify-between bg-white rounded-[12px] p-6 min-w-0 transition-colors hover:bg-[#F0F9FF]"
+      className="group relative flex flex-1 flex-col items-center justify-center bg-white rounded-[12px] p-6 min-w-0 transition-colors hover:bg-[#F0F9FF]"
     >
-      <div className="flex items-start justify-between">
-        <span className="text-[14px] text-[#475569] leading-snug pr-2 group-hover:text-[#0284C7] transition-colors">
-          {label}
-        </span>
-        <ChevronDown size={14} className="text-[#94A3B8] group-hover:text-[#0EA5E9] transition-colors shrink-0 mt-0.5" />
-      </div>
-      <div className={`text-[52px] font-bold leading-none mt-4 ${valueColor}`}>{value}</div>
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" className="absolute right-3 top-3 text-[#CBD5E1] group-hover:text-[#60CCED] transition-colors">
+        <path d="M14 0 L0 0 L14 14 Z" fill="currentColor" />
+      </svg>
+      <span className="text-[14px] text-[#475569] leading-snug text-center group-hover:text-[#0284C7] transition-colors">
+        {label}
+      </span>
+      <div className={`text-[52px] font-bold leading-none mt-3 text-center ${valueColor}`}>{value}</div>
     </Link>
   );
 }

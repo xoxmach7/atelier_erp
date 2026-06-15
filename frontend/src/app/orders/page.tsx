@@ -4,7 +4,6 @@ import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, X, ChevronDown, LogOut, ArrowLeft } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
-import { StatusText } from "@/components/shared/status-text";
 import { useOrders } from "@/hooks/useOrders";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/auth-context";
@@ -25,6 +24,14 @@ const LIST_STATUS_PILLS = [
   { key: "overdue" as const, label: "Просрочен",   color: "#DC2626" },
   { key: "done" as const,    label: "Завершён",    color: "#64748B" },
 ] as const;
+
+// Укрупнённый статус для СПИСКА заказов (детальный — внутри заказа: история + блок роли)
+const LIST_STATUS_DISPLAY: Record<"active" | "waiting" | "overdue" | "done", { label: string; color: string }> = {
+  active:  { label: "В работе",   color: "#16A34A" },
+  waiting: { label: "Ожидание",   color: "#D97706" },
+  overdue: { label: "Просрочено", color: "#DC2626" },
+  done:    { label: "Завершён",   color: "#64748B" },
+};
 
 type ListStatusKey = "" | "active" | "waiting" | "overdue" | "done";
 
@@ -322,13 +329,16 @@ function OrdersContent() {
                       </td>
                       {showFinancial && (
                         <td className="px-6 py-4 text-[#0F172A] whitespace-nowrap text-left">
-                          {order.total_amount
+                          {Number(order.total_amount) > 0
                             ? Number(order.total_amount).toLocaleString("ru-RU") + " ₸"
                             : "—"}
                         </td>
                       )}
                       <td className="px-6 py-4">
-                        <StatusText status={order.status} />
+                        {(() => {
+                          const d = LIST_STATUS_DISPLAY[getListStatus(order.status)];
+                          return <span className="font-medium" style={{ color: d.color }}>{d.label}</span>;
+                        })()}
                       </td>
                     </tr>
                   ))
