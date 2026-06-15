@@ -228,35 +228,19 @@ export function CreateKPModal({
               )}
             </div>
 
-            {/* Discount + Valid days */}
-            <div className="grid grid-cols-2 gap-3.5">
-              <div className="space-y-1.5">
-                <Label className="text-[13px] font-medium text-[var(--t1)]">
-                  Скидка (%)
-                </Label>
-                <Input
-                  className={inputCls}
-                  type="number"
-                  min={0}
-                  max={100}
-                  placeholder="0"
-                  value={discountPercent}
-                  onChange={(e) => setDiscountPercent(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[13px] font-medium text-[var(--t1)]">
-                  Действует (дней)
-                </Label>
-                <Input
-                  className={inputCls}
-                  type="number"
-                  min={1}
-                  placeholder="7"
-                  value={validDays}
-                  onChange={(e) => setValidDays(e.target.value)}
-                />
-              </div>
+            {/* Valid days (скидка убрана — не используется) */}
+            <div className="space-y-1.5">
+              <Label className="text-[13px] font-medium text-[var(--t1)]">
+                Действует (дней)
+              </Label>
+              <Input
+                className={inputCls}
+                type="number"
+                min={1}
+                placeholder="7"
+                value={validDays}
+                onChange={(e) => setValidDays(e.target.value)}
+              />
             </div>
 
             {/* Installation */}
