@@ -176,7 +176,7 @@ export function CreateKPModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[560px] p-0 gap-0 overflow-auto max-h-[90vh]">
+      <DialogContent className="sm:max-w-[560px] p-0 gap-0 overflow-auto max-h-[90vh] [&>button]:right-5 [&>button]:top-5 [&>button>svg]:h-6 [&>button>svg]:w-6">
         <div className="px-8 pt-7 pb-8">
           {/* Header */}
           <DialogHeader className="mb-7">

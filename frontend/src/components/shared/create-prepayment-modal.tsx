@@ -106,7 +106,7 @@ export function CreatePrepaymentModal({
                 inputMode="numeric"
                 value={pct}
                 onChange={(e) => handlePct(e.target.value)}
-                className="w-24 text-center rounded-[10px] bg-[#E9E9E9] border-none px-3 py-[11px] text-[15px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#0EA5E9]"
+                className="w-20 text-left rounded-[10px] bg-[#E9E9E9] border-none px-3 py-[11px] text-[15px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#0EA5E9]"
               />
               <span className="text-[16px] text-[#475569]">%</span>
             </div>
@@ -121,7 +121,7 @@ export function CreatePrepaymentModal({
                 value={amount ? fmtNum(amount) : ""}
                 onChange={(e) => handleAmount(e.target.value)}
                 placeholder="0"
-                className="flex-1 rounded-[10px] bg-[#E9E9E9] border-none px-3 py-[11px] text-[15px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#0EA5E9]"
+                className="w-44 text-left rounded-[10px] bg-[#E9E9E9] border-none px-3 py-[11px] text-[15px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#0EA5E9]"
               />
               <span className="text-[16px] text-[#475569]">₸</span>
             </div>
