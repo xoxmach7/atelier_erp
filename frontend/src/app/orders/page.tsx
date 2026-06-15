@@ -14,7 +14,7 @@ import Link from "next/link";
 function getListStatus(status: string): "active" | "waiting" | "overdue" | "done" {
   if (status === "overdue") return "overdue";
   if (["completed", "cancelled"].includes(status)) return "done";
-  if (["waiting_final_payment", "draft"].includes(status)) return "waiting";
+  if (["waiting_final_payment", "draft", "new"].includes(status)) return "waiting";
   return "active";
 }
 

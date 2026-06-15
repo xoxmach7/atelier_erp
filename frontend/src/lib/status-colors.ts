@@ -5,7 +5,7 @@
 
 export const STATUS_HEX: Record<string, string> = {
   overdue:               "#DC2626",
-  new:                   "#0EA5E9",
+  new:                   "#EBDD1D",
   in_work:               "#32ED51",
   in_production:         "#7C3AED",
   ready:                 "#32ED51",
@@ -23,7 +23,7 @@ export const STATUS_HEX: Record<string, string> = {
 
 export const STATUS_LABELS: Record<string, string> = {
   overdue:               "Просрочено",
-  new:                   "Новый",
+  new:                   "Ожидание",
   in_work:               "В работе",
   in_production:         "В производстве",
   ready:                 "Готов",
