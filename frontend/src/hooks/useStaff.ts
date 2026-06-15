@@ -11,7 +11,7 @@ export function useStaff(role?: string) {
   const params = role ? `?role=${role}` : "";
   return useQuery<StaffMember[]>({
     queryKey: ["staff", role],
-    queryFn: () => get<StaffMember[]>(`/api/v1/staff/${params}`),
+    queryFn: () => get<StaffMember[]>(`/v1/staff/${params}`),
     staleTime: 5 * 60 * 1000,
   });
 }

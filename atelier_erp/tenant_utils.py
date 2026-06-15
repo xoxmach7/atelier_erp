@@ -8,7 +8,6 @@ TenantModelMixin — добавлять к ViewSet'ам, которые рабо
 """
 
 from __future__ import annotations
-from rest_framework.exceptions import PermissionDenied
 
 
 class TenantModelMixin:
@@ -16,33 +15,40 @@ class TenantModelMixin:
 
     tenant_field = 'tenant'   # имя FK-поля на модели
 
+    def _current_tenant(self):
+        """Текущий тенант запроса как КОНКРЕТНОЕ значение (Tenant | None).
+
+        request.tenant — это SimpleLazyObject. Проверка `is None` на нём всегда
+        ложна (это обёртка, а не None), а если положить ленивый объект, обёртывающий
+        None, в FK — Django падает с ValueError → 500. `or None` форсит вычисление
+        обёртки и приводит «ленивый None» к настоящему None.
+        """
+        return getattr(self.request, 'tenant', None) or None
+
     def get_queryset(self):
         qs = super().get_queryset()
-        tenant = getattr(self.request, 'tenant', None)
+        tenant = self._current_tenant()
 
         # Суперюзер без тенанта — видит всё (Railway shell, admin панель)
         if self.request.user.is_superuser and tenant is None:
             return qs
 
-        # Обычный юзер без тенанта — пустой результат (graceful degradation,
-        # не 403, чтобы фронт не ломался до запуска create_tenant/0019)
+        # Тенанты ещё не настроены (single-tenant режим): данные живут с tenant=None,
+        # поэтому показываем их (фильтр по None), а не прячем всё.
         if tenant is None:
-            return qs.none()
+            return qs.filter(**{self.tenant_field: None})
 
         return qs.filter(**{self.tenant_field: tenant})
 
     def perform_create(self, serializer):
-        tenant = getattr(self.request, 'tenant', None)
+        tenant = self._current_tenant()
 
-        # Суперюзер без тенанта может создавать (Railway shell)
-        if self.request.user.is_superuser and tenant is None:
+        # Нет тенанта (тенанты ещё не настроены / пользователь без membership) —
+        # single-tenant режим: сохраняем с tenant=None, как существующие данные,
+        # вместо падения 500/403. Полную привязку включим при setup мультитенантности.
+        if tenant is None:
             serializer.save()
             return
-
-        if tenant is None:
-            raise PermissionDenied(
-                'Tenant not assigned. Run: manage.py create_tenant --name=... --slug=...'
-            )
         serializer.save(**{self.tenant_field: tenant})
 
 
@@ -56,13 +62,5 @@ class TenantViaOrderMixin(TenantModelMixin):
     tenant_field = 'order__tenant'
 
     def perform_create(self, serializer):
-        tenant = getattr(self.request, 'tenant', None)
-        if self.request.user.is_superuser and tenant is None:
-            serializer.save()
-            return
-        if tenant is None:
-            raise PermissionDenied(
-                'Tenant not assigned. Run: manage.py create_tenant --name=... --slug=...'
-            )
-        # Не проставляем tenant напрямую — он уже есть в order
+        # tenant берётся из связанного order, отдельно не проставляем.
         serializer.save()
