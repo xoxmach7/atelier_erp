@@ -44,6 +44,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { MOUNTING_OPTIONS, getMountingTypeLabel } from "@/lib/mounting-types";
+import { CreateMeasurementModal } from "@/components/shared/create-measurement-modal";
 import {
   PageHeader,
   EmptyState,
@@ -126,6 +127,7 @@ function MeasurementsContent() {
   const orderId = searchParams.get("order");
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingMeasurement, setEditingMeasurement] = useState<MeasurementDTO | null>(null);
   const [formData, setFormData] = useState<MeasurementFormData>({
     ...EMPTY_FORM,
     order: orderId || "",
@@ -286,10 +288,20 @@ function MeasurementsContent() {
               measurement={m}
               orders={orders}
               onDelete={() => handleDelete(m.id)}
+              onEdit={() => setEditingMeasurement(m)}
             />
           ))}
         </div>
       )}
+
+      {/* Edit Measurement Modal (форма по Figma, режим редактирования) */}
+      <CreateMeasurementModal
+        isOpen={!!editingMeasurement}
+        onClose={() => setEditingMeasurement(null)}
+        orderId={editingMeasurement?.order || orderId || ""}
+        measurement={editingMeasurement}
+        onSuccess={() => setEditingMeasurement(null)}
+      />
 
       {/* Create Sheet */}
       <Sheet open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -326,9 +338,10 @@ interface MeasurementCardProps {
   measurement: MeasurementDTO;
   orders: Array<{ id: string; order_number: string; customer_name: string }>;
   onDelete: () => void;
+  onEdit: () => void;
 }
 
-function MeasurementCard({ measurement, orders, onDelete }: MeasurementCardProps) {
+function MeasurementCard({ measurement, orders, onDelete, onEdit }: MeasurementCardProps) {
   const order = orders.find((o) => o.id === measurement.order);
 
   return (
@@ -341,12 +354,12 @@ function MeasurementCard({ measurement, orders, onDelete }: MeasurementCardProps
             <p className="text-sm text-[var(--t3)]">{measurement.window_name || "Окно / изделие"}</p>
           </div>
           <div className="flex gap-1">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 text-[var(--t3)] hover:text-[var(--a)] hover:bg-[var(--al)]" 
-              disabled
-              title="Редактирование замера будет добавлено позже"
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-[var(--t3)] hover:text-[var(--a)] hover:bg-[var(--al)]"
+              onClick={onEdit}
+              title="Редактировать замер"
             >
               <Pencil className="h-4 w-4" />
             </Button>

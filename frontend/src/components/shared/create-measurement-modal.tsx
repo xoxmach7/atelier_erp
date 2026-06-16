@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import {
   Dialog,
@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useFabrics } from "@/hooks/useFabrics";
-import { useCreateMeasurement } from "@/hooks/useMeasurements";
+import { useCreateMeasurement, useUpdateMeasurement } from "@/hooks/useMeasurements";
 import { MOUNTING_OPTIONS } from "@/lib/mounting-types";
 import type { MeasurementDTO } from "@/types";
 
@@ -31,6 +31,8 @@ interface CreateMeasurementModalProps {
   isOpen: boolean;
   onClose: () => void;
   orderId: string;
+  /** Если передан — модалка работает в режиме редактирования. */
+  measurement?: MeasurementDTO | null;
   onSuccess?: (measurement: MeasurementDTO) => void;
 }
 
@@ -42,6 +44,7 @@ export function CreateMeasurementModal({
   isOpen,
   onClose,
   orderId,
+  measurement,
   onSuccess,
 }: CreateMeasurementModalProps) {
   // Form state
@@ -61,6 +64,8 @@ export function CreateMeasurementModal({
   const fabrics = fabricsData?.results ?? [];
 
   const createMutation = useCreateMeasurement();
+  const updateMutation = useUpdateMeasurement();
+  const isEdit = !!measurement;
 
   // Validation
   const isValid = roomName.trim() && windowName.trim() && widthCm && heightCm;
@@ -79,34 +84,58 @@ export function CreateMeasurementModal({
     setNotes("");
   };
 
+  // Префилл при открытии в режиме редактирования (или сброс при создании)
+  useEffect(() => {
+    if (!isOpen) return;
+    if (measurement) {
+      setRoomName(measurement.room_name || "");
+      setWindowName(measurement.window_name || "");
+      setWidthCm(measurement.width_cm != null ? String(measurement.width_cm) : "");
+      setHeightCm(measurement.height_cm != null ? String(measurement.height_cm) : "");
+      setCurtainFabricId(measurement.curtain_fabric || "");
+      setCurtainMeters(measurement.curtain_meters ? String(measurement.curtain_meters) : "");
+      setTulleFabricId(measurement.tulle_fabric || "");
+      setTulleMeters(measurement.tulle_meters ? String(measurement.tulle_meters) : "");
+      setMountingType(measurement.mounting_type || "");
+      setNotes(measurement.notes || "");
+    } else {
+      resetForm();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, measurement]);
+
   // Submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) return;
 
+    const payload = {
+      order: orderId,
+      room_name: roomName.trim(),
+      window_name: windowName.trim(),
+      width_cm: parseInt(widthCm),
+      height_cm: parseInt(heightCm),
+      depth_cm: null,
+      ceiling_height_cm: null,
+      mounting_type: mountingType || "",
+      window_type: "",
+      has_radiator: false,
+      has_slope: false,
+      obstacles: "",
+      selected_fabric: null,
+      selected_cornice_type: "",
+      curtain_fabric: curtainFabricId || null,
+      curtain_meters: curtainMeters ? parseFloat(curtainMeters) : 0,
+      tulle_fabric: tulleFabricId || null,
+      tulle_meters: tulleMeters ? parseFloat(tulleMeters) : 0,
+      measured_by: null,
+      notes: notes.trim(),
+    };
+
     try {
-      const result = await createMutation.mutateAsync({
-        order: orderId,
-        room_name: roomName.trim(),
-        window_name: windowName.trim(),
-        width_cm: parseInt(widthCm),
-        height_cm: parseInt(heightCm),
-        depth_cm: null,
-        ceiling_height_cm: null,
-        mounting_type: mountingType || "",
-        window_type: "",
-        has_radiator: false,
-        has_slope: false,
-        obstacles: "",
-        selected_fabric: null,
-        selected_cornice_type: "",
-        curtain_fabric: curtainFabricId || null,
-        curtain_meters: curtainMeters ? parseFloat(curtainMeters) : 0,
-        tulle_fabric: tulleFabricId || null,
-        tulle_meters: tulleMeters ? parseFloat(tulleMeters) : 0,
-        measured_by: null,
-        notes: notes.trim(),
-      });
+      const result = measurement
+        ? await updateMutation.mutateAsync({ id: measurement.id, data: payload })
+        : await createMutation.mutateAsync(payload);
       onSuccess?.(result);
       resetForm();
       onClose();
@@ -135,7 +164,7 @@ export function CreateMeasurementModal({
           {/* Header */}
           <DialogHeader className="mb-7">
             <DialogTitle className="text-[24px] font-bold text-[var(--t1)]">
-              Создание замера
+              {isEdit ? "Редактирование замера" : "Создание замера"}
             </DialogTitle>
           </DialogHeader>
 
@@ -305,10 +334,12 @@ export function CreateMeasurementModal({
             {/* Submit */}
             <Button
               type="submit"
-              disabled={!isValid || createMutation.isPending}
-              className="w-full h-12 bg-[var(--a)] hover:bg-[var(--ad)] text-white text-[15px] font-semibold rounded-[var(--r)] mt-1 disabled:opacity-50"
+              disabled={!isValid || createMutation.isPending || updateMutation.isPending}
+              className="w-full h-12 bg-[#60CCED] hover:bg-[#4DBCE0] text-white text-[15px] font-semibold rounded-[var(--r)] mt-1 disabled:opacity-50"
             >
-              {createMutation.isPending ? "Создание..." : "Создать"}
+              {createMutation.isPending || updateMutation.isPending
+                ? (isEdit ? "Сохранение..." : "Создание...")
+                : (isEdit ? "Сохранить" : "Создать")}
             </Button>
 
             {/* Error */}
