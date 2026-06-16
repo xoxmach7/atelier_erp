@@ -98,7 +98,7 @@ export default function LoginPage() {
       </div>
 
       {/* Footer */}
-      <p className="mt-8 text-base font-semibold tracking-wide text-white/90">
+      <p className="mt-8 text-base font-medium tracking-wide text-white/90">
         SheberSolution
       </p>
     </div>

@@ -13,6 +13,7 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { LoadingState } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { getCoarseStatus } from "@/lib/list-status";
+import { formatPhone } from "@/lib/phone";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
@@ -358,7 +359,7 @@ function ItemRow({
               )}
             </div>
             {editable && (
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-[30px] shrink-0">
                 <button
                   onClick={(e) => { e.stopPropagation(); setEditOpen(true); }}
                   className="opacity-90 hover:opacity-100 transition-opacity"
@@ -996,11 +997,11 @@ export default function OrderDetailPage() {
                 <img src="/icons/info.png" width={18} height={18} alt="" />
                 <span className="text-[15px] lg:text-[17px] font-medium text-[#0F172A]">Информация</span>
               </div>
-              <div className="grid grid-cols-2 gap-y-3 sm:grid-cols-3 lg:flex lg:items-stretch lg:justify-around lg:gap-0 lg:divide-x-[1.5px] lg:divide-[#D2D2D2]">
+              <div className="grid grid-cols-2 gap-y-3 sm:grid-cols-3 lg:flex lg:items-stretch lg:justify-around lg:gap-0 lg:divide-x lg:divide-[#E2E8F0]">
                 <InfoCell label="Клиент">
                   <div className="font-medium">{getCustomerName(order)}</div>
                   {getCustomerPhone(order) && (
-                    <div className="text-[11px] sm:text-[12px] font-normal text-[#94A3B8]">{getCustomerPhone(order)}</div>
+                    <div className="text-[11px] sm:text-[12px] font-normal text-[#94A3B8]">{formatPhone(getCustomerPhone(order))}</div>
                   )}
                 </InfoCell>
                 <InfoCell label="Создан">{fmtDate(order.created_at)}</InfoCell>
@@ -1078,7 +1079,7 @@ export default function OrderDetailPage() {
                     {items.map((item) => (
                       <ItemRow key={item.id} item={item} orderId={orderId} editable={isOwnerOrDesigner} />
                     ))}
-                    <div className="flex items-center justify-between pt-4 mt-2">
+                    <div className="flex items-center justify-between pt-4 mt-2 pl-1 pr-[32px]">
                       <span className="text-[16px] font-bold text-[#0F172A]">ИТОГО</span>
                       <span className="text-[16px] font-bold text-[#0F172A]">
                         {fmtCurrency(order.total_amount)}
@@ -1270,7 +1271,7 @@ export default function OrderDetailPage() {
                 </div>
                 <div className="mt-3 text-[13px] text-[#475569]">
                   Клиент: <b>{getCustomerName(order)}</b>
-                  {getCustomerPhone(order) && <span> · {getCustomerPhone(order)}</span>}
+                  {getCustomerPhone(order) && <span> · {formatPhone(getCustomerPhone(order))}</span>}
                 </div>
               </div>
 

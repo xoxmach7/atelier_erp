@@ -50,13 +50,15 @@ function BarChart({ data }: { data: { label: string; value: number }[] }) {
       <div className="flex-1 flex flex-col gap-1">
         <div className="flex items-end gap-[6px] flex-1">
           {data.map((d, i) => {
-            const pct = Math.max((d.value / maxVal) * 100, 4);
+            const pct = maxVal > 0 ? (d.value / maxVal) * 100 : 0;
             return (
               <div key={i} className="flex flex-1 flex-col items-center h-full justify-end">
-                <div
-                  className="w-full rounded-t-[4px] min-h-[4px] transition-all duration-300 bg-[#60CCED]"
-                  style={{ height: `${pct}%` }}
-                />
+                {pct > 0 && (
+                  <div
+                    className="w-full rounded-t-[4px] transition-all duration-300 bg-[#60CCED]"
+                    style={{ height: `${pct}%` }}
+                  />
+                )}
               </div>
             );
           })}
@@ -158,7 +160,8 @@ function DashboardContent() {
   const revenuePoints = chart.map((p) => ({ label: monthLabel(p.month), value: p.revenue }));
   const expensePoints = chart.map((p) => ({ label: monthLabel(p.month), value: Math.max(p.revenue - p.paid, 0) }));
 
-  const orgName = user?.tenant?.name || "Название организации";
+  // TODO: вернуть user?.tenant?.name, когда будут реальные организации клиентов
+  const orgName = "Название организации";
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] p-8">
@@ -172,7 +175,7 @@ function DashboardContent() {
               onClick={() => { queue.refetch?.(); dashboard.refetch?.(); }}
               className="text-[#94A3B8] hover:text-[#0EA5E9] transition-colors"
             >
-              <RefreshCw size={14} />
+              <RefreshCw size={20} />
             </button>
           </div>
         </div>

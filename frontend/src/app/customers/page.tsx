@@ -255,7 +255,6 @@ export default function CustomersPage() {
                       <th className="px-[52px] py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Имя</th>
                       <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Телефон</th>
                       <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Email</th>
-                      <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Город</th>
                       <th className="px-6 py-4 text-right text-[14px] font-medium text-white whitespace-nowrap pr-[52px]">Действия</th>
                     </tr>
                   </thead>
@@ -284,11 +283,8 @@ export default function CustomersPage() {
                             "—"
                           )}
                         </td>
-                        <td className="px-6 py-4 text-[#475569]">
-                          {c.address_city || "—"}
-                        </td>
                         <td className="px-6 py-4 pr-[52px]">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-[30px]">
                             <button
                               onClick={() => openEdit(c)}
                               className="opacity-90 hover:opacity-100 transition-opacity"
