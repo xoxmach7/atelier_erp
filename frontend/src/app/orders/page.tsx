@@ -9,6 +9,7 @@ import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/auth-context";
 import Link from "next/link";
 import { getListStatus, getCoarseStatus } from "@/lib/list-status";
+import { CreateOrderModal } from "@/components/shared/create-order-modal";
 
 const LIST_STATUS_PILLS = [
   { key: "" as const,        label: "Все",         color: "#0EA5E9" },
@@ -41,6 +42,7 @@ function OrdersContent() {
 
   // customer filter from URL (?customer=id)
   const customerIdFromUrl = searchParams.get("customer");
+  const [createOpen, setCreateOpen] = useState(false);
 
   const { data, isLoading } = useOrders(queryOptions);
   const allOrders = data?.results ?? [];
@@ -116,7 +118,7 @@ function OrdersContent() {
               <div className="flex items-center gap-10 ml-[48px]">
                 {canCreateOrder && (
                   <button
-                    onClick={() => router.push("/orders/new")}
+                    onClick={() => setCreateOpen(true)}
                     className="text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
                   >
                     Добавить заказ
@@ -338,6 +340,13 @@ function OrdersContent() {
           </div>
         </div>
       </div>
+
+      <CreateOrderModal
+        isOpen={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onSuccess={(id) => router.push(`/orders/${id}`)}
+        prefillCustomer={customerIdFromUrl}
+      />
     </ProtectedRoute>
   );
 }
