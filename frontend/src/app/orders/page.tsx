@@ -203,7 +203,7 @@ function OrdersContent() {
 
           {/* Filters panel */}
           {showFilters && (
-            <div className="border-t border-[#F1F5F9] px-[52px] py-4">
+            <div className="px-[52px] py-4">
               <div className="flex items-end gap-6 flex-wrap">
                 {/* Date from */}
                 <div className="flex flex-col gap-1.5">

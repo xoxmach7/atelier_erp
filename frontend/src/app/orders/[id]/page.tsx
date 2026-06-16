@@ -359,7 +359,7 @@ function ItemRow({
               )}
             </div>
             {editable && (
-              <div className="flex items-center gap-[25px] shrink-0">
+              <div className="flex items-center gap-[20px] shrink-0">
                 <button
                   onClick={(e) => { e.stopPropagation(); setEditOpen(true); }}
                   className="opacity-90 hover:opacity-100 transition-opacity"

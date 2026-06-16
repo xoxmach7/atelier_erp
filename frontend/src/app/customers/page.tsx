@@ -284,7 +284,7 @@ export default function CustomersPage() {
                           )}
                         </td>
                         <td className="px-6 py-4 pr-[52px]">
-                          <div className="flex items-center justify-end gap-[25px]">
+                          <div className="flex items-center justify-end gap-[20px]">
                             <button
                               onClick={() => openEdit(c)}
                               className="opacity-90 hover:opacity-100 transition-opacity"

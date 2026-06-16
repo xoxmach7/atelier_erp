@@ -237,7 +237,7 @@ function MeasurementCard({ measurement, orders, onDelete, onEdit }: MeasurementC
             <h3 className="font-semibold text-[var(--t1)]">{measurement.room_name}</h3>
             <p className="text-sm text-[var(--t3)]">{measurement.window_name || "Окно / изделие"}</p>
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-[20px]">
             <Button
               variant="ghost"
               size="icon"
