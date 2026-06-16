@@ -234,13 +234,13 @@ function NewOrderContent() {
     "w-full rounded-[10px] border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-[15px] text-[#0F172A] outline-none focus:border-[#0EA5E9] transition-colors placeholder:text-[#94A3B8]";
 
   return (
-    <div className="min-h-screen bg-[#F0F4F8] flex items-start justify-center pt-8 pb-16">
-      <div className="w-full max-w-[560px] bg-white rounded-2xl shadow-sm overflow-hidden relative">
-        {/* Close button */}
+    <div className="fixed inset-0 z-50 bg-black/40 overflow-y-auto flex items-start justify-center px-4 py-8">
+      <div className="w-full max-w-[560px] bg-white rounded-2xl shadow-xl overflow-hidden relative">
+        {/* Close button — справа */}
         <button
           type="button"
           onClick={() => router.back()}
-          className="absolute top-4 left-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg bg-[#0EA5E9] text-white hover:bg-[#0284C7] transition-colors"
+          className="absolute top-4 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
         >
           <X size={18} />
         </button>
