@@ -449,36 +449,54 @@ class QuoteService:
 
     def generate_pdf(self, quote_id: UUID, media_root: str = '') -> str:
         """
-        Generate PDF for quote using weasyprint.
-        Returns path to generated PDF file.
+        Генерация PDF КП через xhtml2pdf (чистый Python, без системных зависимостей).
+        Кириллица — через вложенный шрифт DejaVuSans. Возвращает путь к PDF.
         """
         try:
-            from weasyprint import HTML, CSS
+            from xhtml2pdf import pisa
         except ImportError:
             raise QuoteServiceError(
-                "weasyprint is not installed. Run: pip install weasyprint"
+                "xhtml2pdf is not installed. Run: pip install xhtml2pdf"
             )
+
+        import os
 
         try:
             quote = Quote.objects.select_related('customer', 'order').prefetch_related('items').get(pk=quote_id)
         except Quote.DoesNotExist:
             raise QuoteNotFoundError(f"Quote {quote_id} not found")
 
-        # Build HTML
+        fonts_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'fonts')
+        font_regular = os.path.join(fonts_dir, 'DejaVuSans.ttf').replace('\\', '/')
+        font_bold = os.path.join(fonts_dir, 'DejaVuSans-Bold.ttf').replace('\\', '/')
+
+        def money(v):
+            try:
+                return f"{int(round(float(v))):,}".replace(',', ' ')
+            except (TypeError, ValueError):
+                return '0'
+
         items_rows = ""
         for item in quote.items.all():
             items_rows += f"""
             <tr>
-                <td>{item.room_name}</td>
+                <td>{item.room_name or '-'}</td>
                 <td>{item.window_name or '-'}</td>
-                <td>{item.window_width_cm}×{item.window_height_cm}</td>
-                <td>{item.fabric_meters or '-'} м</td>
-                <td>{item.fabric_cost or '-'}</td>
-                <td>{item.sewing_cost or '-'}</td>
-                <td>{item.installation_price or '-'}</td>
-                <td><strong>{item.line_total}</strong></td>
+                <td>{item.window_width_cm or '-'}×{item.window_height_cm or '-'}</td>
+                <td>{item.fabric_meters or '-'}</td>
+                <td>{money(item.fabric_cost)}</td>
+                <td>{money(item.sewing_cost)}</td>
+                <td>{money(item.installation_price)}</td>
+                <td><b>{money(item.line_total)}</b></td>
             </tr>
             """
+
+        order_row = f'<tr><td class="k">Заказ:</td><td>{quote.order.order_number}</td></tr>' if quote.order else ''
+        discount_row = f'<p>Скидка: -{money(quote.discount_amount)} ₸</p>' if quote.discount_amount else ''
+        delivery_row = f'<p>Доставка: +{money(quote.delivery_cost)} ₸</p>' if quote.delivery_cost else ''
+        install_row = f'<p>Монтаж: +{money(quote.installation_cost)} ₸</p>' if quote.installation_cost else ''
+        prepay_pct = int(round(float(quote.prepayment_percent) * 100))
+        prepay_amount = money(float(quote.total) * float(quote.prepayment_percent))
 
         html_content = f"""
         <!DOCTYPE html>
@@ -486,44 +504,40 @@ class QuoteService:
         <head>
             <meta charset="utf-8">
             <style>
-                @page {{ size: A4; margin: 2cm; }}
-                body {{ font-family: 'DejaVu Sans', sans-serif; font-size: 11pt; color: #333; }}
-                h1 {{ font-size: 18pt; text-align: center; margin-bottom: 8px; }}
-                .subtitle {{ text-align: center; color: #666; margin-bottom: 24px; }}
-                .info {{ margin-bottom: 16px; }}
-                .info-row {{ display: flex; justify-content: space-between; margin-bottom: 4px; }}
-                table {{ width: 100%; border-collapse: collapse; margin-top: 16px; }}
-                th, td {{ border: 1px solid #ccc; padding: 6px 8px; text-align: left; font-size: 10pt; }}
-                th {{ background: #f5f5f5; font-weight: 600; }}
-                .total-section {{ margin-top: 20px; text-align: right; }}
-                .total-section p {{ margin: 4px 0; }}
-                .total {{ font-size: 14pt; font-weight: bold; margin-top: 8px; }}
-                .stamp {{ margin-top: 40px; font-size: 9pt; color: #888; text-align: center; }}
+                @font-face {{ font-family: "DejaVu"; src: url("{font_regular}"); }}
+                @font-face {{ font-family: "DejaVu"; src: url("{font_bold}"); font-weight: bold; }}
+                @page {{ size: A4; margin: 1.6cm; }}
+                body {{ font-family: "DejaVu"; font-size: 10pt; color: #333; }}
+                h1 {{ font-size: 17pt; text-align: center; margin: 0 0 4px 0; }}
+                .subtitle {{ text-align: center; color: #666; margin: 0 0 18px 0; }}
+                table.info {{ width: 100%; margin-bottom: 14px; }}
+                table.info td {{ padding: 2px 0; font-size: 10pt; }}
+                table.info td.k {{ color: #666; width: 30%; }}
+                table.items {{ width: 100%; border-collapse: collapse; margin-top: 8px; }}
+                table.items th, table.items td {{ border: 1px solid #ccc; padding: 5px 6px; text-align: left; font-size: 9pt; }}
+                table.items th {{ background: #f0f9ff; }}
+                .total-section {{ margin-top: 16px; text-align: right; }}
+                .total-section p {{ margin: 3px 0; }}
+                .total {{ font-size: 13pt; font-weight: bold; margin-top: 6px; }}
+                .stamp {{ margin-top: 36px; font-size: 8pt; color: #999; text-align: center; }}
             </style>
         </head>
         <body>
             <h1>Коммерческое предложение</h1>
             <p class="subtitle">№ {quote.quote_number}</p>
 
-            <div class="info">
-                <div class="info-row"><span>Клиент:</span> <strong>{quote.customer.full_name}</strong></div>
-                <div class="info-row"><span>Телефон:</span> {quote.customer.phone or '-'}</div>
-                {f'<div class="info-row"><span>Заказ:</span> {quote.order.order_number}</div>' if quote.order else ''}
-                <div class="info-row"><span>Дата:</span> {timezone.now().strftime('%d.%m.%Y')}</div>
-                <div class="info-row"><span>Срок действия:</span> {quote.valid_until.strftime('%d.%m.%Y') if quote.valid_until else '-'}</div>
-            </div>
+            <table class="info">
+                <tr><td class="k">Клиент:</td><td><b>{quote.customer.full_name}</b></td></tr>
+                <tr><td class="k">Телефон:</td><td>{quote.customer.phone or '-'}</td></tr>
+                {order_row}
+                <tr><td class="k">Дата:</td><td>{timezone.now().strftime('%d.%m.%Y')}</td></tr>
+            </table>
 
-            <table>
+            <table class="items">
                 <thead>
                     <tr>
-                        <th>Комната</th>
-                        <th>Окно</th>
-                        <th>Размеры, см</th>
-                        <th>Ткань, м</th>
-                        <th>Ткань, ₽</th>
-                        <th>Пошив, ₽</th>
-                        <th>Монтаж, ₽</th>
-                        <th>Итого, ₽</th>
+                        <th>Комната</th><th>Окно</th><th>Размеры, см</th><th>Ткань, м</th>
+                        <th>Ткань, ₸</th><th>Пошив, ₸</th><th>Монтаж, ₸</th><th>Итого, ₸</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -532,33 +546,42 @@ class QuoteService:
             </table>
 
             <div class="total-section">
-                <p>Подытог: {quote.subtotal} ₽</p>
-                {f'<p>Скидка: -{quote.discount_amount} ₽</p>' if quote.discount_amount else ''}
-                {f'<p>Доставка: +{quote.delivery_cost} ₽</p>' if quote.delivery_cost else ''}
-                {f'<p>Монтаж: +{quote.installation_cost} ₽</p>' if quote.installation_cost else ''}
-                <p class="total">Итого: {quote.total} ₽</p>
-                <p>Предоплата ({int(quote.prepayment_percent * 100)}%): {quote.total * quote.prepayment_percent} ₽</p>
+                <p>Подытог: {money(quote.subtotal)} ₸</p>
+                {discount_row}
+                {delivery_row}
+                {install_row}
+                <p class="total">Итого: {money(quote.total)} ₸</p>
+                <p>Предоплата ({prepay_pct}%): {prepay_amount} ₸</p>
             </div>
 
-            <div class="stamp">
-                Документ сформирован автоматически из системы Atelier ERP
-            </div>
+            <div class="stamp">Документ сформирован автоматически — Sheber ERP</div>
         </body>
         </html>
         """
 
-        import os
-        pdf_dir = os.path.join(media_root, 'quotes')
-        os.makedirs(pdf_dir, exist_ok=True)
-        pdf_path = os.path.join(pdf_dir, f'{quote_id}.pdf')
+        import io
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import default_storage
 
-        HTML(string=html_content).write_pdf(pdf_path)
+        def _link_callback(uri, rel):
+            return uri
+
+        buffer = io.BytesIO()
+        result = pisa.CreatePDF(html_content, dest=buffer, encoding='utf-8', link_callback=_link_callback)
+        if result.err:
+            raise QuoteServiceError("Ошибка генерации PDF")
+
+        # Сохраняем через default_storage → R2 в проде, локальный MEDIA_ROOT в dev.
+        name = f'quotes/{quote_id}.pdf'
+        if default_storage.exists(name):
+            default_storage.delete(name)
+        saved_name = default_storage.save(name, ContentFile(buffer.getvalue()))
 
         quote.pdf_generated = True
-        quote.pdf_url = f'/media/quotes/{quote_id}.pdf'
+        quote.pdf_url = default_storage.url(saved_name)
         quote.save(update_fields=['pdf_generated', 'pdf_url', 'updated_at'])
 
-        return pdf_path
+        return saved_name
 
     def get_quote_summary(self, quote_id: UUID) -> Dict[str, Any]:
         """

@@ -2130,7 +2130,7 @@ class QuoteViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
             })
         except ImportError as e:
             return Response(
-                {'error': str(e), 'hint': 'Run: pip install weasyprint'},
+                {'error': str(e), 'hint': 'Run: pip install xhtml2pdf'},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
         except Exception as e:

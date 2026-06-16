@@ -85,7 +85,8 @@ export default function OrderQuotePage() {
     onSuccess: (data) => {
       if (data.pdf_url) {
         const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
-        window.open(`${baseUrl}${data.pdf_url}`, "_blank");
+        const url = data.pdf_url.startsWith("http") ? data.pdf_url : `${baseUrl}${data.pdf_url}`;
+        window.open(url, "_blank");
       }
       queryClient.invalidateQueries({ queryKey: ["order-quotes", orderId] });
     },
