@@ -265,7 +265,7 @@ export default function CustomersPage() {
                         className="border-b border-dashed border-[#CBD5E1] hover:bg-[#F8FAFC] transition-colors"
                       >
                         <td
-                          className="px-[52px] py-4 font-medium text-[#0F172A] cursor-pointer hover:text-[#0EA5E9]"
+                          className="px-[52px] py-4 text-[#0F172A] cursor-pointer hover:text-[#0EA5E9]"
                           onClick={() => router.push(`/orders?customer=${c.id}`)}
                         >
                           {c.full_name}
@@ -284,7 +284,7 @@ export default function CustomersPage() {
                           )}
                         </td>
                         <td className="px-6 py-4 pr-[52px]">
-                          <div className="flex items-center justify-end gap-[30px]">
+                          <div className="flex items-center justify-end gap-[25px]">
                             <button
                               onClick={() => openEdit(c)}
                               className="opacity-90 hover:opacity-100 transition-opacity"

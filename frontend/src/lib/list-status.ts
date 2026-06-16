@@ -17,7 +17,7 @@ export const LIST_STATUS_DISPLAY: Record<ListStatusKey, { label: string; color: 
   active:  { label: "В работе",   color: "#32ED51" },
   waiting: { label: "Ожидание",   color: "#EBDD1D" },
   overdue: { label: "Просрочено", color: "#DC2626" },
-  done:    { label: "Завершён",   color: "#D3D3D3" },
+  done:    { label: "Завершён",   color: "#8D8D8D" },
 };
 
 /** Подпись + цвет укрупнённого статуса по сырому статусу заказа. */
