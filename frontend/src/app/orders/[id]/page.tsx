@@ -12,7 +12,7 @@ import { MyTaskCard } from "@/components/shared/my-task-card";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { LoadingState } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
-import { StatusText } from "@/components/shared/status-text";
+import { getCoarseStatus } from "@/lib/list-status";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
@@ -1006,7 +1006,9 @@ export default function OrderDetailPage() {
                 <InfoCell label="Создан">{fmtDate(order.created_at)}</InfoCell>
                 <InfoCell label="Дизайнер">{getDesignerName(order)}</InfoCell>
                 <InfoCell label="Статус">
-                  <StatusText status={order.status} />
+                  <span className="font-medium" style={{ color: getCoarseStatus(order.status).color }}>
+                    {getCoarseStatus(order.status).label}
+                  </span>
                 </InfoCell>
                 <InfoCell label="Дата замера">{fmtDate(order.measurement_date)}</InfoCell>
                 <InfoCell label="Завершение">{fmtDate(order.planned_completion)}</InfoCell>

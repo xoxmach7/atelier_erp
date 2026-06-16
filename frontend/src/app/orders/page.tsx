@@ -8,14 +8,7 @@ import { useOrders } from "@/hooks/useOrders";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/auth-context";
 import Link from "next/link";
-
-// Simplified 4-state list status — mirrors v4 design
-function getListStatus(status: string): "active" | "waiting" | "overdue" | "done" {
-  if (status === "overdue") return "overdue";
-  if (["completed", "cancelled"].includes(status)) return "done";
-  if (["waiting_final_payment", "draft", "new"].includes(status)) return "waiting";
-  return "active";
-}
+import { getListStatus, getCoarseStatus } from "@/lib/list-status";
 
 const LIST_STATUS_PILLS = [
   { key: "" as const,        label: "Все",         color: "#0EA5E9" },
@@ -24,14 +17,6 @@ const LIST_STATUS_PILLS = [
   { key: "overdue" as const, label: "Просрочен",   color: "#DC2626" },
   { key: "done" as const,    label: "Завершён",    color: "#64748B" },
 ] as const;
-
-// Укрупнённый статус для СПИСКА заказов (детальный — внутри заказа: история + блок роли)
-const LIST_STATUS_DISPLAY: Record<"active" | "waiting" | "overdue" | "done", { label: string; color: string }> = {
-  active:  { label: "В работе",   color: "#16A34A" },
-  waiting: { label: "Ожидание",   color: "#EBDD1D" },
-  overdue: { label: "Просрочено", color: "#DC2626" },
-  done:    { label: "Завершён",   color: "#64748B" },
-};
 
 type ListStatusKey = "" | "active" | "waiting" | "overdue" | "done";
 
@@ -336,7 +321,7 @@ function OrdersContent() {
                       )}
                       <td className="px-6 py-4">
                         {(() => {
-                          const d = LIST_STATUS_DISPLAY[getListStatus(order.status)];
+                          const d = getCoarseStatus(order.status);
                           return <span className="font-medium" style={{ color: d.color }}>{d.label}</span>;
                         })()}
                       </td>
