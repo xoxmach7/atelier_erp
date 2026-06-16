@@ -43,7 +43,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
-import { MOUNTING_OPTIONS, getMountingTypeLabel } from "@/lib/mounting-types";
+import { getMountingTypeLabel } from "@/lib/mounting-types";
 import { CreateMeasurementModal } from "@/components/shared/create-measurement-modal";
 import {
   PageHeader,
@@ -51,87 +51,26 @@ import {
   LoadingState,
   ErrorState,
 } from "@/components/shared";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetFooter,
-} from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Plus, Ruler, Pencil, Trash2, Search, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { useMeasurements, useCreateMeasurement, useDeleteMeasurement } from "@/hooks/useMeasurements";
+import { useMeasurements, useDeleteMeasurement } from "@/hooks/useMeasurements";
 import { useOrders } from "@/hooks/useOrders";
-import { useFabrics } from "@/hooks/useFabrics";
 import type { MeasurementDTO } from "@/types";
-
-// Form state for new/edit measurement
-// Phase 3: Measurement = what selected and how much needed (no prices)
-interface MeasurementFormData {
-  order: string;
-  room_name: string;
-  window_name: string;
-  width_cm: number;
-  height_cm: number;
-  depth_cm: number | null;
-  mounting_type: string;
-  // Phase 3: Curtain and tulle fabrics
-  curtain_fabric: string | null;
-  curtain_meters: number;
-  tulle_fabric: string | null;
-  tulle_meters: number;
-  notes: string;
-  measured_by: string | null;
-  // Legacy fields (not used in UI but kept for API compatibility)
-  ceiling_height_cm?: number | null;
-  window_type?: string;
-  has_radiator?: boolean;
-  has_slope?: boolean;
-  obstacles?: string;
-  selected_fabric?: string | null;
-  selected_cornice_type?: string;
-}
-
-const EMPTY_FORM: MeasurementFormData = {
-  order: "",
-  room_name: "",
-  window_name: "",
-  width_cm: 0,
-  height_cm: 0,
-  depth_cm: null,
-  mounting_type: "",
-  // Phase 3: Fabrics
-  curtain_fabric: null,
-  curtain_meters: 0,
-  tulle_fabric: null,
-  tulle_meters: 0,
-  notes: "",
-  measured_by: null,
-};
 
 function MeasurementsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const orderId = searchParams.get("order");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [editingMeasurement, setEditingMeasurement] = useState<MeasurementDTO | null>(null);
-  const [formData, setFormData] = useState<MeasurementFormData>({
-    ...EMPTY_FORM,
-    order: orderId || "",
-  });
+
+  const openCreate = () => { setEditingMeasurement(null); setModalOpen(true); };
+  const openEdit = (m: MeasurementDTO) => { setEditingMeasurement(m); setModalOpen(true); };
+  const closeModal = () => { setModalOpen(false); setEditingMeasurement(null); };
 
   // Fetch measurements from backend - filter by order if provided
   const { data, isLoading, isError, error } = useMeasurements({
@@ -144,32 +83,10 @@ function MeasurementsContent() {
   const { data: ordersData } = useOrders({ pageSize: 100 });
 
   // Mutations
-  const createMutation = useCreateMeasurement();
   const deleteMutation = useDeleteMeasurement();
 
   const measurements = data?.results || [];
   const orders = ordersData?.results || [];
-
-  const handleCreate = async () => {
-    if (!formData.order) return;
-
-    await createMutation.mutateAsync({
-      ...formData,
-      depth_cm: formData.depth_cm || null,
-      // Legacy fields with defaults
-      ceiling_height_cm: null,
-      window_type: "",
-      has_radiator: false,
-      has_slope: false,
-      obstacles: "",
-      selected_fabric: null,
-      selected_cornice_type: "",
-      measured_by: null, // Set by backend
-    });
-
-    setFormData({ ...EMPTY_FORM, order: formData.order });
-    setIsCreateDialogOpen(false);
-  };
 
   const handleDelete = async (id: string) => {
     if (confirm("Удалить этот замер?")) {
@@ -203,7 +120,7 @@ function MeasurementsContent() {
           title="Замеры"
           description="Управление замерами окон, привязанными к заказам"
         >
-          <Button onClick={() => setIsCreateDialogOpen(true)}>
+          <Button onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Новый замер
           </Button>
@@ -243,10 +160,7 @@ function MeasurementsContent() {
               </Link>
             </Button>
           )}
-          <Button onClick={() => {
-            setFormData({ ...EMPTY_FORM, order: orderId || "" });
-            setIsCreateDialogOpen(true);
-          }}>
+          <Button onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Новый замер
           </Button>
@@ -274,10 +188,7 @@ function MeasurementsContent() {
           icon={<Ruler className="h-6 w-6 text-slate-600" />}
           action={{
             label: "Создать первый замер",
-            onClick: () => {
-              setFormData({ ...EMPTY_FORM, order: orderId || "" });
-              setIsCreateDialogOpen(true);
-            },
+            onClick: openCreate,
           }}
         />
       ) : (
@@ -288,47 +199,20 @@ function MeasurementsContent() {
               measurement={m}
               orders={orders}
               onDelete={() => handleDelete(m.id)}
-              onEdit={() => setEditingMeasurement(m)}
+              onEdit={() => openEdit(m)}
             />
           ))}
         </div>
       )}
 
-      {/* Edit Measurement Modal (форма по Figma, режим редактирования) */}
+      {/* Measurement Modal (форма по Figma — создание и редактирование) */}
       <CreateMeasurementModal
-        isOpen={!!editingMeasurement}
-        onClose={() => setEditingMeasurement(null)}
+        isOpen={modalOpen}
+        onClose={closeModal}
         orderId={editingMeasurement?.order || orderId || ""}
         measurement={editingMeasurement}
-        onSuccess={() => setEditingMeasurement(null)}
+        onSuccess={closeModal}
       />
-
-      {/* Create Sheet */}
-      <Sheet open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <SheetContent className="w-125 sm:w-150 overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Новый замер</SheetTitle>
-          </SheetHeader>
-          <div className="py-4">
-            <MeasurementForm
-              formData={formData}
-              setFormData={setFormData}
-              orders={orders}
-            />
-          </div>
-          <SheetFooter className="pt-4 border-t">
-            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-              Отмена
-            </Button>
-            <Button
-              onClick={handleCreate}
-              disabled={!formData.order || createMutation.isPending}
-            >
-              {createMutation.isPending ? "Сохранение..." : "Сохранить замер"}
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
     </>
   );
 }
@@ -459,279 +343,6 @@ function MeasurementCard({ measurement, orders, onDelete, onEdit }: MeasurementC
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-// Measurement Form Component - Sheber Design
-// Phase 3: Form for curtain and tulle fabrics with meters (no prices)
-interface MeasurementFormProps {
-  formData: MeasurementFormData;
-  setFormData: (data: MeasurementFormData) => void;
-  orders: Array<{ id: string; order_number: string; customer_name: string }>;
-}
-
-function MeasurementForm({ formData, setFormData, orders }: MeasurementFormProps) {
-  const updateField = <K extends keyof MeasurementFormData>(
-    field: K,
-    value: MeasurementFormData[K]
-  ) => {
-    setFormData({ ...formData, [field]: value });
-  };
-
-  // Fetch fabrics for selection
-  const { data: fabricsData } = useFabrics({ pageSize: 100 });
-  const fabrics = fabricsData?.results || [];
-
-  return (
-    <div className="grid gap-4 py-4">
-      {/* Order Selection */}
-      <div className="space-y-1.5">
-        <Label htmlFor="order" className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide">
-          Заказ *
-        </Label>
-        <Select
-          value={formData.order}
-          onValueChange={(value) => updateField("order", value)}
-        >
-          <SelectTrigger 
-            id="order"
-            className="bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)] focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
-          >
-            <SelectValue placeholder="Выберите заказ..." />
-          </SelectTrigger>
-          <SelectContent className="bg-[var(--card-sheber)] border-[var(--border-sheber)]">
-            {orders.map((order) => (
-              <SelectItem 
-                key={order.id} 
-                value={order.id}
-                className="text-[var(--t1)] focus:bg-[var(--bg)] focus:text-[var(--t1)]"
-              >
-                {order.order_number} — {order.customer_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Room & Window in one row */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label 
-            htmlFor="room_name" 
-            className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide"
-          >
-            Комната *
-          </Label>
-          <Input
-            id="room_name"
-            value={formData.room_name}
-            onChange={(e) => updateField("room_name", e.target.value)}
-            placeholder="Гостиная"
-            className="bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)] placeholder:text-[var(--t3)] focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label 
-            htmlFor="window_name" 
-            className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide"
-          >
-            Окно / изделие *
-          </Label>
-          <Input
-            id="window_name"
-            value={formData.window_name}
-            onChange={(e) => updateField("window_name", e.target.value)}
-            placeholder="Окно 1"
-            className="bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)] placeholder:text-[var(--t3)] focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
-          />
-        </div>
-      </div>
-
-      {/* Dimensions in one row */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-1.5">
-          <Label 
-            htmlFor="width_cm" 
-            className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide"
-          >
-            Ширина (см) *
-          </Label>
-          <Input
-            id="width_cm"
-            type="number"
-            value={formData.width_cm || ""}
-            onChange={(e) => updateField("width_cm", parseInt(e.target.value) || 0)}
-            className="bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)] focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label 
-            htmlFor="height_cm" 
-            className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide"
-          >
-            Высота (см) *
-          </Label>
-          <Input
-            id="height_cm"
-            type="number"
-            value={formData.height_cm || ""}
-            onChange={(e) => updateField("height_cm", parseInt(e.target.value) || 0)}
-            className="bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)] focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label 
-            htmlFor="depth_cm" 
-            className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide"
-          >
-            Глубина (см)
-          </Label>
-          <Input
-            id="depth_cm"
-            type="number"
-            value={formData.depth_cm || ""}
-            onChange={(e) =>
-              updateField("depth_cm", e.target.value ? parseInt(e.target.value) : null)
-            }
-            placeholder="—"
-            className="bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)] placeholder:text-[var(--t3)] focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
-          />
-        </div>
-      </div>
-
-      {/* Curtain Fabric + Meters in one row */}
-      <div className="p-3 bg-[var(--bg)] rounded-[var(--rl)] border border-[var(--borderl)]">
-        <div className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide mb-2">Ткань штор + метры</div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label htmlFor="curtain_fabric" className="text-xs text-[var(--t3)]">Ткань</Label>
-            <Select
-              value={formData.curtain_fabric || "__none__"}
-              onValueChange={(value) => updateField("curtain_fabric", value === "__none__" ? null : value)}
-            >
-              <SelectTrigger 
-                id="curtain_fabric"
-                className="bg-[var(--card-sheber)] border-[var(--border-sheber)] text-[var(--t1)] text-sm focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
-              >
-                <SelectValue placeholder="Выберите ткань..." />
-              </SelectTrigger>
-              <SelectContent className="bg-[var(--card-sheber)] border-[var(--border-sheber)]">
-                <SelectItem value="__none__" className="text-[var(--t1)] focus:bg-[var(--bg)]">Не выбрана</SelectItem>
-                {fabrics.map((fabric) => (
-                  <SelectItem 
-                    key={fabric.id} 
-                    value={fabric.id}
-                    className="text-[var(--t1)] focus:bg-[var(--bg)]"
-                  >
-                    {fabric.hanger_number} — {fabric.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="curtain_meters" className="text-xs text-[var(--t3)]">Метры</Label>
-            <Input
-              id="curtain_meters"
-              type="number"
-              step="0.1"
-              value={formData.curtain_meters || ""}
-              onChange={(e) => updateField("curtain_meters", parseFloat(e.target.value) || 0)}
-              placeholder="0"
-              className="bg-[var(--card-sheber)] border-[var(--border-sheber)] text-[var(--t1)] placeholder:text-[var(--t3)] focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Tulle Fabric + Meters in one row */}
-      <div className="p-3 bg-[var(--bg)] rounded-[var(--rl)] border border-[var(--borderl)]">
-        <div className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide mb-2">Ткань тюля + метры</div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label htmlFor="tulle_fabric" className="text-xs text-[var(--t3)]">Ткань</Label>
-            <Select
-              value={formData.tulle_fabric || "__none__"}
-              onValueChange={(value) => updateField("tulle_fabric", value === "__none__" ? null : value)}
-            >
-              <SelectTrigger 
-                id="tulle_fabric"
-                className="bg-[var(--card-sheber)] border-[var(--border-sheber)] text-[var(--t1)] text-sm focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
-              >
-                <SelectValue placeholder="Выберите ткань..." />
-              </SelectTrigger>
-              <SelectContent className="bg-[var(--card-sheber)] border-[var(--border-sheber)]">
-                <SelectItem value="__none__" className="text-[var(--t1)] focus:bg-[var(--bg)]">Не выбрана</SelectItem>
-                {fabrics.map((fabric) => (
-                  <SelectItem 
-                    key={fabric.id} 
-                    value={fabric.id}
-                    className="text-[var(--t1)] focus:bg-[var(--bg)]"
-                  >
-                    {fabric.hanger_number} — {fabric.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="tulle_meters" className="text-xs text-[var(--t3)]">Метры</Label>
-            <Input
-              id="tulle_meters"
-              type="number"
-              step="0.1"
-              value={formData.tulle_meters || ""}
-              onChange={(e) => updateField("tulle_meters", parseFloat(e.target.value) || 0)}
-              placeholder="0"
-              className="bg-[var(--card-sheber)] border-[var(--border-sheber)] text-[var(--t1)] placeholder:text-[var(--t3)] focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Mounting Type */}
-      <div className="space-y-1.5">
-        <Label 
-          htmlFor="mounting_type" 
-          className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide"
-        >
-          Тип крепления
-        </Label>
-        <Select
-          value={formData.mounting_type}
-          onValueChange={(value) => updateField("mounting_type", value)}
-        >
-          <SelectTrigger 
-            id="mounting_type"
-            className="bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)] focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
-          >
-            <SelectValue placeholder="Выберите тип крепления..." />
-          </SelectTrigger>
-          <SelectContent className="bg-[var(--card-sheber)] border-[var(--border-sheber)]">
-            {MOUNTING_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value} className="text-[var(--t1)] focus:bg-[var(--bg)]">{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Notes */}
-      <div className="space-y-1.5">
-        <Label 
-          htmlFor="notes" 
-          className="text-xs font-medium text-[var(--t2)] uppercase tracking-wide"
-        >
-          Примечание
-        </Label>
-        <Input
-          id="notes"
-          value={formData.notes}
-          onChange={(e) => updateField("notes", e.target.value)}
-          placeholder="Дополнительные детали..."
-          className="bg-[var(--input-bg)] border-[var(--border-sheber)] text-[var(--t1)] placeholder:text-[var(--t3)] focus:ring-[var(--a)]/20 focus:border-[var(--a)]"
-        />
-      </div>
-    </div>
   );
 }
 
