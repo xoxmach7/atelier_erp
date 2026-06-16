@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 
+from django.db import transaction
 from django.utils import timezone
 
 from ..models import Quote, QuoteItem, Task, Fabric, Cornice, Customer
@@ -340,41 +341,46 @@ class QuoteService:
         if valid_until is None:
             valid_until = timezone.now().date() + timedelta(days=7)
 
-        quote = Quote.objects.create(
-            quote_number=quote_number,
-            task=None,
-            customer=customer,
-            order=order,
-            status=Quote.Status.DRAFT,
-            subtotal=subtotal,
-            discount_amount=discount_amount,
-            installation_cost=installation_cost,
-            delivery_cost=delivery_cost,
-            total=total,
-            prepayment_percent=prepayment_percent,
-            valid_until=valid_until,
-            created_by_id=created_by
-        )
+        with transaction.atomic():
+            # Одно КП на заказ: при создании нового перезаписываем прежнее
+            # (удаляем все существующие КП этого заказа; items уходят по CASCADE).
+            Quote.objects.filter(order=order).delete()
 
-        for item_data in items:
-            QuoteItem.objects.create(
-                quote=quote,
-                room_name=item_data.get('room_name', ''),
-                window_name=item_data.get('window_name', ''),
-                window_width_cm=item_data.get('window_width_cm', 0),
-                window_height_cm=item_data.get('window_height_cm', 0),
-                fabric_id=item_data.get('fabric_id'),
-                fabric_meters=item_data.get('fabric_meters', Decimal('0')),
-                fabric_cost=item_data.get('fabric_cost', Decimal('0')),
-                tulle_fabric_id=item_data.get('tulle_fabric_id'),
-                tulle_meters=item_data.get('tulle_meters', Decimal('0')),
-                tulle_cost=item_data.get('tulle_cost', Decimal('0')),
-                sewing_type=item_data.get('sewing_type', ''),
-                sewing_cost=item_data.get('sewing_cost', Decimal('0')),
-                installation_price=item_data.get('installation_price', Decimal('0')),
-                accessories_cost=item_data.get('accessories_cost', Decimal('0')),
-                line_total=item_data.get('line_total', Decimal('0'))
+            quote = Quote.objects.create(
+                quote_number=quote_number,
+                task=None,
+                customer=customer,
+                order=order,
+                status=Quote.Status.DRAFT,
+                subtotal=subtotal,
+                discount_amount=discount_amount,
+                installation_cost=installation_cost,
+                delivery_cost=delivery_cost,
+                total=total,
+                prepayment_percent=prepayment_percent,
+                valid_until=valid_until,
+                created_by_id=created_by
             )
+
+            for item_data in items:
+                QuoteItem.objects.create(
+                    quote=quote,
+                    room_name=item_data.get('room_name', ''),
+                    window_name=item_data.get('window_name', ''),
+                    window_width_cm=item_data.get('window_width_cm', 0),
+                    window_height_cm=item_data.get('window_height_cm', 0),
+                    fabric_id=item_data.get('fabric_id'),
+                    fabric_meters=item_data.get('fabric_meters', Decimal('0')),
+                    fabric_cost=item_data.get('fabric_cost', Decimal('0')),
+                    tulle_fabric_id=item_data.get('tulle_fabric_id'),
+                    tulle_meters=item_data.get('tulle_meters', Decimal('0')),
+                    tulle_cost=item_data.get('tulle_cost', Decimal('0')),
+                    sewing_type=item_data.get('sewing_type', ''),
+                    sewing_cost=item_data.get('sewing_cost', Decimal('0')),
+                    installation_price=item_data.get('installation_price', Decimal('0')),
+                    accessories_cost=item_data.get('accessories_cost', Decimal('0')),
+                    line_total=item_data.get('line_total', Decimal('0'))
+                )
 
         return quote
 

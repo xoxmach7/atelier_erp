@@ -896,6 +896,7 @@ export default function OrderDetailPage() {
   const prepayPercent = total > 0 ? Math.round((paid / total) * 100) : 0;
   const timeline = buildTimeline(order, execution);
   const availableActions = execution?.available_actions ?? [];
+  const hasQuote = (order.related_quotes?.length ?? 0) > 0 || !!order.source_quote;
   const isOwnerOrDesigner = role === "owner" || role === "designer";
   // Role visibility flags — mirrors v4 design
   const showInfo       = isOwnerOrDesigner;
@@ -1060,13 +1061,13 @@ export default function OrderDetailPage() {
                       <img src="/icons/tenge.png" width={12} height={12} alt="" className="opacity-90" />
                       Предоплата
                     </button>
-                    <button
-                      onClick={() => setKPModalOpen(true)}
+                    <Link
+                      href={`/orders/${orderId}/quote`}
                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
                     >
                       <img src="/icons/kp.png" width={14} height={14} alt="" className="opacity-90" />
-                      Создать КП
-                    </button>
+                      {hasQuote ? "Открыть КП" : "Создать КП"}
+                    </Link>
                   </div>
                 )}
 
@@ -1348,9 +1349,9 @@ export default function OrderDetailPage() {
         onClose={() => setKPModalOpen(false)}
         orderId={orderId}
         order={order}
-        onSuccess={(quoteId) => {
+        onSuccess={() => {
           setKPModalOpen(false);
-          router.push(`/estimate?quote=${quoteId}`);
+          router.push(`/orders/${orderId}/quote`);
         }}
       />
 
