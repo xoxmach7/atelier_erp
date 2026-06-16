@@ -9,9 +9,12 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 # Install system dependencies
+# libcairo2-dev + pkg-config — для сборки pycairo (тянется xhtml2pdf → svglib → rlpycairo)
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
+    libcairo2-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
