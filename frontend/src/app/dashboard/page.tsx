@@ -37,11 +37,11 @@ function BarChart({ data }: { data: ChartData }) {
 
   return (
     <div className="flex gap-2 flex-1">
-      <div className="flex flex-col w-14 shrink-0 pb-7">
-        <span className="text-[16px] text-[#94A3B8] text-right leading-none mb-1.5">₸</span>
+      <div className="flex flex-col w-10 shrink-0 pb-6">
+        <span className="text-[10px] text-[#94A3B8] text-right leading-none mb-1.5">₸</span>
         <div className="flex flex-1 flex-col justify-between">
           {yLabels.map((label, i) => (
-            <span key={i} className="text-[16px] text-[#94A3B8] text-right leading-none">
+            <span key={i} className="text-[10px] text-[#94A3B8] text-right leading-none">
               {label}
             </span>
           ))}
@@ -65,7 +65,7 @@ function BarChart({ data }: { data: ChartData }) {
         </div>
         <div className="flex gap-[6px]">
           {data.map((d, i) => (
-            <span key={i} className="flex-1 text-center text-[16px] text-[#94A3B8]">
+            <span key={i} className="flex-1 text-center text-[10px] text-[#94A3B8]">
               {d.label}
             </span>
           ))}
@@ -90,7 +90,7 @@ function MetricChart({
   const conf: Record<MetricKey, { title: string; icon: React.ReactNode; data: ChartData }> = {
     profit: {
       title: "Прибыль",
-      icon: <img src="/icons/profit.svg" width={36} height={36} alt="" />,
+      icon: <img src="/icons/profit.svg" width={22} height={22} alt="" />,
       data: profit,
     },
     revenue: { title: "Выручка", icon: <TrendingUp size={18} />, data: revenue },
@@ -106,7 +106,7 @@ function MetricChart({
           <button
             key={k}
             onClick={() => setMetric(k)}
-            className={`px-3 py-3 rounded-full text-[16px] font-medium transition-colors ${
+            className={`px-3 py-[7px] rounded-full text-[10px] font-medium transition-colors ${
               metric === k
                 ? "bg-[#EEF2F6] text-[#475569]"
                 : "bg-[#60CCED] text-white hover:bg-[#4DBCE0]"
@@ -119,7 +119,7 @@ function MetricChart({
       <div className="flex-1 flex flex-col min-w-0 max-w-[480px]">
         <div className="flex items-center justify-center gap-2 mb-5">
           <span className="text-[#60CCED] flex items-center">{active.icon}</span>
-          <span className="text-[15px] font-semibold text-[#475569]">{active.title}</span>
+          <span className="text-[15px] font-semibold text-[#000000]">{active.title}</span>
         </div>
         <BarChart data={active.data} />
       </div>
@@ -132,14 +132,14 @@ function DesignersPanel({ designers }: { designers: DesignerStat[] }) {
     <div className="flex-1 bg-white rounded-[7px] p-6 flex flex-col min-w-0 min-h-[300px]">
       <div className="flex items-center justify-center gap-2 mb-5">
         <Tag size={18} className="text-[#60CCED]" />
-        <span className="text-[15px] font-semibold text-[#475569]">Заказы (за период)</span>
+        <span className="text-[15px] font-semibold text-[#000000]">Заказы (за период)</span>
       </div>
       {designers.length === 0 ? (
         <p className="text-[14px] text-[#94A3B8] text-center py-8">Дизайнеров пока нет</p>
       ) : (
         <table className="w-full">
           <thead>
-            <tr className="text-[24px] text-[#000000] border-b border-[#F1F5F9]">
+            <tr className="text-[12px] text-[#000000] border-b border-[#F1F5F9]">
               <th className="font-medium pb-3 text-left">Дизайнер</th>
               <th className="font-medium pb-3 text-center">Завершено</th>
               <th className="font-medium pb-3 text-center">В работе</th>
@@ -148,7 +148,7 @@ function DesignersPanel({ designers }: { designers: DesignerStat[] }) {
           <tbody>
             {designers.map((d, i) => (
               <tr key={i} className="border-b border-[#F1F5F9] last:border-0">
-                <td className="py-3 text-left text-[24px] text-[#000000]">{d.name}</td>
+                <td className="py-3 text-left text-[12px] text-[#000000]">{d.name}</td>
                 <td className="py-3 text-center text-[32px] font-bold text-[#94A3B8]">{d.completed}</td>
                 <td className="py-3 text-center text-[32px] font-bold text-[#60CCED]">{d.in_work}</td>
               </tr>
@@ -222,7 +222,7 @@ function DashboardContent() {
   const orgName = "Название организации";
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] p-8">
+    <div className="bg-[#FAFAFA] p-8">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
