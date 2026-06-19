@@ -1,15 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { BarChart2, TrendingDown, TrendingUp, RefreshCw } from "lucide-react";
+import { BarChart2, TrendingDown, TrendingUp, RefreshCw, Tag } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useAuth } from "@/contexts/auth-context";
 import { useRole } from "@/hooks/useRole";
 import { ErrorState, LoadingState } from "@/components/shared";
 import { useOwnerQueue, useDashboard } from "@/hooks/useWorkQueues";
+import type { DesignerStat } from "@/services/http/work";
 import { useRouter } from "next/navigation";
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
 
 const MONTHS: Record<string, string> = {
   "01": "Янв", "02": "Фев", "03": "Мар", "04": "Апр",
@@ -29,9 +29,9 @@ function startOfYear() {
   return `01.01.${d.getFullYear()}`;
 }
 
-// ─── Bar Chart ────────────────────────────────────────────────────────────────
+type ChartData = { label: string; value: number }[];
 
-function BarChart({ data }: { data: { label: string; value: number }[] }) {
+function BarChart({ data }: { data: ChartData }) {
   const maxVal = Math.max(...data.map((d) => d.value), 1);
   const yLabels = [maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0].map(fmtAxis);
 
@@ -75,29 +75,86 @@ function BarChart({ data }: { data: { label: string; value: number }[] }) {
   );
 }
 
-// ─── Chart Panel ──────────────────────────────────────────────────────────────
+type MetricKey = "profit" | "revenue" | "expense";
 
-function ChartPanel({
-  title,
-  icon,
-  data,
+function MetricChart({
+  profit,
+  revenue,
+  expense,
 }: {
-  title: string;
-  icon: React.ReactNode;
-  data: { label: string; value: number }[];
+  profit: ChartData;
+  revenue: ChartData;
+  expense: ChartData;
 }) {
+  const [metric, setMetric] = useState<MetricKey>("profit");
+  const conf: Record<MetricKey, { title: string; icon: React.ReactNode; data: ChartData }> = {
+    profit: { title: "Прибыль", icon: <BarChart2 size={18} />, data: profit },
+    revenue: { title: "Выручка", icon: <TrendingUp size={18} />, data: revenue },
+    expense: { title: "Расходы", icon: <TrendingDown size={18} />, data: expense },
+  };
+  const order: MetricKey[] = ["profit", "revenue", "expense"];
+  const active = conf[metric];
+
   return (
-    <div className="flex-1 bg-white rounded-[7px] p-6 flex flex-col min-w-0 min-h-[300px]">
-      <div className="flex items-center justify-center gap-2 mb-5">
-        <span className="text-[#60CCED]">{icon}</span>
-        <span className="text-[15px] font-semibold text-[#475569]">{title}</span>
+    <div className="flex-1 bg-white rounded-[7px] p-6 flex gap-4 min-w-0 min-h-[300px]">
+      <div className="flex flex-col gap-2 pt-1 shrink-0">
+        {order.map((k) => (
+          <button
+            key={k}
+            onClick={() => setMetric(k)}
+            className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors ${
+              metric === k
+                ? "bg-[#EEF2F6] text-[#475569]"
+                : "bg-[#60CCED] text-white hover:bg-[#4DBCE0]"
+            }`}
+          >
+            {conf[k].title}
+          </button>
+        ))}
       </div>
-      <BarChart data={data} />
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex items-center justify-center gap-2 mb-5">
+          <span className="text-[#60CCED]">{active.icon}</span>
+          <span className="text-[15px] font-semibold text-[#475569]">{active.title}</span>
+        </div>
+        <BarChart data={active.data} />
+      </div>
     </div>
   );
 }
 
-// ─── Stat Card ────────────────────────────────────────────────────────────────
+function DesignersPanel({ designers }: { designers: DesignerStat[] }) {
+  return (
+    <div className="flex-1 bg-white rounded-[7px] p-6 flex flex-col min-w-0 min-h-[300px]">
+      <div className="flex items-center justify-center gap-2 mb-5">
+        <Tag size={18} className="text-[#60CCED]" />
+        <span className="text-[15px] font-semibold text-[#475569]">Заказы (за период)</span>
+      </div>
+      {designers.length === 0 ? (
+        <p className="text-[14px] text-[#94A3B8] text-center py-8">Дизайнеров пока нет</p>
+      ) : (
+        <table className="w-full">
+          <thead>
+            <tr className="text-[14px] text-[#475569] border-b border-[#F1F5F9]">
+              <th className="font-medium pb-3 text-left">Дизайнер</th>
+              <th className="font-medium pb-3 text-center">Завершено</th>
+              <th className="font-medium pb-3 text-center">В работе</th>
+            </tr>
+          </thead>
+          <tbody>
+            {designers.map((d, i) => (
+              <tr key={i} className="text-[15px] border-b border-[#F1F5F9] last:border-0">
+                <td className="py-3 text-left text-[#0F172A]">{d.name}</td>
+                <td className="py-3 text-center text-[#94A3B8]">{d.completed}</td>
+                <td className="py-3 text-center text-[#60CCED] font-medium">{d.in_work}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
 
 function StatCard({
   label,
@@ -126,16 +183,13 @@ function StatCard({
   );
 }
 
-// ─── Main content ─────────────────────────────────────────────────────────────
-
 function DashboardContent() {
-  const queue     = useOwnerQueue();
+  const queue = useOwnerQueue();
   const dashboard = useDashboard();
-  const { logout, user } = useAuth();
+  const { logout } = useAuth();
   const { role } = useRole();
   const router = useRouter();
 
-  // Дизайнер не видит дашборд — только заказы
   if (role === "designer") {
     router.replace("/orders");
     return null;
@@ -151,12 +205,12 @@ function DashboardContent() {
       />
     );
 
-  const d        = dashboard.data;
-  const orders   = d?.orders;
-  const chart    = d?.chart ?? [];
+  const d = dashboard.data;
+  const orders = d?.orders;
+  const chart = d?.chart ?? [];
   const counters = queue.data?.counters;
 
-  const profitPoints  = chart.map((p) => ({ label: monthLabel(p.month), value: Math.max(p.paid - 0, 0) }));
+  const profitPoints = chart.map((p) => ({ label: monthLabel(p.month), value: Math.max(p.paid - 0, 0) }));
   const revenuePoints = chart.map((p) => ({ label: monthLabel(p.month), value: p.revenue }));
   const expensePoints = chart.map((p) => ({ label: monthLabel(p.month), value: Math.max(p.revenue - p.paid, 0) }));
 
@@ -187,11 +241,10 @@ function DashboardContent() {
         </button>
       </div>
 
-      {/* Charts Row */}
+      {/* Chart + Designers */}
       <div className="flex gap-[38px] mb-[38px]">
-        <ChartPanel title="Прибыль"  icon={<BarChart2 size={18} />}    data={profitPoints}  />
-        <ChartPanel title="Выручка"  icon={<TrendingUp size={18} />}   data={revenuePoints} />
-        <ChartPanel title="Расходы"  icon={<TrendingDown size={18} />} data={expensePoints} />
+        <MetricChart profit={profitPoints} revenue={revenuePoints} expense={expensePoints} />
+        <DesignersPanel designers={d?.designers ?? []} />
       </div>
 
       {/* Stat Cards */}

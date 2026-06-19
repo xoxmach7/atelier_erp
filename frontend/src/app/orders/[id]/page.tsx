@@ -1368,9 +1368,9 @@ export default function OrderDetailPage() {
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Отменить заказ?</AlertDialogTitle>
+            <AlertDialogTitle>Удалить заказ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Заказ будет отменён. Это действие нельзя отменить.
+              Заказ будет удалён. Это действие нельзя отменить.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1381,12 +1381,12 @@ export default function OrderDetailPage() {
                   await cancelMutation.mutateAsync({ orderId, data: { reason: cancelReason } });
                   router.push("/orders");
                 } catch {
-                  setActionError("Ошибка при отмене заказа");
+                  setActionError("Ошибка при удалении заказа");
                 }
               }}
               className="bg-[#DC2626] hover:bg-[#B91C1C]"
             >
-              Отменить заказ
+              Удалить заказ
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

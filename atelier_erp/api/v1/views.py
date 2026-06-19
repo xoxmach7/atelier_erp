@@ -1813,6 +1813,26 @@ class DashboardView(APIView):
                 'paid': int(month_paid),
             })
 
+        # --- Designers stats (за период) ---
+        from django.contrib.auth import get_user_model
+        UserModel = get_user_model()
+        in_work_statuses = [
+            Order.Status.IN_WORK,
+            Order.Status.IN_PRODUCTION,
+            Order.Status.READY,
+            Order.Status.ON_INSTALLATION,
+            Order.Status.WAITING_FINAL_PAYMENT,
+        ]
+        designers = []
+        for u in UserModel.objects.filter(groups__name='Designer').order_by('id'):
+            dqs = Order.objects.filter(responsible_user=u)
+            name = (u.get_full_name() or '').strip() or u.username
+            designers.append({
+                'name': name,
+                'completed': dqs.filter(status=Order.Status.COMPLETED).count(),
+                'in_work': dqs.filter(status__in=in_work_statuses).count(),
+            })
+
         return Response({
             'orders': {
                 'total': total,
@@ -1830,6 +1850,7 @@ class DashboardView(APIView):
                 'this_month_paid': int(this_month_paid),
             },
             'chart': chart,
+            'designers': designers,
         })
 
 

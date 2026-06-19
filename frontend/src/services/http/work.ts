@@ -187,10 +187,17 @@ export interface ChartPoint {
   paid: number;
 }
 
+export interface DesignerStat {
+  name: string;
+  completed: number;
+  in_work: number;
+}
+
 export interface DashboardData {
   orders: DashboardOrders;
   finance: DashboardFinance;
   chart: ChartPoint[];
+  designers: DesignerStat[];
 }
 
 export function fetchDashboard() {
