@@ -287,7 +287,7 @@ function InstallerWorkspace() {
           task.status === "ready" ? (
             <Link
               href={`/orders/${task.id}`}
-              className="rounded-lg bg-[#0EA5E9] px-4 py-1.5 text-[13px] text-white font-medium hover:bg-[#0284C7] transition-colors flex items-center gap-1.5"
+              className="rounded-lg bg-[#60CCED] px-4 py-1.5 text-[13px] text-white font-medium hover:bg-[#4DBCE0] transition-colors flex items-center gap-1.5"
             >
               Начать установку
             </Link>

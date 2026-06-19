@@ -115,7 +115,7 @@ function CustomerForm({ initial, onSubmit, isPending, onCancel }: CustomerFormPr
         <Button
           type="submit"
           disabled={!isValid || isPending}
-          className="bg-[#0EA5E9] hover:bg-[#0284C7] text-white"
+          className="bg-[#60CCED] hover:bg-[#4DBCE0] text-white"
         >
           {isPending ? "Сохранение..." : initial ? "Сохранить" : "Создать"}
         </Button>

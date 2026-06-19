@@ -130,7 +130,7 @@ export function CreatePrepaymentModal({
             <button
               onClick={handleSubmit}
               disabled={!canSubmit}
-              className="w-full py-[14px] rounded-[10px] bg-[#0EA5E9] text-white text-[15px] font-semibold mt-2 transition-opacity hover:bg-[#0284C7] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-[14px] rounded-[10px] bg-[#60CCED] text-white text-[15px] font-semibold mt-2 transition-opacity hover:bg-[#4DBCE0] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? "Сохранение..." : "Сохранить"}
             </button>
