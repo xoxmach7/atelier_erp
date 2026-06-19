@@ -420,6 +420,10 @@ export async function deleteOrderItem(orderId: string, itemId: string): Promise<
   return del(`/v1/orders/${orderId}/items/${itemId}/`);
 }
 
+export async function deleteOrder(orderId: string): Promise<void> {
+  return del(`/v1/orders/${orderId}/`);
+}
+
 export async function updateOrderItemQuantity(
   orderId: string,
   itemId: string,

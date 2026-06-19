@@ -21,6 +21,7 @@ import {
   createOrderCompletionAct,
   uploadSignedCompletionAct,
   deleteOrderItem,
+  deleteOrder,
   updateOrderItemQuantity,
   updateOrderItem,
 } from "@/services/http/orders";
@@ -332,6 +333,19 @@ export function useDeleteOrderItem(orderId: string) {
     mutationFn: (itemId) => deleteOrderItem(orderId, itemId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY, "detail", orderId] });
+      queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY] });
+    },
+  });
+}
+
+/**
+ * Hook for deleting a whole order (owner only)
+ */
+export function useDeleteOrder() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: (orderId) => deleteOrder(orderId),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY] });
     },
   });

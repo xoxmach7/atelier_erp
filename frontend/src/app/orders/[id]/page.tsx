@@ -42,6 +42,7 @@ import {
   useChangeProductionStage,
   useChangeHandoverStage,
   useCancelOrder,
+  useDeleteOrder,
   useDeleteOrderItem,
   useUpdateOrderItemQuantity,
   useUpdateOrderItem,
@@ -751,6 +752,7 @@ export default function OrderDetailPage() {
   const changeProductionMutation  = useChangeProductionStage();
   const changeHandoverMutation    = useChangeHandoverStage();
   const cancelMutation            = useCancelOrder();
+  const deleteMutation            = useDeleteOrder();
   const createPaymentMutation     = useCreatePayment();
 
   const handlePrepaySubmit = async (data: { amount: number; pct: number; method: string }) => {
@@ -1378,7 +1380,7 @@ export default function OrderDetailPage() {
             <AlertDialogAction
               onClick={async () => {
                 try {
-                  await cancelMutation.mutateAsync({ orderId, data: { reason: cancelReason.trim() || "Удалён владельцем" } });
+                  await deleteMutation.mutateAsync(orderId);
                   router.push("/orders");
                 } catch {
                   setActionError("Ошибка при удалении заказа");
