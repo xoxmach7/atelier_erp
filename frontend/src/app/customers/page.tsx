@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ArrowLeft, Users, Mail } from "lucide-react";
+import { maskPhoneInput } from "@/lib/phone";
 
 /** Формат телефона → +7 (777) 777-77-77. Для нестандартных значений возвращает как есть. */
 function formatPhone(raw: string | null | undefined): string {
@@ -53,11 +54,10 @@ interface CustomerFormProps {
 
 function CustomerForm({ initial, onSubmit, isPending, onCancel }: CustomerFormProps) {
   const [fullName, setFullName] = useState(initial?.full_name ?? "");
-  const [phone, setPhone] = useState(initial?.phone ?? "");
+  const [phone, setPhone] = useState(maskPhoneInput(initial?.phone ?? ""));
   const [email, setEmail] = useState(initial?.email ?? "");
-  const [city, setCity] = useState(initial?.address_city ?? "");
 
-  const isValid = fullName.trim().length > 0 && phone.trim().length > 0;
+  const isValid = fullName.trim().length > 0 && phone.replace(/\D/g, "").length === 11;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -66,7 +66,6 @@ function CustomerForm({ initial, onSubmit, isPending, onCancel }: CustomerFormPr
       full_name: fullName.trim(),
       phone: phone.trim(),
       email: email.trim() || undefined,
-      address_city: city.trim() || undefined,
     });
   }
 
@@ -93,7 +92,8 @@ function CustomerForm({ initial, onSubmit, isPending, onCancel }: CustomerFormPr
           id="cust-phone"
           placeholder="+7 (777) 000-00-00"
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={(e) => setPhone(maskPhoneInput(e.target.value))}
+          inputMode="tel"
         />
       </div>
 
@@ -105,16 +105,6 @@ function CustomerForm({ initial, onSubmit, isPending, onCancel }: CustomerFormPr
           placeholder="email@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="cust-city">Город</Label>
-        <Input
-          id="cust-city"
-          placeholder="Алматы"
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
         />
       </div>
 
@@ -264,10 +254,7 @@ export default function CustomersPage() {
                         key={c.id}
                         className="border-b border-dashed border-[#CBD5E1] hover:bg-[#F8FAFC] transition-colors"
                       >
-                        <td
-                          className="px-[52px] py-4 text-[#0F172A] cursor-pointer hover:text-[#0EA5E9]"
-                          onClick={() => router.push(`/orders?customer=${c.id}`)}
-                        >
+                        <td className="px-[52px] py-4 text-[#0F172A]">
                           {c.full_name}
                         </td>
                         <td className="px-6 py-4 text-[#0F172A]">

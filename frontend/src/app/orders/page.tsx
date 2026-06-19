@@ -59,8 +59,6 @@ function OrdersContent() {
     // workers: hide completed/cancelled
     if (isWorker && ["completed", "cancelled"].includes(o.status)) return false;
 
-    // Customer filter from URL
-    if (customerIdFromUrl && o.customer !== customerIdFromUrl) return false;
 
     // List status pill filter
     if (listStatusFilter && getListStatus(o.status) !== listStatusFilter) return false;
@@ -80,7 +78,6 @@ function OrdersContent() {
   const baseOrders = allOrders.filter((o) => {
     if (o.status === "in_production") return false;
     if (isWorker && ["completed", "cancelled"].includes(o.status)) return false;
-    if (customerIdFromUrl && o.customer !== customerIdFromUrl) return false;
     return true;
   });
 
@@ -244,22 +241,6 @@ function OrdersContent() {
                   </button>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* Customer filter banner */}
-          {customerIdFromUrl && (
-            <div className="border-t border-[#F1F5F9] px-[52px] py-3 flex items-center gap-3 bg-[#E0F2FE]">
-              
-              <span className="text-[13px] text-[#0F172A]">
-                Показаны заказы выбранного клиента
-              </span>
-              <button
-                onClick={() => router.push("/orders")}
-                className="ml-2 text-[13px] text-[#0EA5E9] hover:underline"
-              >
-                Показать все
-              </button>
             </div>
           )}
 
