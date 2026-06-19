@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { BarChart2, TrendingDown, TrendingUp, RefreshCw, Tag } from "lucide-react";
+import { TrendingDown, TrendingUp, RefreshCw, Tag } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useAuth } from "@/contexts/auth-context";
 import { useRole } from "@/hooks/useRole";
@@ -37,11 +37,11 @@ function BarChart({ data }: { data: ChartData }) {
 
   return (
     <div className="flex gap-2 flex-1">
-      <div className="flex flex-col w-10 shrink-0 pb-6">
-        <span className="text-[10px] text-[#94A3B8] text-right leading-none mb-1.5">₸</span>
+      <div className="flex flex-col w-14 shrink-0 pb-7">
+        <span className="text-[16px] text-[#94A3B8] text-right leading-none mb-1.5">₸</span>
         <div className="flex flex-1 flex-col justify-between">
           {yLabels.map((label, i) => (
-            <span key={i} className="text-[10px] text-[#94A3B8] text-right leading-none">
+            <span key={i} className="text-[16px] text-[#94A3B8] text-right leading-none">
               {label}
             </span>
           ))}
@@ -65,7 +65,7 @@ function BarChart({ data }: { data: ChartData }) {
         </div>
         <div className="flex gap-[6px]">
           {data.map((d, i) => (
-            <span key={i} className="flex-1 text-center text-[10px] text-[#94A3B8]">
+            <span key={i} className="flex-1 text-center text-[16px] text-[#94A3B8]">
               {d.label}
             </span>
           ))}
@@ -88,7 +88,11 @@ function MetricChart({
 }) {
   const [metric, setMetric] = useState<MetricKey>("profit");
   const conf: Record<MetricKey, { title: string; icon: React.ReactNode; data: ChartData }> = {
-    profit: { title: "Прибыль", icon: <BarChart2 size={18} />, data: profit },
+    profit: {
+      title: "Прибыль",
+      icon: <img src="/icons/profit.svg" width={36} height={36} alt="" />,
+      data: profit,
+    },
     revenue: { title: "Выручка", icon: <TrendingUp size={18} />, data: revenue },
     expense: { title: "Расходы", icon: <TrendingDown size={18} />, data: expense },
   };
@@ -97,12 +101,12 @@ function MetricChart({
 
   return (
     <div className="flex-1 bg-white rounded-[7px] p-6 flex gap-4 min-w-0 min-h-[300px]">
-      <div className="flex flex-col gap-2 pt-1 shrink-0">
+      <div className="flex flex-col gap-2 justify-center shrink-0">
         {order.map((k) => (
           <button
             key={k}
             onClick={() => setMetric(k)}
-            className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors ${
+            className={`px-3 py-3 rounded-full text-[16px] font-medium transition-colors ${
               metric === k
                 ? "bg-[#EEF2F6] text-[#475569]"
                 : "bg-[#60CCED] text-white hover:bg-[#4DBCE0]"
@@ -112,9 +116,9 @@ function MetricChart({
           </button>
         ))}
       </div>
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 max-w-[480px]">
         <div className="flex items-center justify-center gap-2 mb-5">
-          <span className="text-[#60CCED]">{active.icon}</span>
+          <span className="text-[#60CCED] flex items-center">{active.icon}</span>
           <span className="text-[15px] font-semibold text-[#475569]">{active.title}</span>
         </div>
         <BarChart data={active.data} />
@@ -135,7 +139,7 @@ function DesignersPanel({ designers }: { designers: DesignerStat[] }) {
       ) : (
         <table className="w-full">
           <thead>
-            <tr className="text-[14px] text-[#475569] border-b border-[#F1F5F9]">
+            <tr className="text-[24px] text-[#000000] border-b border-[#F1F5F9]">
               <th className="font-medium pb-3 text-left">Дизайнер</th>
               <th className="font-medium pb-3 text-center">Завершено</th>
               <th className="font-medium pb-3 text-center">В работе</th>
@@ -143,10 +147,10 @@ function DesignersPanel({ designers }: { designers: DesignerStat[] }) {
           </thead>
           <tbody>
             {designers.map((d, i) => (
-              <tr key={i} className="text-[15px] border-b border-[#F1F5F9] last:border-0">
-                <td className="py-3 text-left text-[#0F172A]">{d.name}</td>
-                <td className="py-3 text-center text-[#94A3B8]">{d.completed}</td>
-                <td className="py-3 text-center text-[#60CCED] font-medium">{d.in_work}</td>
+              <tr key={i} className="border-b border-[#F1F5F9] last:border-0">
+                <td className="py-3 text-left text-[24px] text-[#000000]">{d.name}</td>
+                <td className="py-3 text-center text-[32px] font-bold text-[#94A3B8]">{d.completed}</td>
+                <td className="py-3 text-center text-[32px] font-bold text-[#60CCED]">{d.in_work}</td>
               </tr>
             ))}
           </tbody>
@@ -222,7 +226,7 @@ function DashboardContent() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-[32px] font-semibold text-[#0F172A]">{orgName}</h1>
+          <h1 className="text-[30px] font-semibold text-[#000000]">{orgName}</h1>
           <div className="flex items-center gap-2 mt-1 text-[14px] text-[#475569]">
             <span>{startOfYear()} – н.в.</span>
             <button
@@ -253,7 +257,7 @@ function DashboardContent() {
         <StatCard label="В работе"               value={orders?.in_work ?? 0}               href="/orders"         />
         <StatCard label="Ожидают оплаты"         value={orders?.awaiting_payment ?? 0}      href="/work/finance"   />
         <StatCard label="Просрочено"             value={orders?.overdue ?? 0}               href="/orders"         valueColor="text-[#DC2626]" />
-        <StatCard label="Материал на исходе"     value={counters?.materials_not_ready ?? 0} href="/work/warehouse" valueColor="text-[#D97706]" />
+        <StatCard label="Материалы на исходе"    value={counters?.materials_not_ready ?? 0} href="/work/warehouse" valueColor="text-[#D97706]" />
       </div>
     </div>
   );
