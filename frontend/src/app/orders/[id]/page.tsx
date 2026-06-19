@@ -1378,7 +1378,7 @@ export default function OrderDetailPage() {
             <AlertDialogAction
               onClick={async () => {
                 try {
-                  await cancelMutation.mutateAsync({ orderId, data: { reason: cancelReason } });
+                  await cancelMutation.mutateAsync({ orderId, data: { reason: cancelReason.trim() || "Удалён владельцем" } });
                   router.push("/orders");
                 } catch {
                   setActionError("Ошибка при удалении заказа");
