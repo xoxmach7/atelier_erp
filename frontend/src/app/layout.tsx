@@ -7,6 +7,11 @@ import { AppShell } from "@/components/layout/app-shell";
 const ttNormsPro = localFont({
   src: [
     {
+      path: "../../public/fonts/TTNormsPro-Light.ttf",
+      weight: "300",
+      style: "normal",
+    },
+    {
       path: "../../public/fonts/TTNormsPro-Regular.ttf",
       weight: "400",
       style: "normal",
