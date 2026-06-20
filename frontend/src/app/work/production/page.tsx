@@ -1,5 +1,4 @@
 "use client";
-import { useRouter } from "next/navigation";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/protected-route";
@@ -53,7 +52,6 @@ function ProductionCard({
 
 function ProductionWorkspace() {
   const queue = useProductionQueue();
-  const router = useRouter();
   const queryClient = useQueryClient();
 
   const stageMutation = useMutation({
@@ -73,7 +71,7 @@ function ProductionWorkspace() {
 
   return (
     <ProtectedRoute>
-      <WorkspaceHeader title="Пошив" description="Что шить, из какой ткани и к какому сроку."  onBack={() => router.back()} />
+      <WorkspaceHeader title="Пошив" description="Что шить, из какой ткани и к какому сроку." />
 
       <div className="grid gap-6 xl:grid-cols-3">
         <TaskSection title="Нужно начать" count={data?.ready_to_start.length || 0}>

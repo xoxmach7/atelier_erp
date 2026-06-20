@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, ArrowLeft, LogOut } from "lucide-react";
+import { Search, LogOut } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useOrders } from "@/hooks/useOrders";
 import { useAuth } from "@/contexts/auth-context";
@@ -41,12 +41,6 @@ function WarehouseOrdersContent() {
         {/* Top bar */}
         <div className="flex items-center justify-between px-[52px] py-[30px]">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.push("/dashboard")}
-              className="text-[#475569] hover:text-[#0EA5E9] transition-colors"
-            >
-              <ArrowLeft size={24} />
-            </button>
             <h1 className="text-[26px] font-semibold text-[#0F172A] whitespace-nowrap">Заказы</h1>
             <div className="flex items-center gap-10 ml-[48px]">
               <button

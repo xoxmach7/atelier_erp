@@ -1,5 +1,4 @@
 "use client";
-import { useRouter } from "next/navigation";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/protected-route";
@@ -60,7 +59,6 @@ function InstallationCard({
 
 function InstallationWorkspace() {
   const queue = useInstallationQueue();
-  const router = useRouter();
   const queryClient = useQueryClient();
 
   type HandoverStage = 'not_required' | 'pending' | 'scheduled' | 'in_progress' | 'done';
@@ -83,7 +81,7 @@ function InstallationWorkspace() {
 
   return (
     <ProtectedRoute>
-      <WorkspaceHeader title="Установка" description="Куда ехать, кому звонить, что установить и что закрыть после установки."  onBack={() => router.back()} />
+      <WorkspaceHeader title="Установка" description="Куда ехать, кому звонить, что установить и что закрыть после установки." />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <TaskSection title="Готово к установке" count={activeInstallation.length}>
