@@ -15,7 +15,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
-import { Calculator, CreditCard, LogOut, PlusCircle, Settings, User } from "lucide-react";
+import {  CreditCard, LogOut, PlusCircle, Settings, User } from "lucide-react";
 import { getActiveNavItem, navSections } from "./sidebar";
 
 export function Header() {
@@ -69,12 +69,6 @@ export function Header() {
             <Link href="/orders/new">
               <PlusCircle className="mr-2 h-4 w-4" />
               Новый заказ
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/estimate">
-              <Calculator className="mr-2 h-4 w-4" />
-              Создать КП
             </Link>
           </Button>
           <Button asChild size="sm" className="bg-sky-500 hover:bg-sky-600">

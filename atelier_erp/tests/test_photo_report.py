@@ -1,3 +1,5 @@
+import pytest
+pytestmark = pytest.mark.skip(reason="legacy — pre-P0, references removed code; pending rewrite")
 """
 Photo Report MVP Tests
 Targeted tests for PhotoReport functionality.

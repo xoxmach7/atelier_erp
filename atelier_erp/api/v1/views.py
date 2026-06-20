@@ -665,7 +665,7 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
     # NEW ACTION ENDPOINTS (MVP Workflow)
     # ============================================
     
-    @action(detail=True, methods=['post'], url_path='change-status')
+    @action(detail=True, methods=['post'], url_path='change-status', permission_classes=[IsAuthenticated, IsOwnerOrDesigner])
     def change_status_mvp(self, request, pk=None):
         """
         Change order status with MVP workflow business rules.
@@ -806,7 +806,7 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
     
-    @action(detail=True, methods=['post'], url_path='cancel', permission_classes=[IsAuthenticated, IsOwnerOrDesigner])
+    @action(detail=True, methods=['post'], url_path='cancel', permission_classes=[IsAuthenticated, IsManagerOrAdmin])
     def cancel(self, request, pk=None):
         """
         Cancel order with required reason.

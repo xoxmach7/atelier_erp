@@ -41,7 +41,6 @@ import {
   useChangeMaterialReadiness,
   useChangeProductionStage,
   useChangeHandoverStage,
-  useCancelOrder,
   useDeleteOrder,
   useDeleteOrderItem,
   useUpdateOrderItemQuantity,
@@ -707,7 +706,6 @@ export default function OrderDetailPage() {
   const { role } = useRole();
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [cancelReason, setCancelReason] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [productionModalOpen, setProductionModalOpen] = useState(false);
   const [measurementModalOpen, setMeasurementModalOpen] = useState(false);
@@ -751,7 +749,6 @@ export default function OrderDetailPage() {
   const changeMaterialMutation    = useChangeMaterialReadiness();
   const changeProductionMutation  = useChangeProductionStage();
   const changeHandoverMutation    = useChangeHandoverStage();
-  const cancelMutation            = useCancelOrder();
   const deleteMutation            = useDeleteOrder();
   const createPaymentMutation     = useCreatePayment();
 
@@ -847,24 +844,6 @@ export default function OrderDetailPage() {
     }
   };
 
-  /* ---- cancel with reason ---- */
-  const handleCancel = async () => {
-    if (!cancelReason.trim()) {
-      setActionError("Укажите причину отмены");
-      return;
-    }
-    setActionError(null);
-    try {
-      await cancelMutation.mutateAsync({ orderId, data: { reason: cancelReason } });
-      setShowDeleteConfirm(false);
-      setCancelReason("");
-      router.push("/orders");
-    } catch (err) {
-      const e = err as { response?: { data?: { detail?: string } } };
-      setActionError(e.response?.data?.detail || "Не удалось отменить заказ");
-    }
-  };
-
   /* ---- loading / error states ---- */
   if (isLoading) {
     return (
@@ -906,17 +885,6 @@ export default function OrderDetailPage() {
   const showMaterials  = role === "warehouse";
   const showProduction = role === "production";
   const showInstaller  = role === "installation";
-
-  /* ---- role-filtered quick links ---- */
-  type QuickLink = { href: string; label: string; roles?: string[] };
-  const quickLinks: QuickLink[] = [
-    { href: `/measurements?order=${order.id}`,  label: "Замеры",     roles: ["owner", "designer"] },
-    { href: `/orders/${orderId}/quote`,           label: "КП",         roles: ["owner", "designer"] },
-    { href: `/orders/${orderId}/materials`,      label: "Материалы",  roles: ["owner", "designer", "warehouse"] },
-    { href: `/orders/${orderId}/photos`,         label: "Фотоотчёт",  roles: ["owner", "designer", "installation"] },
-    { href: `/orders/${orderId}/act`,            label: "АВР",        roles: ["owner", "designer", "installation"] },
-    { href: `/payments?order=${order.id}`,       label: "Платежи",    roles: ["owner", "designer"] },
-  ].filter((l) => !l.roles || l.roles.includes(role ?? ""));
 
   return (
     <ProtectedRoute>
