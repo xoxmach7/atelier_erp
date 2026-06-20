@@ -12,11 +12,12 @@ import {
 
 const WORK_QUEUES_QUERY_KEY = "work-queues";
 
-export function useOwnerQueue() {
+export function useOwnerQueue(enabled = true) {
   return useQuery({
     queryKey: [WORK_QUEUES_QUERY_KEY, "owner"],
     queryFn: fetchOwnerQueue,
     staleTime: 30 * 1000,
+    enabled,
   });
 }
 
@@ -68,10 +69,11 @@ export function useFinanceQueue() {
   });
 }
 
-export function useDashboard() {
+export function useDashboard(enabled = true) {
   return useQuery({
     queryKey: [WORK_QUEUES_QUERY_KEY, "dashboard"],
     queryFn: fetchDashboard,
     staleTime: 30 * 1000,
+    enabled,
   });
 }

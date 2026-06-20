@@ -188,11 +188,11 @@ function StatCard({
 }
 
 function DashboardContent() {
-  const queue = useOwnerQueue();
-  const dashboard = useDashboard();
+  const { role, isOwner } = useRole();
   const { logout } = useAuth();
-  const { role } = useRole();
   const router = useRouter();
+  const queue = useOwnerQueue(isOwner);
+  const dashboard = useDashboard(isOwner);
 
   // Не-владельцы не видят дашборд — уводим на их рабочий экран
   const ROLE_LANDING: Record<string, string> = {
