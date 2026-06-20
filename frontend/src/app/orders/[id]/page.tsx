@@ -714,6 +714,7 @@ export default function OrderDetailPage() {
   const [prepayLoading, setPrepayLoading] = useState(false);
   // Warehouse: per-item checkboxes + transferred state
   const [matChecked, setMatChecked] = useState<Record<string, boolean>>({});
+  const [matExpanded, setMatExpanded] = useState<Record<string, boolean>>({});
   const [matTransferred, setMatTransferred] = useState(false);
 
   /* ---- guard against literal [id] placeholder in URL ---- */
@@ -1078,55 +1079,55 @@ export default function OrderDetailPage() {
               <div className="flex flex-col md:flex-row gap-4 md:gap-8">
                 {/* Материалы с чекбоксами */}
                 <div className="flex-1 rounded-xl border border-[#E2E8F0] p-6">
-                  <div className="flex items-center justify-between mb-5">
-                    <div className="flex items-center gap-2">
-                      <Package size={18} className="text-[#94A3B8]" />
-                      <span className="text-[16px] font-medium text-[#0F172A]">Материалы</span>
-                    </div>
-                    <span className={`text-[12px] font-semibold px-3 py-1 rounded-full ${
-                      order.material_readiness === "ready"
-                        ? "bg-[#DCFCE7] text-[#16A34A]"
-                        : order.material_readiness === "partially_ready"
-                        ? "bg-[#FEF3C7] text-[#D97706]"
-                        : "bg-[#FEE2E2] text-[#DC2626]"
-                    }`}>
-                      {order.material_readiness === "ready" ? "Всё готово" : order.material_readiness === "partially_ready" ? "Частично" : "Не готово"}
-                    </span>
+                  <div className="flex items-center justify-center gap-2 mb-5">
+                    <img src="/icons/positions.png" width={20} height={20} alt="" />
+                    <span className="text-[16px] font-medium text-[#0F172A]">Позиции</span>
                   </div>
 
                   {items.length === 0 ? (
                     <p className="text-[14px] text-[#94A3B8] italic py-4">Позиции по заказу ещё не сформированы.</p>
                   ) : (
-                    <div className="space-y-2 mb-4">
+                    <div className="space-y-1 mb-4">
                       {items.map((item) => {
-                        const checked = !!matChecked[item.id];
-                        const roomLabel = [item.room_name, item.window_name].filter(Boolean).join(" / ");
+                        const done = !!matChecked[item.id];
+                        const open = !!matExpanded[item.id];
+                        const roomLabel = [item.room_name, item.window_name].filter(Boolean).join(" — ");
+                        const dims = item.window_width_cm && item.window_height_cm ? ` (${item.window_width_cm}×${item.window_height_cm})` : "";
                         return (
-                          <div
-                            key={item.id}
-                            onClick={() => !matTransferred && setMatChecked(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
-                            className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
-                            style={{
-                              background: checked ? "#DCFCE7" : "#F1F5F9",
-                              border: `1px solid ${checked ? "#BBF7D0" : "transparent"}`,
-                            }}
-                          >
-                            <div className="flex-1 min-w-0">
-                              <div className="text-[13px] font-semibold text-[#0F172A]">{roomLabel || "Позиция"}</div>
-                              <div className="flex gap-4 text-[11px] text-[#475569] mt-0.5 flex-wrap">
-                                {item.fabric_name && <span>Шторы: {item.fabric_name}</span>}
-                                {item.notes && <span>Тюль: {item.notes}</span>}
-                              </div>
-                            </div>
-                            <div
-                              className="w-6 h-6 rounded-[7px] shrink-0 flex items-center justify-center transition-all"
-                              style={{
-                                border: `2px solid ${checked ? "#16A34A" : "#CBD5E1"}`,
-                                background: checked ? "#16A34A" : "#fff",
-                              }}
+                          <div key={item.id} className="border-b border-[#E2E8F0] last:border-0">
+                            <button
+                              onClick={() => setMatExpanded(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
+                              className="w-full flex items-center justify-between py-4 text-left"
                             >
-                              {checked && <Check size={14} color="#fff" />}
-                            </div>
+                              <span className={`text-[14px] font-medium ${done ? "text-[#16A34A]" : "text-[#0F172A]"}`}>
+                                {roomLabel || "Позиция"}{dims}
+                              </span>
+                              {open ? <ChevronUp size={18} className="text-[#94A3B8]" /> : <ChevronDown size={18} className="text-[#94A3B8]" />}
+                            </button>
+                            {open && (
+                              <div className="pb-4 space-y-2.5">
+                                <div className="flex flex-wrap gap-x-8 gap-y-1.5 text-[13px] text-[#475569]">
+                                  {item.fabric_name && <span><span className="font-medium text-[#0F172A]">Шторы:</span> {item.fabric_name}</span>}
+                                  {item.notes && <span><span className="font-medium text-[#0F172A]">Тюль:</span> {item.notes}</span>}
+                                  {item.sewing_type && <span><span className="font-medium text-[#0F172A]">Тип крепления:</span> {item.sewing_type}</span>}
+                                </div>
+                                <div className="text-[13px] text-[#475569]">
+                                  <span className="font-medium text-[#0F172A]">Количество:</span> {item.quantity}
+                                </div>
+                                {!matTransferred && (done ? (
+                                  <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#16A34A]">
+                                    <Check size={16} /> Собрано
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => setMatChecked(prev => ({ ...prev, [item.id]: true }))}
+                                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#60CCED] text-white text-[13px] font-semibold hover:bg-[#4DBCE0] transition-colors"
+                                  >
+                                    <Check size={16} /> Завершить
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -1148,7 +1149,7 @@ export default function OrderDetailPage() {
                         disabled={cnt === 0}
                         className="w-full py-3 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-2 transition-all disabled:cursor-not-allowed"
                         style={{
-                          background: cnt > 0 ? "#0EA5E9" : "#F1F5F9",
+                          background: cnt > 0 ? "#60CCED" : "#F1F5F9",
                           color: cnt > 0 ? "#fff" : "#94A3B8",
                         }}
                       >
