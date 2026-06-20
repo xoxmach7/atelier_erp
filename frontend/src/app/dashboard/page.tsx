@@ -194,8 +194,15 @@ function DashboardContent() {
   const { role } = useRole();
   const router = useRouter();
 
-  if (role === "designer") {
-    router.replace("/orders");
+  // Не-владельцы не видят дашборд — уводим на их рабочий экран
+  const ROLE_LANDING: Record<string, string> = {
+    designer: "/orders",
+    warehouse: "/work/warehouse",
+    production: "/work/production",
+    installation: "/work/installation",
+  };
+  if (role && ROLE_LANDING[role]) {
+    router.replace(ROLE_LANDING[role]);
     return null;
   }
 
