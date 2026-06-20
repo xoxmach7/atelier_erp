@@ -74,6 +74,8 @@ export interface OrderListItemDTO {
   created_at: string;
   designer_name?: string;
   status_display?: string;
+  material_readiness?: string;
+  material_readiness_label?: string;
   ui_badge?: { color: string; label: string };
 }
 

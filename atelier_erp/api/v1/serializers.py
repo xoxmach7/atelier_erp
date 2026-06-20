@@ -94,6 +94,7 @@ class OrderListSerializer(serializers.ModelSerializer):
     balance_due = serializers.DecimalField(source='remaining_amount', max_digits=12, decimal_places=2, read_only=True)
     designer_name = serializers.SerializerMethodField()
     ui_badge = serializers.SerializerMethodField()
+    material_readiness_label = serializers.CharField(source='get_material_readiness_display', read_only=True)
 
     class Meta:
         model = Order
@@ -101,7 +102,8 @@ class OrderListSerializer(serializers.ModelSerializer):
             'id', 'order_number', 'customer', 'customer_name', 'customer_phone',
             'status', 'status_display', 'ui_badge',
             'total_amount', 'paid_amount', 'balance_due',
-            'designer_name', 'created_at', 'planned_completion'
+            'designer_name', 'created_at', 'planned_completion',
+            'material_readiness', 'material_readiness_label'
         ]
         read_only_fields = ['order_number', 'created_at']
 
