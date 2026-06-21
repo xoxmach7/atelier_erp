@@ -38,10 +38,10 @@ function BarChart({ data }: { data: ChartData }) {
   return (
     <div className="flex gap-2 flex-1">
       <div className="flex flex-col w-10 shrink-0 pb-6">
-        <span className="text-[12px] text-[#94A3B8] text-right leading-none mb-1.5">₸</span>
+        <span className="text-[12px] text-[#000000] text-right leading-none mb-1.5">₸</span>
         <div className="flex flex-1 flex-col justify-between">
           {yLabels.map((label, i) => (
-            <span key={i} className="text-[12px] text-[#94A3B8] text-right leading-none">
+            <span key={i} className="text-[12px] text-[#000000] text-right leading-none">
               {label}
             </span>
           ))}
@@ -65,7 +65,7 @@ function BarChart({ data }: { data: ChartData }) {
         </div>
         <div className="flex gap-[6px]">
           {data.map((d, i) => (
-            <span key={i} className="flex-1 text-center text-[12px] text-[#94A3B8]">
+            <span key={i} className="flex-1 text-center text-[12px] text-[#000000]">
               {d.label}
             </span>
           ))}
@@ -100,7 +100,7 @@ function MetricChart({
   const active = conf[metric];
 
   return (
-    <div className="flex-1 bg-white rounded-[7px] p-6 flex justify-center gap-8 min-w-0 min-h-[300px]">
+    <div className="flex-1 bg-white rounded-[7px] p-6 flex justify-center gap-8 min-w-0 min-h-[380px]">
       <div className="flex-1 flex flex-col min-w-0 max-w-[400px]">
         <div className="flex items-center justify-center gap-2 mb-5">
           <span className="text-[#60CCED] flex items-center">{active.icon}</span>
@@ -129,7 +129,7 @@ function MetricChart({
 
 function DesignersPanel({ designers }: { designers: DesignerStat[] }) {
   return (
-    <div className="flex-1 bg-white rounded-[7px] p-6 flex flex-col min-w-0 min-h-[300px]">
+    <div className="flex-1 bg-white rounded-[7px] p-6 flex flex-col min-w-0 min-h-[380px]">
       <div className="flex items-center justify-center gap-2 mb-5">
         <Tag size={22} className="text-[#60CCED]" />
         <span className="text-[18px] font-medium text-[#000000]">Заказы (за период)</span>
@@ -149,8 +149,8 @@ function DesignersPanel({ designers }: { designers: DesignerStat[] }) {
             {designers.map((d, i) => (
               <tr key={i} className="border-b border-[#F1F5F9] last:border-0">
                 <td className="py-3 text-left text-[16px] text-[#000000]">{d.name}</td>
-                <td className="py-3 text-center text-[32px] font-bold text-[#94A3B8]">{d.completed}</td>
-                <td className="py-3 text-center text-[32px] font-bold text-[#60CCED]">{d.in_work}</td>
+                <td className="py-3 text-center text-[24px] font-bold text-[#94A3B8]">{d.completed}</td>
+                <td className="py-3 text-center text-[24px] font-bold text-[#60CCED]">{d.in_work}</td>
               </tr>
             ))}
           </tbody>
@@ -179,7 +179,7 @@ function StatCard({
       <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" className="absolute right-3 top-3 text-[#CBD5E1] group-hover:text-[#60CCED] transition-colors">
         <path d="M14 0 L0 0 L14 14 Z" fill="currentColor" />
       </svg>
-      <span className="text-[14px] text-[#475569] leading-snug text-center group-hover:text-[#0284C7] transition-colors">
+      <span className="text-[14px] text-[#000000] leading-snug text-center group-hover:text-[#0284C7] transition-colors">
         {label}
       </span>
       <div className={`text-[52px] font-bold leading-none mt-3 text-center ${valueColor}`}>{value}</div>
@@ -230,7 +230,7 @@ function DashboardContent() {
   const orgName = "Название организации";
 
   return (
-    <div>
+    <div className="min-h-screen bg-[#FAFAFA] p-8">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
