@@ -100,7 +100,7 @@ function MetricChart({
   const active = conf[metric];
 
   return (
-    <div className="flex-1 bg-white rounded-[7px] p-6 flex gap-8 min-w-0 min-h-[300px]">
+    <div className="flex-1 bg-white rounded-[7px] p-6 flex justify-center gap-8 min-w-0 min-h-[300px]">
       <div className="flex-1 flex flex-col min-w-0 max-w-[400px]">
         <div className="flex items-center justify-center gap-2 mb-5">
           <span className="text-[#60CCED] flex items-center">{active.icon}</span>
@@ -230,7 +230,7 @@ function DashboardContent() {
   const orgName = "Название организации";
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] p-8">
+    <div>
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
