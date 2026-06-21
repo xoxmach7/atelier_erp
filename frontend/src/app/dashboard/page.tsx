@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { TrendingDown, TrendingUp, RefreshCw, Tag } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
@@ -201,10 +201,11 @@ function DashboardContent() {
     production: "/work/production",
     installation: "/work/installation",
   };
-  if (role && ROLE_LANDING[role]) {
-    router.replace(ROLE_LANDING[role]);
-    return null;
-  }
+  const landing = role ? ROLE_LANDING[role] : undefined;
+  useEffect(() => {
+    if (landing) router.replace(landing);
+  }, [landing, router]);
+  if (landing) return null;
 
   if (queue.isLoading || dashboard.isLoading)
     return <LoadingState message="Загрузка..." />;
