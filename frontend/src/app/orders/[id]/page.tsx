@@ -46,6 +46,7 @@ import {
   useUpdateOrderItemQuantity,
   useUpdateOrderItem,
 } from "@/hooks/useOrders";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRole } from "@/hooks/useRole";
 import { useCreatePayment } from "@/hooks/usePayments";
 import type {
@@ -704,6 +705,7 @@ export default function OrderDetailPage() {
   const params = useParams();
   const orderId = params.id as string;
   const { role } = useRole();
+  const queryClient = useQueryClient();
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -943,29 +945,6 @@ export default function OrderDetailPage() {
           )}
 
           {/* ── Owner: role switcher ──────────────────────────── */}
-          {role === "owner" && (
-            <div className="px-4 sm:px-[52px] pb-6">
-              <div className="text-[11px] font-bold uppercase tracking-wide text-[var(--t3)] mb-2">
-                Режим просмотра
-              </div>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {(["designer","warehouse","production","installation"] as const).map((r) => {
-                  const labels: Record<string, string> = { designer: "Дизайнер", warehouse: "Склад", production: "Пошив", installation: "Установка" };
-                  const workLinks: Record<string, string> = { designer: "/work/designer", warehouse: "/work/warehouse", production: "/work/production", installation: "/work/installation" };
-                  return (
-                    <Link
-                      key={r}
-                      href={workLinks[r]}
-                      className="px-4 py-1.5 rounded-lg text-[13px] font-medium transition-colors border bg-white text-[var(--t2)] border-[#E2E8F0] hover:bg-[var(--a)] hover:text-white hover:border-[var(--a)]"
-                    >
-                      {labels[r]}
-                    </Link>
-                  );
-                })}
-              </div>
-
-            </div>
-          )}
 
           {/* ── Info grid (owner + designer only) ──────────────── */}
           {showInfo && <div className="px-4 sm:px-[52px] pb-8">
@@ -1037,13 +1016,23 @@ export default function OrderDetailPage() {
                       <img src="/icons/tenge.png" width={12} height={12} alt="" className="opacity-90" />
                       Предоплата
                     </button>
-                    <Link
-                      href={`/orders/${orderId}/quote`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
-                    >
-                      <img src="/icons/kp.png" width={14} height={14} alt="" className="opacity-90" />
-                      {hasQuote ? "Открыть КП" : "Создать КП"}
-                    </Link>
+                    {hasQuote ? (
+                      <Link
+                        href={`/orders/${orderId}/quote`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
+                      >
+                        <img src="/icons/kp.png" width={14} height={14} alt="" className="opacity-90" />
+                        Открыть КП
+                      </Link>
+                    ) : (
+                      <button
+                        onClick={() => setKPModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
+                      >
+                        <img src="/icons/kp.png" width={14} height={14} alt="" className="opacity-90" />
+                        Создать КП
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -1327,7 +1316,7 @@ export default function OrderDetailPage() {
         order={order}
         onSuccess={() => {
           setKPModalOpen(false);
-          router.push(`/orders/${orderId}/quote`);
+          queryClient.invalidateQueries({ queryKey: ["orders"] });
         }}
       />
 

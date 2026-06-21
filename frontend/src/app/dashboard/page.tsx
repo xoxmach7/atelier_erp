@@ -254,13 +254,13 @@ function DashboardContent() {
       </div>
 
       {/* Chart + Designers */}
-      <div className="flex gap-[38px] mb-[38px]">
+      <div className="flex flex-col lg:flex-row gap-[38px] mb-[38px]">
         <MetricChart profit={profitPoints} revenue={revenuePoints} expense={expensePoints} />
         <DesignersPanel designers={d?.designers ?? []} />
       </div>
 
       {/* Stat Cards */}
-      <div className="flex gap-[38px]">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 lg:gap-[38px]">
         <StatCard label="Все заказы (за период)" value={orders?.total ?? 0}                 href="/orders"         />
         <StatCard label="В работе"               value={orders?.in_work ?? 0}               href="/orders"         />
         <StatCard label="Ожидают оплаты"         value={orders?.awaiting_payment ?? 0}      href="/work/finance"   />
