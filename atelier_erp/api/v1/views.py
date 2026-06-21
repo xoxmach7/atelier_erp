@@ -24,7 +24,7 @@ from django.utils import timezone
 
 from atelier_erp.models import (
     Order, Task, Fabric, PhotoReport, OrderItem, OrderCompletionAct,
-    Measurement, Quote, Payment, Customer, OrderMaterial
+    Measurement, Quote, Payment, Customer, OrderMaterial, InventoryItem
 )
 from atelier_erp.services import OrderService, TaskService, UnitOfWork, QuoteService
 from atelier_erp.services.exceptions import (
@@ -43,6 +43,7 @@ from .serializers import (
     ChangeHandoverStageSerializer, CancelOrderSerializer,
     TaskListSerializer, TaskDetailSerializer, TaskCreateSerializer, TaskStatusUpdateSerializer,
     FabricAvailabilitySerializer, InventoryCheckRequestSerializer, InventoryCheckResponseSerializer,
+    InventoryItemSerializer,
     PhotoReportSerializer, PhotoReportUploadSerializer,
     OrderCompletionActSerializer, OrderCompletionActUploadSerializer
 )
@@ -2036,6 +2037,32 @@ class InventoryAvailabilityViewSet(viewsets.ReadOnlyModelViewSet):
                 {'error': f'Fabric with id {fabric_id} not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+class InventoryItemViewSet(TenantModelMixin, viewsets.ModelViewSet):
+    """
+    General warehouse inventory — ткань/тюль/карниз/фурнитура/прочее.
+
+    GET    /api/v1/inventory-items/      — list (любой авторизованный)
+    POST   /api/v1/inventory-items/      — create (склад/владелец)
+    PATCH  /api/v1/inventory-items/{id}/ — update (склад/владелец)
+    DELETE /api/v1/inventory-items/{id}/ — soft-delete (склад/владелец)
+    """
+    queryset = InventoryItem.objects.filter(is_active=True).order_by('category', 'name')
+    serializer_class = InventoryItemSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['category', 'unit', 'is_active', 'supplier']
+    search_fields = ['name', 'sku', 'supplier']
+    ordering_fields = ['name', 'category', 'quantity', 'price_per_unit']
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), IsWarehouseOrOwner()]
+
+    def perform_destroy(self, instance):
+        instance.is_active = False
+        instance.save(update_fields=['is_active'])
 
 
 class QuoteViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):

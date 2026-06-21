@@ -312,6 +312,95 @@ class Service(models.Model):
         verbose_name_plural = 'Services'
 
 
+class InventoryItem(UUIDModel, AuditedModel):
+    """General warehouse stock item — ткань, тюль, карниз, фурнитура, прочее.
+
+    Отдельно от Fabric (каталог тканей для КП): здесь живёт физический склад
+    любых материалов, включая мелочёвку (крючки, люверсы, лента, подклад).
+    """
+
+    class Category(models.TextChoices):
+        FABRIC = 'fabric', _('Ткань')
+        TULLE = 'tulle', _('Тюль')
+        CORNICE = 'cornice', _('Карниз')
+        ACCESSORY = 'accessory', _('Фурнитура')
+        OTHER = 'other', _('Прочее')
+
+    class Unit(models.TextChoices):
+        METER = 'm', _('м')
+        PIECE = 'pcs', _('шт')
+        PACK = 'pack', _('упак')
+
+    tenant = models.ForeignKey(
+        'Tenant',
+        on_delete=models.CASCADE,
+        related_name='+',
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
+    sku = models.CharField(max_length=50, blank=True, default="", db_index=True)
+    name = models.CharField(max_length=255, db_index=True)
+    category = models.CharField(
+        max_length=20,
+        choices=Category.choices,
+        default=Category.ACCESSORY,
+        db_index=True,
+    )
+    unit = models.CharField(
+        max_length=10,
+        choices=Unit.choices,
+        default=Unit.PIECE,
+    )
+    quantity = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0'),
+        validators=[MinValueValidator(Decimal('0'))],
+        db_index=True,
+    )
+    price_per_unit = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0'),
+        validators=[MinValueValidator(Decimal('0'))],
+    )
+    low_stock_threshold = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0'),
+        validators=[MinValueValidator(Decimal('0'))],
+        help_text='Порог «на исходе»: остаток ниже подсвечивается',
+    )
+    supplier = models.CharField(max_length=255, blank=True, default="", db_index=True)
+    note = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        db_table = 'inventory_items'
+        ordering = ['category', 'name']
+        indexes = [
+            Index(fields=['is_active', 'category'], name='idx_invitem_active_cat'),
+            Index(fields=['tenant', 'is_active'], name='idx_invitem_tenant'),
+        ]
+        constraints = [
+            CheckConstraint(
+                check=Q(quantity__gte=Decimal('0')),
+                name='invitem_quantity_non_negative',
+            ),
+        ]
+        verbose_name = 'Inventory Item'
+        verbose_name_plural = 'Inventory Items'
+
+    def __str__(self):
+        return f"{self.name} ({self.get_category_display()})"
+
+    @property
+    def is_low_stock(self):
+        return self.low_stock_threshold > 0 and self.quantity < self.low_stock_threshold
+
+
 # ============================================
 # ORDER CONTEXT (Core Domain)
 # ============================================

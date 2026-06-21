@@ -286,6 +286,44 @@ export interface FabricDTO {
 }
 
 // ============================================================================
+// Inventory Item DTOs - общий склад (ткань/тюль/карниз/фурнитура/прочее)
+// ============================================================================
+
+export type InventoryCategory = "fabric" | "tulle" | "cornice" | "accessory" | "other";
+export type InventoryUnit = "m" | "pcs" | "pack";
+
+export interface InventoryItemDTO {
+  id: string;
+  sku: string;
+  name: string;
+  category: InventoryCategory;
+  category_display: string;
+  unit: InventoryUnit;
+  unit_display: string;
+  quantity: string; // Decimal as string
+  price_per_unit: string;
+  low_stock_threshold: string;
+  supplier: string;
+  note: string;
+  is_low_stock: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InventoryItemCreateInput {
+  name: string;
+  category: InventoryCategory;
+  unit: InventoryUnit;
+  quantity: string | number;
+  price_per_unit: string | number;
+  low_stock_threshold?: string | number;
+  sku?: string;
+  supplier?: string;
+  note?: string;
+}
+
+// ============================================================================
 // Payment DTOs - API Response Types
 // ============================================================================
 

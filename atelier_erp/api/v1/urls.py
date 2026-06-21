@@ -7,7 +7,7 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     StaffListView,
-    OrderViewSet, TaskViewSet, InventoryAvailabilityViewSet, QuoteViewSet,
+    OrderViewSet, TaskViewSet, InventoryAvailabilityViewSet, InventoryItemViewSet, QuoteViewSet,
     CustomerViewSet, PaymentViewSet, MeasurementViewSet,
     DesignerWorkQueueView, QuotesWorkQueueView, WarehouseWorkQueueView,
     ProductionWorkQueueView, InstallationWorkQueueView, OwnerWorkQueueView,
@@ -18,6 +18,7 @@ router = DefaultRouter()
 router.register(r'orders', OrderViewSet, basename='v1-order')
 router.register(r'tasks', TaskViewSet, basename='v1-task')
 router.register(r'inventory', InventoryAvailabilityViewSet, basename='v1-inventory')
+router.register(r'inventory-items', InventoryItemViewSet, basename='v1-inventory-item')
 router.register(r'quotes', QuoteViewSet, basename='v1-quote')
 router.register(r'customers', CustomerViewSet, basename='v1-customer')
 router.register(r'payments', PaymentViewSet, basename='v1-payment')

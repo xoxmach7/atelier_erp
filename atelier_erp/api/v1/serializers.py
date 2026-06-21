@@ -6,7 +6,7 @@ Minimal serializers for orders, tasks, inventory
 from decimal import Decimal
 
 from rest_framework import serializers
-from atelier_erp.models import Order, Task, Fabric, OrderItem, Customer, Quote, QuoteItem, Measurement, Payment, PhotoReport, OrderMaterial
+from atelier_erp.models import Order, Task, Fabric, OrderItem, Customer, Quote, QuoteItem, Measurement, Payment, PhotoReport, OrderMaterial, InventoryItem
 # Inline definitions (previously imported from api/serializers.py)
 from atelier_erp.models import Fabric as _Fabric, Quote as _Quote
 
@@ -663,6 +663,23 @@ class FabricAvailabilitySerializer(serializers.ModelSerializer):
             'stock_meters', 'reserved_meters', 'available_meters',
             'price_per_meter', 'is_active'
         ]
+
+
+class InventoryItemSerializer(serializers.ModelSerializer):
+    """General warehouse item — read + write (create/update)."""
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    unit_display = serializers.CharField(source='get_unit_display', read_only=True)
+    is_low_stock = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = InventoryItem
+        fields = [
+            'id', 'sku', 'name', 'category', 'category_display',
+            'unit', 'unit_display', 'quantity', 'price_per_unit',
+            'low_stock_threshold', 'supplier', 'note',
+            'is_low_stock', 'is_active', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'is_low_stock', 'created_at', 'updated_at']
 
 
 class InventoryCheckRequestSerializer(serializers.Serializer):
