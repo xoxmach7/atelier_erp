@@ -258,11 +258,11 @@ function MaterialsContent() {
           <table className="w-full">
             <thead>
               <tr className="bg-[#60CCED]">
-                <th className="px-[52px] py-[30px] text-left text-[22px] font-medium text-white whitespace-nowrap">Артикул</th>
-                <th className="px-6 py-[30px] text-left text-[22px] font-medium text-white whitespace-nowrap">Наименование</th>
-                <th className="px-6 py-[30px] text-left text-[22px] font-medium text-white whitespace-nowrap">Категория</th>
-                <th className="px-6 py-[30px] text-left text-[22px] font-medium text-white whitespace-nowrap">Стоимость за ед., ₸</th>
-                <th className="px-6 py-[30px] text-left text-[22px] font-medium text-white whitespace-nowrap">Свободно</th>
+                <th className="px-[52px] py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Артикул</th>
+                <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Наименование</th>
+                <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Категория</th>
+                <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Стоимость за ед., ₸</th>
+                <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Свободно</th>
               </tr>
             </thead>
             <tbody>
@@ -277,16 +277,16 @@ function MaterialsContent() {
                     <tr
                       key={r.id}
                       onClick={() => handleRowClick(r)}
-                      className={`border-b border-[#CBD5E1] ${editable ? "cursor-pointer hover:bg-[#F8FAFC]" : ""}`}
+                      className={`border-b border-dashed border-[#CBD5E1] ${editable ? "cursor-pointer hover:bg-[#F8FAFC]" : ""}`}
                       title={editable ? "Нажмите, чтобы изменить" : ""}
                     >
-                      <td className="px-[52px] py-[30px] text-[22px] font-light text-[#000000] whitespace-nowrap">{r.sku}</td>
-                      <td className="px-6 py-[30px] text-[22px] font-light text-[#000000]">{r.name}</td>
-                      <td className="px-6 py-[30px] text-[18px] font-light text-[#475569] whitespace-nowrap">{r.category}</td>
-                      <td className="px-6 py-[30px] text-[22px] font-light text-[#000000] whitespace-nowrap">{fmtNum(r.price)}</td>
-                      <td className="px-6 py-[30px] text-[22px] font-light text-[#000000] whitespace-nowrap">
+                      <td className="px-[52px] py-4 text-[14px] text-[#0F172A] whitespace-nowrap">{r.sku}</td>
+                      <td className="px-6 py-4 text-[14px] text-[#0F172A]">{r.name}</td>
+                      <td className="px-6 py-4 text-[14px] text-[#475569] whitespace-nowrap">{r.category}</td>
+                      <td className="px-6 py-4 text-[14px] text-[#0F172A] whitespace-nowrap">{fmtNum(r.price)}</td>
+                      <td className="px-6 py-4 text-[14px] text-[#0F172A] whitespace-nowrap">
                         <span className={r.low ? "text-[#D97706]" : ""}>{fmtNum(r.available)} {r.unit}</span>
-                        {r.low && <span className="ml-3 text-[18px] font-medium text-[#D97706]">(На исходе)</span>}
+                        {r.low && <span className="ml-2 text-[12px] font-medium text-[#D97706]">(На исходе)</span>}
                       </td>
                     </tr>
                   );

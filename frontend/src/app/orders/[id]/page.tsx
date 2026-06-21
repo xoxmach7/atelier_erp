@@ -896,7 +896,12 @@ export default function OrderDetailPage() {
           <div className="flex items-center justify-between px-4 sm:px-[52px] py-5 sm:py-[30px]">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => router.push("/orders")}
+                onClick={() => router.push(
+                  role === "warehouse" ? "/work/warehouse"
+                  : role === "production" ? "/work/production"
+                  : role === "installation" ? "/work/installation"
+                  : "/orders"
+                )}
                 className="text-[#475569] hover:text-[#0EA5E9] transition-colors"
               >
                 <ArrowLeft size={24} />
@@ -971,9 +976,9 @@ export default function OrderDetailPage() {
               </div>
               <div className="grid grid-cols-2 gap-y-3 sm:grid-cols-3 lg:flex lg:items-stretch lg:justify-around lg:gap-0 lg:divide-x lg:divide-[#E2E8F0]">
                 <InfoCell label="Клиент">
-                  <div className="font-medium">{getCustomerName(order)}</div>
+                  <div>{getCustomerName(order)}</div>
                   {getCustomerPhone(order) && (
-                    <div className="text-[11px] sm:text-[12px] font-normal text-[#94A3B8]">{formatPhone(getCustomerPhone(order))}</div>
+                    <div className="text-[12px] sm:text-[13px] lg:text-[15px] font-normal text-[#94A3B8]">{formatPhone(getCustomerPhone(order))}</div>
                   )}
                 </InfoCell>
                 <InfoCell label="Создан">{fmtDate(order.created_at)}</InfoCell>
@@ -1063,7 +1068,7 @@ export default function OrderDetailPage() {
               </div>
 
               {/* History */}
-              <div className="w-[380px] shrink-0 rounded-xl border border-dashed border-[#CBD5E1] p-6">
+              <div className="w-[380px] shrink-0 rounded-xl border border-[#CBD5E1] p-6">
                 <div className="flex items-center justify-center gap-2 mb-5">
                   <img src="/icons/history.png" width={20} height={20} alt="" />
                   <span className="text-[16px] font-medium text-[#0F172A]">История</span>
@@ -1161,7 +1166,7 @@ export default function OrderDetailPage() {
                 </div>
 
                 {/* История */}
-                <div className="w-[380px] shrink-0 rounded-xl border border-dashed border-[#CBD5E1] p-6">
+                <div className="w-[380px] shrink-0 rounded-xl border border-[#CBD5E1] p-6">
                   <div className="flex items-center gap-2 mb-5">
                     <img src="/icons/history.png" width={20} height={20} alt="" />
                     <span className="text-[16px] font-medium text-[#0F172A]">История</span>
@@ -1218,7 +1223,7 @@ export default function OrderDetailPage() {
                 </div>
 
                 {/* История */}
-                <div className="w-[380px] shrink-0 rounded-xl border border-dashed border-[#CBD5E1] p-6">
+                <div className="w-[380px] shrink-0 rounded-xl border border-[#CBD5E1] p-6">
                   <div className="flex items-center gap-2 mb-5">
                     <img src="/icons/history.png" width={20} height={20} alt="" />
                     <span className="text-[16px] font-medium text-[#0F172A]">История</span>
@@ -1280,7 +1285,7 @@ export default function OrderDetailPage() {
               </div>
 
               {/* История */}
-              <div className="rounded-xl border border-dashed border-[#CBD5E1] p-6">
+              <div className="rounded-xl border border-[#CBD5E1] p-6">
                 <div className="flex items-center justify-center gap-2 mb-5">
                   <img src="/icons/history.png" width={20} height={20} alt="" />
                   <span className="text-[16px] font-medium text-[#0F172A]">История</span>

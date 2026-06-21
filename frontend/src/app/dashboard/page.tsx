@@ -100,7 +100,14 @@ function MetricChart({
   const active = conf[metric];
 
   return (
-    <div className="flex-1 bg-white rounded-[7px] p-6 flex gap-4 min-w-0 min-h-[300px]">
+    <div className="flex-1 bg-white rounded-[7px] p-6 flex gap-8 min-w-0 min-h-[300px]">
+      <div className="flex-1 flex flex-col min-w-0 max-w-[400px]">
+        <div className="flex items-center justify-center gap-2 mb-5">
+          <span className="text-[#60CCED] flex items-center">{active.icon}</span>
+          <span className="text-[18px] font-medium text-[#000000]">{active.title}</span>
+        </div>
+        <BarChart data={active.data} />
+      </div>
       <div className="flex flex-col gap-2 justify-center shrink-0">
         {order.map((k) => (
           <button
@@ -116,13 +123,6 @@ function MetricChart({
           </button>
         ))}
       </div>
-      <div className="flex-1 flex flex-col min-w-0 max-w-[480px]">
-        <div className="flex items-center justify-center gap-2 mb-5">
-          <span className="text-[#60CCED] flex items-center">{active.icon}</span>
-          <span className="text-[18px] font-semibold text-[#000000]">{active.title}</span>
-        </div>
-        <BarChart data={active.data} />
-      </div>
     </div>
   );
 }
@@ -132,23 +132,23 @@ function DesignersPanel({ designers }: { designers: DesignerStat[] }) {
     <div className="flex-1 bg-white rounded-[7px] p-6 flex flex-col min-w-0 min-h-[300px]">
       <div className="flex items-center justify-center gap-2 mb-5">
         <Tag size={22} className="text-[#60CCED]" />
-        <span className="text-[18px] font-semibold text-[#000000]">Заказы (за период)</span>
+        <span className="text-[18px] font-medium text-[#000000]">Заказы (за период)</span>
       </div>
       {designers.length === 0 ? (
         <p className="text-[14px] text-[#94A3B8] text-center py-8">Дизайнеров пока нет</p>
       ) : (
-        <table className="w-full table-fixed">
+        <table className="w-full table-fixed mt-2">
           <thead>
-            <tr className="text-[14px] text-[#000000] border-b border-[#F1F5F9]">
-              <th className="font-medium pb-3 text-left w-1/2">Дизайнер</th>
-              <th className="font-medium pb-3 text-center w-1/4">Завершено</th>
-              <th className="font-medium pb-3 text-center w-1/4">В работе</th>
+            <tr className="text-[16px] text-[#000000] border-b border-[#F1F5F9]">
+              <th className="font-medium pb-3 text-left w-1/3">Дизайнер</th>
+              <th className="font-medium pb-3 text-center w-1/3">Завершено</th>
+              <th className="font-medium pb-3 text-center w-1/3">В работе</th>
             </tr>
           </thead>
           <tbody>
             {designers.map((d, i) => (
               <tr key={i} className="border-b border-[#F1F5F9] last:border-0">
-                <td className="py-3 text-left text-[14px] text-[#000000]">{d.name}</td>
+                <td className="py-3 text-left text-[16px] text-[#000000]">{d.name}</td>
                 <td className="py-3 text-center text-[32px] font-bold text-[#94A3B8]">{d.completed}</td>
                 <td className="py-3 text-center text-[32px] font-bold text-[#60CCED]">{d.in_work}</td>
               </tr>

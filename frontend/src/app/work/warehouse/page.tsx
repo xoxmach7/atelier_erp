@@ -111,11 +111,11 @@ function WarehouseOrdersContent() {
           <table className="w-full">
             <thead>
               <tr className="bg-[#60CCED]">
-                <th className="px-[52px] py-[30px] text-left text-[22px] font-medium text-white whitespace-nowrap">№</th>
-                <th className="px-6 py-[30px] text-left text-[22px] font-medium text-white whitespace-nowrap">Клиент</th>
-                <th className="px-6 py-[30px] text-left text-[22px] font-medium text-white whitespace-nowrap">Дата создания</th>
-                <th className="px-6 py-[30px] text-left text-[22px] font-medium text-white whitespace-nowrap">Дизайнер</th>
-                <th className="px-6 py-[30px] text-left text-[22px] font-medium text-white whitespace-nowrap">Статус</th>
+                <th className="px-[52px] py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">№</th>
+                <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Клиент</th>
+                <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Дата создания</th>
+                <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Дизайнер</th>
+                <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Статус</th>
               </tr>
             </thead>
             <tbody>
@@ -130,17 +130,17 @@ function WarehouseOrdersContent() {
                     <tr
                       key={order.id}
                       onClick={() => router.push(`/orders/${order.id}`)}
-                      className="border-b border-[#CBD5E1] cursor-pointer hover:bg-[#F8FAFC] transition-colors"
+                      className="border-b border-dashed border-[#CBD5E1] cursor-pointer hover:bg-[#F8FAFC] transition-colors"
                     >
-                      <td className="px-[52px] py-[30px] text-[22px] font-light text-[#000000] whitespace-nowrap">{order.order_number || i + 1}</td>
-                      <td className="px-6 py-[30px] text-[22px] font-light text-[#000000]">{order.customer_name || "—"}</td>
-                      <td className="px-6 py-[30px] text-[22px] font-light text-[#000000] whitespace-nowrap">
+                      <td className="px-[52px] py-4 font-medium text-[#0F172A] whitespace-nowrap">{order.order_number || i + 1}</td>
+                      <td className="px-6 py-4 text-[14px] text-[#0F172A]">{order.customer_name || "—"}</td>
+                      <td className="px-6 py-4 text-[14px] text-[#0F172A] whitespace-nowrap">
                         {order.created_at
                           ? new Date(order.created_at).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" })
                           : "—"}
                       </td>
-                      <td className="px-6 py-[30px] text-[22px] font-light text-[#000000]">{order.designer_name || "—"}</td>
-                      <td className="px-6 py-[30px] text-[22px] font-medium whitespace-nowrap" style={{ color: st.color }}>
+                      <td className="px-6 py-4 text-[14px] text-[#0F172A]">{order.designer_name || "—"}</td>
+                      <td className="px-6 py-4 font-medium whitespace-nowrap" style={{ color: st.color }}>
                         {st.label}
                       </td>
                     </tr>

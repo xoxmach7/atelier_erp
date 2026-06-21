@@ -239,7 +239,7 @@ export default function CustomersPage() {
             <>
               {/* Table */}
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm table-fixed">
                   <thead>
                     <tr className="bg-[#60CCED]">
                       <th className="px-[52px] py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Имя</th>

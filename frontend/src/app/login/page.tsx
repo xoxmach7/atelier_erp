@@ -20,7 +20,7 @@ export default function LoginPage() {
 
   if (isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-300 via-sky-300 to-cyan-300">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-sky-200 to-cyan-300">
         <div className="text-white">Загрузка...</div>
       </div>
     );
@@ -41,7 +41,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-300 via-sky-300 to-cyan-300 p-6">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-white via-sky-200 to-cyan-300 p-6">
       {/* Card */}
       <div className="flex w-full max-w-[360px] flex-col items-center rounded-2xl bg-white p-10 shadow-[0_20px_60px_rgba(0,0,0,.12)]">
         {/* Logo */}
