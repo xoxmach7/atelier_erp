@@ -1,496 +1,221 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert, Linking,
+  View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity,
+  ActivityIndicator, Alert, Platform, StatusBar,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
-import { Screen } from '../../../src/components/Screen';
-import { useAuthContext } from '../../../src/context/AuthContext';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Icon } from '../../../src/components/Icon';
 import {
-  fetchQuotes, createQuote, generateQuotePdf, fetchMeasurements,
-  type QuoteDTO, type QuoteItemPayload, type CreateQuotePayload,
+  fetchMeasurements, createQuote, fetchOrderExecution,
+  type MeasurementsList, type CreateQuotePayload,
 } from '../../../src/api/orders';
-import { colors } from '../../../src/theme/colors';
-import { spacing, radius } from '../../../src/theme/spacing';
-import { typography } from '../../../src/theme/typography';
+import { fetchFabricsList } from '../../../src/api/fabrics';
 
-interface QuoteFormItem {
-  room_name: string;
-  window_name: string;
-  window_width_cm: number;
-  window_height_cm: number;
-  fabric_meters: string;
-  fabric_cost: string;
-  tulle_meters: string;
-  tulle_cost: string;
-  sewing_cost: string;
-  installation_price: string;
-  accessories_cost: string;
-  line_total: string;
+type Meas = MeasurementsList['results'][number];
+
+interface Line {
+  m: Meas;
+  qty: number;
+  price: string;
 }
 
-function formatMoney(v: string | number | undefined): string {
-  if (v === undefined || v === null) return '-';
-  const n = typeof v === 'string' ? parseFloat(v) : v;
-  if (Number.isNaN(n)) return '-';
-  return n.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+function money(n: number): string {
+  return Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ');
 }
 
 export default function QuoteScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { primaryRole } = useAuthContext();
-  const orderId = id as string;
+  const idStr = String(id);
 
-  const [quotes, setQuotes] = useState<QuoteDTO[]>([]);
+  const [orderNum, setOrderNum] = useState('');
+  const [lines, setLines] = useState<Line[]>([]);
+  const [fabricNames, setFabricNames] = useState<Record<string, string>>({});
+  const [prepay, setPrepay] = useState('50');
+  const [deposit, setDeposit] = useState('');
+  const [depositTouched, setDepositTouched] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [validUntil, setValidUntil] = useState('');
-  const [discountAmount, setDiscountAmount] = useState('');
-  const [installationCost, setInstallationCost] = useState('');
-  const [deliveryCost, setDeliveryCost] = useState('');
-  const [prepaymentPercent, setPrepaymentPercent] = useState('50');
-  const [formItems, setFormItems] = useState<QuoteFormItem[]>([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const [meas, fabrics, exec] = await Promise.all([
+          fetchMeasurements(idStr),
+          fetchFabricsList().catch(() => []),
+          fetchOrderExecution(idStr).catch(() => null),
+        ]);
+        setLines(meas.results.map(m => ({ m, qty: 1, price: '' })));
+        const map: Record<string, string> = {};
+        fabrics.forEach(f => { map[f.id] = f.name; });
+        setFabricNames(map);
+        if (exec) setOrderNum(exec.order_number?.match(/\d+$/)?.[0] ?? exec.order_number ?? '');
+      } catch (e: any) {
+        setError(e?.message ?? 'Не удалось загрузить замеры');
+      } finally { setLoading(false); }
+    })();
+  }, [idStr]);
 
-  const canEdit = primaryRole === 'owner' || primaryRole === 'designer';
+  const total = useMemo(
+    () => lines.reduce((sum, l) => sum + (parseFloat(l.price) || 0) * l.qty, 0),
+    [lines],
+  );
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const depositValue = depositTouched
+    ? (parseFloat(deposit) || 0)
+    : Math.round(total * (parseFloat(prepay) || 0) / 100);
+
+  const setQty = (i: number, delta: number) =>
+    setLines(ls => ls.map((l, idx) => idx === i ? { ...l, qty: Math.max(1, l.qty + delta) } : l));
+  const setPrice = (i: number, v: string) =>
+    setLines(ls => ls.map((l, idx) => idx === i ? { ...l, price: v } : l));
+
+  const fabricLabel = (uuid?: string | null) => (uuid && fabricNames[uuid]) || (uuid ? '—' : '');
+
+  const onSave = async () => {
+    if (lines.length === 0) { Alert.alert('Нет позиций', 'Сначала добавьте замеры'); return; }
+    setSaving(true);
     try {
-      const data = await fetchQuotes(orderId);
-      setQuotes(data.results);
-    } catch (e: unknown) {
-      const msg = e && typeof e === 'object' && 'message' in e
-        ? String((e as { message: string }).message)
-        : 'Не удалось загрузить КП';
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, [orderId]);
-
-  useFocusEffect(useCallback(() => { load(); }, [load]));
-
-  const initFormFromMeasurements = async () => {
-    try {
-      const mData = await fetchMeasurements(orderId);
-      const items: QuoteFormItem[] = mData.results.map(m => ({
-        room_name: m.room_name,
-        window_name: m.window_name || '',
-        window_width_cm: m.width_cm,
-        window_height_cm: m.height_cm,
-        fabric_meters: m.curtain_meters ? String(m.curtain_meters) : '',
-        fabric_cost: '',
-        tulle_meters: m.tulle_meters ? String(m.tulle_meters) : '',
-        tulle_cost: '',
-        sewing_cost: '',
-        installation_price: '',
-        accessories_cost: '',
-        line_total: '',
-      }));
-      setFormItems(items);
-      setShowForm(true);
-    } catch (e: unknown) {
-      Alert.alert('Ошибка', 'Не удалось загрузить замеры для формы');
-    }
-  };
-
-  const updateItem = (index: number, field: keyof QuoteFormItem, value: string) => {
-    setFormItems(prev => {
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
-      // Auto-calculate line_total
-      const item = next[index];
-      const fabricCost = parseFloat(item.fabric_cost) || 0;
-      const tulleCost = parseFloat(item.tulle_cost) || 0;
-      const sewingCost = parseFloat(item.sewing_cost) || 0;
-      const installPrice = parseFloat(item.installation_price) || 0;
-      const accessoriesCost = parseFloat(item.accessories_cost) || 0;
-      const total = fabricCost + tulleCost + sewingCost + installPrice + accessoriesCost;
-      next[index].line_total = total > 0 ? String(total) : '';
-      return next;
-    });
-  };
-
-  const calculateGrandTotal = (): number => {
-    const itemsTotal = formItems.reduce((sum, item) => sum + (parseFloat(item.line_total) || 0), 0);
-    const install = parseFloat(installationCost) || 0;
-    const delivery = parseFloat(deliveryCost) || 0;
-    const discount = parseFloat(discountAmount) || 0;
-    return itemsTotal + install + delivery - discount;
-  };
-
-  const handleSubmit = async () => {
-    const items: QuoteItemPayload[] = formItems.map(item => ({
-      room_name: item.room_name,
-      window_name: item.window_name || undefined,
-      window_width_cm: item.window_width_cm,
-      window_height_cm: item.window_height_cm,
-      fabric_meters: item.fabric_meters ? parseFloat(item.fabric_meters) : undefined,
-      fabric_cost: item.fabric_cost ? parseFloat(item.fabric_cost) : undefined,
-      tulle_meters: item.tulle_meters ? parseFloat(item.tulle_meters) : undefined,
-      tulle_cost: item.tulle_cost ? parseFloat(item.tulle_cost) : undefined,
-      sewing_cost: item.sewing_cost ? parseFloat(item.sewing_cost) : undefined,
-      installation_price: item.installation_price ? parseFloat(item.installation_price) : undefined,
-      accessories_cost: item.accessories_cost ? parseFloat(item.accessories_cost) : undefined,
-      line_total: parseFloat(item.line_total) || 0,
-    }));
-
-    if (items.length === 0 || items.some(i => !i.room_name || i.line_total === undefined)) {
-      Alert.alert('Ошибка', 'Заполните все позиции и итоги');
-      return;
-    }
-
-    const payload: CreateQuotePayload = {
-      order_id: orderId,
-      items,
-      valid_until: validUntil || undefined,
-      discount_amount: discountAmount ? parseFloat(discountAmount) : undefined,
-      installation_cost: installationCost ? parseFloat(installationCost) : undefined,
-      delivery_cost: deliveryCost ? parseFloat(deliveryCost) : undefined,
-      prepayment_percent: prepaymentPercent ? parseFloat(prepaymentPercent) / 100 : undefined,
-    };
-
-    setSubmitting(true);
-    try {
+      const payload: CreateQuotePayload = {
+        order_id: idStr,
+        prepayment_percent: (parseFloat(prepay) || 0) / 100,
+        items: lines.map(l => ({
+          room_name: l.m.room_name,
+          window_name: l.m.window_name,
+          window_width_cm: l.m.width_cm ?? 0,
+          window_height_cm: l.m.height_cm ?? 0,
+          fabric_meters: l.m.curtain_meters ?? 0,
+          tulle_meters: l.m.tulle_meters ?? 0,
+          line_total: (parseFloat(l.price) || 0) * l.qty,
+        })),
+      };
       await createQuote(payload);
-      await load();
-      setShowForm(false);
       Alert.alert('Готово', 'КП создано');
-    } catch (e: unknown) {
-      const msg = e && typeof e === 'object' && 'message' in e
-        ? String((e as { message: string }).message)
-        : 'Не удалось создать КП';
-      Alert.alert('Ошибка', msg);
-    } finally {
-      setSubmitting(false);
-    }
+      router.back();
+    } catch (e: any) {
+      Alert.alert('Ошибка', e?.message ?? 'Не удалось создать КП');
+    } finally { setSaving(false); }
   };
 
-  const handleGeneratePdf = async (quoteId: string) => {
-    try {
-      const res = await generateQuotePdf(quoteId);
-      if (res.pdf_url) {
-        const baseUrl = 'http://10.0.2.2:8000';
-        await Linking.openURL(`${baseUrl}${res.pdf_url}`);
-      } else {
-        Alert.alert('Ошибка', 'PDF не сгенерирован');
-      }
-    } catch (e: unknown) {
-      const msg = e && typeof e === 'object' && 'message' in e
-        ? String((e as { message: string }).message)
-        : 'Ошибка генерации PDF';
-      Alert.alert('Ошибка', msg);
-    }
-  };
+  if (loading) return <View style={s.centered}><ActivityIndicator color="#60CCED" size="large" /></View>;
+  if (error) {
+    return (
+      <View style={s.centered}>
+        <Text style={s.errorText}>{error}</Text>
+        <TouchableOpacity onPress={() => router.back()} style={s.retryBtn}><Text style={s.retryText}>Назад</Text></TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
-    <Screen scrollable={false} withPadding={false}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-          <Text style={styles.back}>← Назад</Text>
+    <View style={s.screen}>
+      <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.6}>
+          <Text style={s.back}>Назад</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Коммерческое предложение</Text>
-      </View>
+        <Text style={s.title}>Заказ №{orderNum}</Text>
 
-      {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.primary[500]} />
+        {lines.length === 0 && <Text style={s.empty}>Нет замеров для расчёта</Text>}
+
+        {lines.map((l, i) => {
+          const dims = l.m.width_cm && l.m.height_cm ? ` (${l.m.width_cm}x${l.m.height_cm})` : '';
+          const curtain = fabricLabel(l.m.curtain_fabric);
+          const tulle = fabricLabel(l.m.tulle_fabric);
+          return (
+            <View key={l.m.id} style={s.card}>
+              <Text style={s.cardRoom}>{l.m.room_name}</Text>
+              <Text style={s.cardLine}>{l.m.window_name}{dims}</Text>
+              {Boolean(curtain) && <Text style={s.cardLine}><Text style={s.b}>Шторы: </Text>{curtain}{l.m.curtain_meters ? ` (${l.m.curtain_meters} м)` : ''}</Text>}
+              {Boolean(tulle) && <Text style={s.cardLine}><Text style={s.b}>Тюль: </Text>{tulle}{l.m.tulle_meters ? ` (${l.m.tulle_meters} м)` : ''}</Text>}
+              {Boolean(l.m.mounting_type) && <Text style={s.cardLine}><Text style={s.b}>Тип крепления: </Text>{l.m.mounting_type}</Text>}
+              {Boolean(l.m.notes) && <Text style={s.cardLine}><Text style={s.b}>Комментарий: </Text>{l.m.notes}</Text>}
+
+              <View style={s.cardControls}>
+                <View style={s.qtyRow}>
+                  <Text style={s.b}>Количество: </Text>
+                  <TouchableOpacity style={s.qtyBtn} onPress={() => setQty(i, -1)}><Icon name="minus" size={16} color="#475569" /></TouchableOpacity>
+                  <Text style={s.qtyVal}>{l.qty}</Text>
+                  <TouchableOpacity style={s.qtyBtn} onPress={() => setQty(i, +1)}><Icon name="plus" size={16} color="#475569" /></TouchableOpacity>
+                </View>
+                <View style={s.priceRow}>
+                  <Text style={s.b}>Стоимость: </Text>
+                  <TextInput style={s.priceInput} value={l.price} onChangeText={(v) => setPrice(i, v)} keyboardType="numeric" placeholder="0" placeholderTextColor="#94A3B8" />
+                  <Text style={s.cardLine}> ₸</Text>
+                </View>
+              </View>
+            </View>
+          );
+        })}
+
+        {/* Totals */}
+        <View style={s.totalsBox}>
+          <Text style={s.totalLabel}>Итоговая стоимость:</Text>
+          <Text style={s.totalValue}>{money(total)} ₸</Text>
+
+          <View style={s.prepayRow}>
+            <Text style={s.prepayLabel}>Размер предоплаты:</Text>
+            <TextInput style={s.prepayInput} value={prepay} onChangeText={setPrepay} keyboardType="numeric" />
+            <Text style={s.prepayUnit}>%</Text>
+          </View>
+
+          <View style={s.prepayRow}>
+            <Text style={s.prepayLabel}>Внесено:</Text>
+            <TextInput
+              style={s.depositInput}
+              value={depositTouched ? deposit : String(depositValue)}
+              onChangeText={(v) => { setDepositTouched(true); setDeposit(v); }}
+              keyboardType="numeric"
+            />
+            <Text style={s.prepayUnit}>₸</Text>
+          </View>
         </View>
-      ) : error ? (
-        <View style={styles.centered}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={load} style={{ marginTop: spacing.base }}>
-            <Text style={styles.retryText}>Повторить</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {!showForm && quotes.length === 0 && (
-            <View style={styles.emptyBox}>
-              <Text style={styles.emptyText}>КП ещё не создано</Text>
-              {canEdit && (
-                <TouchableOpacity style={styles.addBtn} onPress={initFormFromMeasurements} activeOpacity={0.8}>
-                  <Text style={styles.addBtnText}>+ Создать КП</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
 
-          {!showForm && quotes.map(q => (
-            <View key={q.id} style={styles.card}>
-              <Text style={styles.cardTitle}>{q.quote_number}</Text>
-              <Text style={styles.cardRow}>Статус: {q.status_label}</Text>
-              <Text style={styles.cardRow}>Клиент: {q.customer_name}</Text>
-              <Text style={styles.cardRow}>Подытог: {formatMoney(q.subtotal)} ₽</Text>
-              {parseFloat(q.discount_amount) > 0 && <Text style={styles.cardRow}>Скидка: -{formatMoney(q.discount_amount)} ₽</Text>}
-              {parseFloat(q.delivery_cost) > 0 && <Text style={styles.cardRow}>Доставка: +{formatMoney(q.delivery_cost)} ₽</Text>}
-              {parseFloat(q.installation_cost) > 0 && <Text style={styles.cardRow}>Монтаж: +{formatMoney(q.installation_cost)} ₽</Text>}
-              <Text style={styles.cardTotal}>Итого: {formatMoney(q.total)} ₽</Text>
-              <Text style={styles.cardRow}>Предоплата ({Math.round(parseFloat(q.prepayment_percent) * 100)}%): {formatMoney(parseFloat(q.total) * parseFloat(q.prepayment_percent))} ₽</Text>
-
-              {q.items.map((item, i) => (
-                <View key={item.id ?? i} style={styles.itemRow}>
-                  <Text style={styles.itemTitle}>{item.room_name}{item.window_name ? ` — ${item.window_name}` : ''}</Text>
-                  <Text style={styles.itemDetail}>{item.window_width_cm}×{item.window_height_cm} см</Text>
-                  {parseFloat(item.fabric_cost) > 0 && <Text style={styles.itemDetail}>Ткань: {formatMoney(item.fabric_cost)} ₽</Text>}
-                  {parseFloat(item.tulle_cost) > 0 && <Text style={styles.itemDetail}>Тюль: {formatMoney(item.tulle_cost)} ₽</Text>}
-                  {parseFloat(item.sewing_cost) > 0 && <Text style={styles.itemDetail}>Пошив: {formatMoney(item.sewing_cost)} ₽</Text>}
-                  {parseFloat(item.installation_price) > 0 && <Text style={styles.itemDetail}>Монтаж: {formatMoney(item.installation_price)} ₽</Text>}
-                  <Text style={styles.itemTotal}>Позиция: {formatMoney(item.line_total)} ₽</Text>
-                </View>
-              ))}
-
-              {canEdit && (
-                <TouchableOpacity
-                  style={[styles.pdfBtn, q.pdf_generated && styles.pdfBtnGenerated]}
-                  onPress={() => handleGeneratePdf(q.id)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.pdfBtnText}>
-                    {q.pdf_generated ? '📄 Перегенерировать PDF' : '📄 Сгенерировать PDF'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ))}
-
-          {showForm && (
-            <View style={styles.formCard}>
-              <Text style={styles.formTitle}>Новое КП</Text>
-
-              {formItems.map((item, idx) => (
-                <View key={idx} style={styles.itemFormCard}>
-                  <Text style={styles.itemFormTitle}>{item.room_name}{item.window_name ? ` — ${item.window_name}` : ''}</Text>
-                  <Text style={styles.itemFormSubtitle}>{item.window_width_cm}×{item.window_height_cm} см</Text>
-
-                  <View style={styles.row}>
-                    <View style={[styles.field, { flex: 1 }]}>
-                      <Text style={styles.label}>Метраж ткани</Text>
-                      <TextInput style={styles.input} value={item.fabric_meters} onChangeText={v => updateItem(idx, 'fabric_meters', v)} keyboardType="numeric" placeholder="м" />
-                    </View>
-                    <View style={[styles.field, { flex: 1, marginLeft: spacing.base }]}>
-                      <Text style={styles.label}>Цена ткани</Text>
-                      <TextInput style={styles.input} value={item.fabric_cost} onChangeText={v => updateItem(idx, 'fabric_cost', v)} keyboardType="numeric" placeholder="₽" />
-                    </View>
-                  </View>
-
-                  <View style={styles.row}>
-                    <View style={[styles.field, { flex: 1 }]}>
-                      <Text style={styles.label}>Метраж тюли</Text>
-                      <TextInput style={styles.input} value={item.tulle_meters} onChangeText={v => updateItem(idx, 'tulle_meters', v)} keyboardType="numeric" placeholder="м" />
-                    </View>
-                    <View style={[styles.field, { flex: 1, marginLeft: spacing.base }]}>
-                      <Text style={styles.label}>Цена тюли</Text>
-                      <TextInput style={styles.input} value={item.tulle_cost} onChangeText={v => updateItem(idx, 'tulle_cost', v)} keyboardType="numeric" placeholder="₽" />
-                    </View>
-                  </View>
-
-                  <View style={styles.row}>
-                    <View style={[styles.field, { flex: 1 }]}>
-                      <Text style={styles.label}>Пошив</Text>
-                      <TextInput style={styles.input} value={item.sewing_cost} onChangeText={v => updateItem(idx, 'sewing_cost', v)} keyboardType="numeric" placeholder="₽" />
-                    </View>
-                    <View style={[styles.field, { flex: 1, marginLeft: spacing.base }]}>
-                      <Text style={styles.label}>Монтаж</Text>
-                      <TextInput style={styles.input} value={item.installation_price} onChangeText={v => updateItem(idx, 'installation_price', v)} keyboardType="numeric" placeholder="₽" />
-                    </View>
-                  </View>
-
-                  <View style={styles.field}>
-                    <Text style={styles.label}>Аксессуары</Text>
-                    <TextInput style={styles.input} value={item.accessories_cost} onChangeText={v => updateItem(idx, 'accessories_cost', v)} keyboardType="numeric" placeholder="₽" />
-                  </View>
-
-                  <Text style={styles.itemAutoTotal}>Итого позиции: {formatMoney(item.line_total)} ₽</Text>
-                </View>
-              ))}
-
-              <View style={[styles.field, { marginTop: spacing.base }]}>
-                <Text style={styles.label}>Срок действия (YYYY-MM-DD)</Text>
-                <TextInput style={styles.input} value={validUntil} onChangeText={setValidUntil} placeholder="2026-12-31" />
-              </View>
-
-              <View style={styles.row}>
-                <View style={[styles.field, { flex: 1 }]}>
-                  <Text style={styles.label}>Скидка (₽)</Text>
-                  <TextInput style={styles.input} value={discountAmount} onChangeText={setDiscountAmount} keyboardType="numeric" placeholder="0" />
-                </View>
-                <View style={[styles.field, { flex: 1, marginLeft: spacing.base }]}>
-                  <Text style={styles.label}>Доставка (₽)</Text>
-                  <TextInput style={styles.input} value={deliveryCost} onChangeText={setDeliveryCost} keyboardType="numeric" placeholder="0" />
-                </View>
-              </View>
-
-              <View style={styles.row}>
-                <View style={[styles.field, { flex: 1 }]}>
-                  <Text style={styles.label}>Монтаж общий (₽)</Text>
-                  <TextInput style={styles.input} value={installationCost} onChangeText={setInstallationCost} keyboardType="numeric" placeholder="0" />
-                </View>
-                <View style={[styles.field, { flex: 1, marginLeft: spacing.base }]}>
-                  <Text style={styles.label}>Предоплата (%)</Text>
-                  <TextInput style={styles.input} value={prepaymentPercent} onChangeText={setPrepaymentPercent} keyboardType="numeric" placeholder="50" />
-                </View>
-              </View>
-
-              <View style={styles.grandTotalBox}>
-                <Text style={styles.grandTotalLabel}>Итоговая сумма:</Text>
-                <Text style={styles.grandTotalValue}>{formatMoney(calculateGrandTotal())} ₽</Text>
-              </View>
-
-              <View style={styles.formActions}>
-                <TouchableOpacity
-                  style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
-                  onPress={handleSubmit}
-                  disabled={submitting}
-                  activeOpacity={0.8}
-                >
-                  {submitting ? (
-                    <ActivityIndicator color={colors.white} size="small" />
-                  ) : (
-                    <Text style={styles.submitBtnText}>Сохранить КП</Text>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={() => setShowForm(false)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.cancelBtnText}>Отмена</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-        </ScrollView>
-      )}
-    </Screen>
+        <TouchableOpacity style={[s.btn, lines.length === 0 && s.btnDisabled]} onPress={onSave} disabled={lines.length === 0 || saving} activeOpacity={0.85}>
+          {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Сохранить</Text>}
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
-    backgroundColor: '#fff',
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#e2e8f0',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.base,
+const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#FFFFFF' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', padding: 16 },
+  errorText: { fontSize: 14, color: '#EF4444', textAlign: 'center', marginBottom: 12 },
+  retryBtn: { paddingHorizontal: 20, paddingVertical: 8, backgroundColor: '#F4F4F4', borderRadius: 8 },
+  retryText: { fontSize: 14, color: '#0F172A', fontFamily: 'TTNormsPro-Medium' },
+
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 16 : 20,
+    paddingBottom: 32,
   },
-  back: { fontSize: typography.sizes.base, color: colors.primary[500] },
-  title: { fontSize: typography.sizes.lg, fontWeight: '500', color: colors.text, flex: 1 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.base },
-  errorText: { fontSize: typography.sizes.base, color: colors.danger.DEFAULT, textAlign: 'center' },
-  retryText: { fontSize: typography.sizes.base, color: colors.primary[500], textDecorationLine: 'underline' },
-  scrollContent: { padding: spacing.base, paddingBottom: 60, gap: spacing.sm },
-  emptyBox: {
-    backgroundColor: '#fff',
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    alignItems: 'center',
-    gap: spacing.base,
-  },
-  emptyText: { fontSize: typography.sizes.base, color: colors.textMuted },
-  addBtn: {
-    backgroundColor: colors.primary[500],
-    borderRadius: radius.lg,
-    padding: spacing.base,
-    alignItems: 'center',
-    width: '100%',
-  },
-  addBtnText: { color: colors.white, fontSize: typography.sizes.base, fontWeight: '500' },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: radius.lg,
-    padding: spacing.base,
-    gap: spacing.xs,
-  },
-  cardTitle: { fontSize: typography.sizes.lg, fontWeight: '500', color: colors.text },
-  cardRow: { fontSize: typography.sizes.sm, color: colors.textMuted },
-  cardTotal: { fontSize: typography.sizes.base, fontWeight: '600', color: colors.text, marginTop: spacing.xs },
-  itemRow: {
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    marginTop: spacing.sm,
-    gap: 2,
-  },
-  itemTitle: { fontSize: typography.sizes.base, fontWeight: '500', color: colors.text },
-  itemDetail: { fontSize: typography.sizes.sm, color: colors.textMuted },
-  itemTotal: { fontSize: typography.sizes.sm, fontWeight: '500', color: colors.text, marginTop: 2 },
-  pdfBtn: {
-    backgroundColor: colors.primary[500],
-    borderRadius: radius.md,
-    padding: spacing.md,
-    alignItems: 'center',
-    marginTop: spacing.sm,
-  },
-  pdfBtnGenerated: { backgroundColor: colors.success.DEFAULT },
-  pdfBtnText: { color: colors.white, fontSize: typography.sizes.base, fontWeight: '500' },
-  formCard: {
-    backgroundColor: '#fff',
-    borderRadius: radius.lg,
-    padding: spacing.base,
-    gap: spacing.base,
-  },
-  formTitle: { fontSize: typography.sizes.lg, fontWeight: '500', color: colors.text },
-  itemFormCard: {
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    padding: spacing.base,
-    gap: spacing.sm,
-  },
-  itemFormTitle: { fontSize: typography.sizes.base, fontWeight: '500', color: colors.text },
-  itemFormSubtitle: { fontSize: typography.sizes.sm, color: colors.textMuted },
-  field: { gap: spacing.xs },
-  label: { fontSize: typography.sizes.sm, fontWeight: '500', color: colors.textMuted },
-  input: {
-    backgroundColor: colors.background,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
-    fontSize: typography.sizes.base,
-    color: colors.text,
-  },
-  row: { flexDirection: 'row' },
-  itemAutoTotal: { fontSize: typography.sizes.sm, fontWeight: '600', color: colors.text, marginTop: spacing.xs },
-  grandTotalBox: {
-    backgroundColor: colors.primary[50],
-    borderRadius: radius.md,
-    padding: spacing.base,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  grandTotalLabel: { fontSize: typography.sizes.base, fontWeight: '500', color: colors.text },
-  grandTotalValue: { fontSize: typography.sizes.lg, fontWeight: '600', color: colors.primary[500] },
-  formActions: { flexDirection: 'row', gap: spacing.base, marginTop: spacing.sm },
-  submitBtn: {
-    flex: 1,
-    backgroundColor: colors.primary[500],
-    borderRadius: 10,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  submitBtnDisabled: { opacity: 0.6 },
-  submitBtnText: { color: colors.white, fontSize: typography.sizes.base, fontWeight: '500' },
-  cancelBtn: {
-    flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: 10,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cancelBtnText: { color: colors.textMuted, fontSize: typography.sizes.base },
+  back: { fontSize: 16, color: '#94A3B8', fontFamily: 'TTNormsPro-Regular', marginBottom: 10 },
+  title: { fontSize: 26, fontFamily: 'TTNormsPro-Bold', color: '#0F172A', textAlign: 'center', marginBottom: 18 },
+  empty: { fontSize: 15, color: '#94A3B8', textAlign: 'center', marginTop: 24 },
+
+  card: { backgroundColor: '#FAFBFC', borderRadius: 16, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: '#EEF1F4' },
+  cardRoom: { fontSize: 19, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', marginBottom: 2 },
+  cardLine: { fontSize: 16, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', lineHeight: 24 },
+  b: { fontFamily: 'TTNormsPro-Bold' },
+  cardControls: { marginTop: 12, gap: 10 },
+  qtyRow: { flexDirection: 'row', alignItems: 'center' },
+  qtyBtn: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#E9E9E9', alignItems: 'center', justifyContent: 'center', marginHorizontal: 6 },
+  qtyVal: { fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Medium', minWidth: 20, textAlign: 'center' },
+  priceRow: { flexDirection: 'row', alignItems: 'center' },
+  priceInput: { minWidth: 90, backgroundColor: '#E9E9E9', borderRadius: 8, height: 40, paddingHorizontal: 12, fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Bold' },
+
+  totalsBox: { marginTop: 10, marginBottom: 8 },
+  totalLabel: { fontSize: 20, color: '#0F172A', fontFamily: 'TTNormsPro-Regular' },
+  totalValue: { fontSize: 22, color: '#0F172A', fontFamily: 'TTNormsPro-Bold', marginTop: 4 },
+  prepayRow: { flexDirection: 'row', alignItems: 'center', marginTop: 18 },
+  prepayLabel: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Regular' },
+  prepayInput: { width: 76, backgroundColor: '#E9E9E9', borderRadius: 10, height: 44, marginLeft: 12, paddingHorizontal: 14, fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Regular' },
+  depositInput: { flex: 1, backgroundColor: '#E9E9E9', borderRadius: 10, height: 44, marginLeft: 12, paddingHorizontal: 14, fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Regular' },
+  prepayUnit: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', marginLeft: 10 },
+
+  btn: { backgroundColor: '#60CCED', borderRadius: 12, height: 52, alignItems: 'center', justifyContent: 'center', marginTop: 24 },
+  btnDisabled: { opacity: 0.5 },
+  btnText: { color: '#FFFFFF', fontSize: 17, fontFamily: 'TTNormsPro-Regular' },
 });

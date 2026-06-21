@@ -1,278 +1,186 @@
 import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Platform, StatusBar } from 'react-native';
+import {
+  View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator,
+  StyleSheet, Platform, StatusBar,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuthContext } from '../../src/context/AuthContext';
 import {
-  fetchOrderExecution,
-  type OrderExecution,
+  fetchOrderExecution, fetchQuotes, deleteOrder,
+  type OrderExecution, type QuoteDTO,
 } from '../../src/api/orders';
-import { OrderSummaryCard } from '../../src/components/orders/OrderSummaryCard';
-import { OrderMeasurements } from '../../src/components/orders/OrderMeasurements';
-import { OrderRoleActions } from '../../src/components/orders/OrderRoleActions';
-import { colors } from '../../src/theme/colors';
-import { spacing, radius } from '../../src/theme/spacing';
-import { typography } from '../../src/theme/typography';
+import { IconButton, Icon } from '../../src/components/Icon';
 
-function Blocker({ text }: { text: string }) {
-  return (
-    <View style={styles.blockerRow}>
-      <Text style={styles.blockerText}>⚠ {text}</Text>
-    </View>
-  );
+function fmtDate(d?: string | null): string {
+  if (!d) return '—';
+  const p = d.split('T')[0].split('-');
+  if (p.length !== 3) return d;
+  return `${p[2]}.${p[1]}.${p[0]}`;
+}
+
+function fmtMoney(v: string | number | null | undefined): string {
+  const n = typeof v === 'string' ? parseFloat(v) : (v ?? 0);
+  if (!n || isNaN(n)) return '0';
+  return Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ');
+}
+
+function addressText(customer: OrderExecution['customer']): string {
+  const a = customer?.address;
+  if (!a) return 'город, улица, дом, квартира, примечание';
+  if (typeof a === 'string') return a || 'город, улица, дом, квартира, примечание';
+  return [a.city, a.street, a.building, a.apartment].filter(Boolean).join(', ') || 'город, улица, дом, квартира, примечание';
 }
 
 export default function OrderDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const idStr = String(id);
   const { primaryRole } = useAuthContext();
   const [data, setData] = useState<OrderExecution | null>(null);
+  const [quote, setQuote] = useState<QuoteDTO | null>(null);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const exec = await fetchOrderExecution(id as string);
+      const exec = await fetchOrderExecution(idStr);
       setData(exec);
-    } catch (e: unknown) {
-      const msg = e && typeof e === 'object' && 'message' in e
-        ? String((e as { message: string }).message)
-        : 'Не удалось загрузить заказ';
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
+      try {
+        const q = await fetchQuotes(idStr);
+        setQuote(q.results?.[0] ?? null);
+      } catch { setQuote(null); }
+    } catch (e: any) {
+      setError(e?.message ?? 'Не удалось загрузить заказ');
+    } finally { setLoading(false); }
   }, [id]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const doAction = useCallback(async (
-    action: () => Promise<unknown>,
-    successMsg: string,
-  ) => {
-    setActionLoading(true);
-    try {
-      await action();
-      Alert.alert('Готово', successMsg);
-      await load();
-    } catch (e: unknown) {
-      const msg = e && typeof e === 'object' && 'message' in e
-        ? String((e as { message: string }).message)
-        : 'Ошибка действия';
-      Alert.alert('Ошибка', msg);
-    } finally {
-      setActionLoading(false);
-    }
-  }, [load]);
+  const onDelete = () => {
+    Alert.alert('Удалить заказ?', `Заказ ${data?.order_number ?? ''}`, [
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: 'Удалить', style: 'destructive',
+        onPress: async () => {
+          try { await deleteOrder(idStr); router.back(); }
+          catch (e: any) { Alert.alert('Ошибка', e?.message ?? 'Не удалось удалить'); }
+        },
+      },
+    ]);
+  };
 
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={colors.primary[500]} />
-      </View>
-    );
-  }
-
+  if (loading) return <View style={s.centered}><ActivityIndicator color="#60CCED" size="large" /></View>;
   if (error || !data) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>{error ?? 'Заказ не найден'}</Text>
-        <TouchableOpacity onPress={load} style={{ marginTop: spacing.base }}>
-          <Text style={styles.retryText}>Повторить</Text>
-        </TouchableOpacity>
+      <View style={s.centered}>
+        <Text style={s.errorText}>{error ?? 'Заказ не найден'}</Text>
+        <TouchableOpacity onPress={load} style={s.retryBtn}><Text style={s.retryText}>Повторить</Text></TouchableOpacity>
       </View>
     );
   }
 
-  const idStr = id as string;
+  const num = data.order_number?.match(/\d+$/)?.[0] ?? data.order_number;
+  const measurements = data.measurements ?? [];
+
+  // price per window from quote items (match by room+window)
+  const priceFor = (room?: string, window?: string): string | null => {
+    const it = quote?.items?.find(q => q.room_name === room && q.window_name === window);
+    return it ? it.line_total : null;
+  };
 
   return (
-    <View style={styles.root}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-          <Text style={styles.back}>‹</Text>
+    <View style={s.screen}>
+      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.6}>
+          <Text style={s.back}>Назад</Text>
         </TouchableOpacity>
-        <Text style={styles.orderNum}>{data.order_number}</Text>
-        <View style={{width:36}}/>
-      </View>
+        <Text style={s.title}>Заказ №{num}</Text>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <View style={s.actionsRow}>
+          <IconButton name="edit" size={40} onPress={() => router.push(`/orders/${idStr}/edit`)} />
+          <IconButton name="trash" size={40} onPress={onDelete} />
+        </View>
 
-        {/* Blockers */}
-        {data.blockers?.map((b, i) => <Blocker key={i} text={b} />)}
+        {/* Address card */}
+        <View style={s.addrCard}>
+          <Text style={s.addrLine}><Text style={s.addrLabel}>Адрес: </Text>{addressText(data.customer)}</Text>
+          <Text style={[s.addrLine, { marginTop: 14 }]}><Text style={s.addrLabel}>Дата замера: </Text>{fmtDate(data.measurement_date)}</Text>
+        </View>
 
-        <OrderSummaryCard data={data} />
-        <OrderMeasurements data={data} />
-
-        {/* Edit link — owner and designer */}
-        {(primaryRole === 'owner' || primaryRole === 'designer') && (
-          <TouchableOpacity
-            style={styles.measurementsLink}
-            onPress={() => router.push(`/orders/${idStr}/edit`)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.measurementsLinkText}>Редактировать</Text>
-            <Text style={styles.measurementsLinkArrow}>›</Text>
+        {/* Measurements section */}
+        <Text style={s.sectionTitle}>Замеры</Text>
+        <View style={s.toolRow}>
+          <TouchableOpacity style={s.kpBtn} onPress={() => router.push(`/orders/${idStr}/quote`)} activeOpacity={0.85}>
+            <Icon name="doc" size={18} color="#fff" />
+            <Text style={s.kpBtnText}>Создать КП</Text>
           </TouchableOpacity>
-        )}
-
-        {/* Measurements link */}
-        {(primaryRole === 'owner' || primaryRole === 'designer') && (
-          <TouchableOpacity
-            style={styles.measurementsLink}
-            onPress={() => router.push(`/orders/${idStr}/measurements`)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.measurementsLinkText}>Замеры</Text>
-            <Text style={styles.measurementsLinkArrow}>›</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Quote link */}
-        {(primaryRole === 'owner' || primaryRole === 'designer') && (
-          <TouchableOpacity
-            style={styles.measurementsLink}
-            onPress={() => router.push(`/orders/${idStr}/quote`)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.measurementsLinkText}>Коммерческое предложение</Text>
-            <Text style={styles.measurementsLinkArrow}>›</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Materials link — visible to all */}
-        <TouchableOpacity
-          style={styles.measurementsLink}
-          onPress={() => router.push(`/orders/${idStr}/materials`)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.measurementsLinkText}>Материалы</Text>
-          <Text style={styles.measurementsLinkArrow}>›</Text>
-        </TouchableOpacity>
-
-        {/* Photos link — installation and owner */}
-        {(primaryRole === 'installation' || primaryRole === 'owner') && (
-          <TouchableOpacity
-            style={styles.measurementsLink}
-            onPress={() => router.push(`/orders/${idStr}/photos`)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.measurementsLinkText}>Фотоотчёт</Text>
-            <Text style={styles.measurementsLinkArrow}>›</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Act link — installation and owner */}
-        {(primaryRole === 'installation' || primaryRole === 'owner') && (
-          <TouchableOpacity
-            style={styles.measurementsLink}
-            onPress={() => router.push(`/orders/${idStr}/act`)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.measurementsLinkText}>АВР (Акт выполненных работ)</Text>
-            <Text style={styles.measurementsLinkArrow}>›</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Complete order link — owner only */}
-        {primaryRole === 'owner' && data.actions?.can_complete && (
-          <TouchableOpacity
-            style={[styles.measurementsLink, { backgroundColor: '#ecfdf5' }]}
-            onPress={() => router.push(`/orders/${idStr}/complete`)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.measurementsLinkText, { color: '#059669' }]}>Завершить заказ</Text>
-            <Text style={styles.measurementsLinkArrow}>›</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Warnings */}
-        {data.warnings?.length > 0 && (
-          <View style={styles.warningsBox}>
-            {data.warnings.map((w, i) => (
-              <Text key={i} style={styles.warningText}>• {w}</Text>
-            ))}
+          <View style={s.toolIcons}>
+            <IconButton name="plus" size={38} onPress={() => router.push(`/orders/measurement-new?orderId=${idStr}`)} />
+            <IconButton name="tenge" size={38} onPress={() => router.push(`/orders/${idStr}/quote`)} />
+            <IconButton name="search" size={38} onPress={() => {}} />
           </View>
-        )}
+        </View>
 
-        {/* Role-based actions */}
-        {actionLoading ? (
-          <View style={styles.actionsBox}>
-            <ActivityIndicator color={colors.primary[500]} />
-          </View>
+        {measurements.length === 0 ? (
+          <Text style={s.empty}>Замеры ещё не добавлены</Text>
         ) : (
-          <OrderRoleActions
-            idStr={idStr}
-            data={data}
-            role={primaryRole}
-            doAction={doAction}
-          />
+          measurements.map((m) => {
+            const dims = m.width_cm && m.height_cm ? ` (${m.width_cm}x${m.height_cm})` : '';
+            const price = priceFor(m.room_name, m.window_name);
+            return (
+              <TouchableOpacity key={m.id} style={s.mRow} activeOpacity={0.6}
+                onPress={() => router.push(`/orders/${idStr}/measurements`)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.mRoom}>{m.room_name}</Text>
+                  <Text style={s.mWindow}>{m.window_name}{dims}</Text>
+                </View>
+                {price != null && <Text style={s.mPrice}>{fmtMoney(price)} ₸</Text>}
+                <View style={s.mMenu}><Icon name="dots" size={20} color="#94A3B8" /></View>
+              </TouchableOpacity>
+            );
+          })
         )}
-
       </ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F2F4F7' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
-  errorText: { fontSize: 14, color: '#EF4444', textAlign: 'center' },
-  retryText: { fontSize: 14, color: '#60CCED', textDecorationLine: 'underline' },
-  header: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 8 : 56,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#FFFFFF' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', padding: 16 },
+  errorText: { fontSize: 14, color: '#EF4444', textAlign: 'center', marginBottom: 12 },
+  retryBtn: { paddingHorizontal: 20, paddingVertical: 8, backgroundColor: '#F4F4F4', borderRadius: 8 },
+  retryText: { fontSize: 14, color: '#0F172A', fontFamily: 'TTNormsPro-Medium' },
+
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 16 : 20,
+    paddingBottom: 32,
   },
-  back: { fontSize: 26, color: '#60CCED', lineHeight: 30, width: 36 },
-  orderNum: { fontSize: 17, fontFamily: 'TTNormsPro-Bold', color: '#0F172A' },
-  backLabel: { fontSize: 12, color: '#94A3B8', fontFamily: 'TTNormsPro-Regular', width: 36, textAlign: 'right' },
-  scroll: { flex: 1 },
-  scrollContent: { padding: 14, paddingBottom: 60 },
-  blockerRow: {
-    backgroundColor: '#FEF2F2',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  back: { fontSize: 16, color: '#94A3B8', fontFamily: 'TTNormsPro-Regular', marginBottom: 10 },
+  title: { fontSize: 28, fontFamily: 'TTNormsPro-Bold', color: '#0F172A', textAlign: 'center' },
+  actionsRow: { flexDirection: 'row', gap: 16, justifyContent: 'flex-end', marginTop: 12 },
+
+  addrCard: { backgroundColor: '#F1F3F5', borderRadius: 16, padding: 20, marginTop: 18 },
+  addrLine: { fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', lineHeight: 24 },
+  addrLabel: { fontFamily: 'TTNormsPro-Bold' },
+
+  sectionTitle: { fontSize: 28, fontFamily: 'TTNormsPro-Bold', color: '#0F172A', marginTop: 26 },
+  toolRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, marginBottom: 8 },
+  kpBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#60CCED', borderRadius: 10, paddingHorizontal: 16, height: 40 },
+  kpBtnText: { color: '#FFFFFF', fontSize: 15, fontFamily: 'TTNormsPro-Regular' },
+  toolIcons: { flexDirection: 'row', gap: 12 },
+
+  empty: { fontSize: 15, color: '#94A3B8', fontFamily: 'TTNormsPro-Regular', textAlign: 'center', marginTop: 24 },
+  mRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#EEF1F4',
   },
-  blockerText: { fontSize: 13, color: '#DC2626', fontFamily: 'TTNormsPro-Regular', flex: 1 },
-  warningsBox: {
-    backgroundColor: '#FFFBEB',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 8,
-  },
-  warningText: { fontSize: 13, color: '#92400E', marginBottom: 2, fontFamily: 'TTNormsPro-Regular' },
-  actionsBox: { paddingVertical: 8, gap: 8 },
-  measurementsLink: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  measurementsLinkText: { fontSize: 15, fontFamily: 'TTNormsPro-Medium', color: '#0F172A' },
-  measurementsLinkArrow: { fontSize: 20, color: '#60CCED' },
+  mRoom: { fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Regular' },
+  mWindow: { fontSize: 16, color: '#475569', fontFamily: 'TTNormsPro-Regular', marginTop: 2 },
+  mPrice: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Bold' },
+  mMenu: { width: 22, alignItems: 'center' },
 });

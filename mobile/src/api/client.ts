@@ -140,6 +140,10 @@ export class ApiClient {
     return this.request<T>(endpoint, { method: 'PATCH', body: JSON.stringify(body) });
   }
 
+  public async del<T>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, { method: 'DELETE' });
+  }
+
   public getBaseUrl(): string {
     return this.baseUrl;
   }

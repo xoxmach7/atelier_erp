@@ -22,6 +22,9 @@ export interface Order {
   balance_due: string;
   created_at: string;
   planned_completion: string | null;
+  designer_name?: string;
+  material_readiness?: string;
+  ui_badge?: { color: 'red' | 'yellow' | 'green' | 'gray'; label: string };
 }
 
 export interface OrdersPage {

@@ -5,9 +5,10 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { EmptyState } from '../../src/components/EmptyState';
+import { IconButton, Icon } from '../../src/components/Icon';
 import { useOrders } from '../../src/hooks/useOrder';
 import { useAuthContext } from '../../src/context/AuthContext';
-import { getStatusDotColor, getStatusLabel } from '../../src/utils/orderLabels';
+import { getStatusDotColor } from '../../src/utils/orderLabels';
 import type { Order } from '../../src/types/order';
 
 const STATUS_FILTERS = [
@@ -20,118 +21,110 @@ const STATUS_FILTERS = [
   { key: 'waiting_final_payment', label: 'Оплата' },
 ] as const;
 
-function formatDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return '';
-  const parts = dateStr.split('T')[0].split('-');
-  if (parts.length !== 3) return dateStr;
-  const [, month, day] = parts;
-  return `${day}.${month}`;
+const BADGE_HEX: Record<string, string> = {
+  red: '#EF4444', yellow: '#EAB308', green: '#22C55E', gray: '#CBD5E1',
+};
+
+function dotColor(order: Order): string {
+  if (order.ui_badge?.color && BADGE_HEX[order.ui_badge.color]) return BADGE_HEX[order.ui_badge.color];
+  return getStatusDotColor(order.status);
 }
 
-function fmtMoney(v: string | number | null | undefined): string {
-  if (!v) return '';
-  const n = typeof v === 'string' ? parseFloat(v) : v;
-  if (!n || isNaN(n)) return '';
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + ' млн';
-  if (n >= 1_000) return (n / 1_000).toFixed(0) + ' тыс';
-  return String(n);
+function orderNum(order: Order): string {
+  const m = order.order_number?.match(/\d+$/);
+  return m ? m[0] : (order.order_number ?? '—');
+}
+
+function fmtDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+  const p = dateStr.split('T')[0].split('-');
+  if (p.length !== 3) return dateStr;
+  const [y, m, d] = p;
+  return `${d}.${m}.${y.slice(2)}`;
 }
 
 // ─── Order Card ───────────────────────────────────────────────────────────────
 
-function OrderCard({ order, onPress }: { order: Order; onPress: () => void }) {
-  const dotColor = getStatusDotColor(order.status);
-  const numMatch = order.order_number?.match(/\d+$/);
-  const num = numMatch ? numMatch[0] : order.order_number ?? '—';
-  const surname = order.customer_name?.split(' ')[0] ?? '';
-  const date = formatDate(order.planned_completion ?? order.created_at);
-
+function OrderCard({ order, showMenu, onPress, onMenu }: {
+  order: Order; showMenu: boolean; onPress: () => void; onMenu?: () => void;
+}) {
+  const designer = order.designer_name?.split(' ')[0] ?? '—';
   return (
-    <TouchableOpacity style={card.wrap} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity style={card.wrap} onPress={onPress} activeOpacity={0.6}>
       <View style={card.content}>
-        <Text style={card.title}>№{num} [{surname}]</Text>
-        <Text style={card.sub}>{date}</Text>
-        {Boolean(order.customer_name) && (
-          <Text style={card.designer}>Дизайнер: {order.customer_name?.split(' ')[0] ?? '—'}</Text>
-        )}
+        <Text style={card.title}>№{orderNum(order)} | {order.customer_name}</Text>
+        <Text style={card.line}><Text style={card.lineLabel}>Создан: </Text>{fmtDate(order.created_at)}</Text>
+        <Text style={card.line}><Text style={card.lineLabel}>Дизайнер: </Text>{designer}</Text>
       </View>
-      <View style={[card.dot, { backgroundColor: dotColor }]} />
+      <View style={[card.dot, { backgroundColor: dotColor(order) }]} />
+      {showMenu && (
+        <TouchableOpacity onPress={onMenu} style={card.menuBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Icon name="dots" size={20} color="#94A3B8" />
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   );
 }
 
 const card = StyleSheet.create({
   wrap: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
+    backgroundColor: '#FAFBFC',
+    paddingVertical: 18,
+    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-    marginBottom: 8,
+    gap: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF1F4',
+    minHeight: 98,
   },
-  dot: { width: 14, height: 14, borderRadius: 7, flexShrink: 0 },
   content: { flex: 1 },
-  title: { fontSize: 14, fontFamily: 'TTNormsPro-Bold', color: '#0F172A' },
-  sub: { fontSize: 12, color: '#64748B', marginTop: 2, fontFamily: 'TTNormsPro-Regular' },
-  designer: { fontSize: 11, color: '#94A3B8', marginTop: 1, fontFamily: 'TTNormsPro-Regular' },
+  title: { fontSize: 18, fontFamily: 'TTNormsPro-Regular', color: '#0F172A', marginBottom: 4 },
+  line: { fontSize: 16, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', marginTop: 2 },
+  lineLabel: { fontFamily: 'TTNormsPro-Bold' },
+  dot: { width: 28, height: 28, borderRadius: 14, flexShrink: 0 },
+  menuBtn: { width: 22, alignItems: 'center', justifyContent: 'center' },
 });
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function OrdersScreen() {
   const router = useRouter();
-  const { primaryRole } = useAuthContext();
+  const { primaryRole, logout } = useAuthContext();
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
   const { data, loading, error, refetch } = useOrders(statusFilter);
 
   const filtered = search.trim()
     ? data.filter(o =>
         o.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
-        o.order_number?.toLowerCase().includes(search.toLowerCase())
+        o.order_number?.toLowerCase().includes(search.toLowerCase()) ||
+        o.designer_name?.toLowerCase().includes(search.toLowerCase())
       )
     : data;
 
-  const canCreate = primaryRole === 'owner' || primaryRole === 'designer' || primaryRole === 'quotes';
+  const isOwner = primaryRole === 'owner';
 
   return (
     <View style={s.screen}>
       {/* Header */}
-      <View style={s.header}>
-        <Text style={s.title}>Заказы</Text>
-        <View style={s.headerRight}>
-          <TouchableOpacity
-            style={s.iconBtn}
-            onPress={() => setShowSearch(v => !v)}
-            activeOpacity={0.7}
-          >
-            {/* Search icon — magnifier */}
-            <View style={s.searchIcon}>
-              <View style={s.searchCircle} />
-              <View style={s.searchHandle} />
-            </View>
-          </TouchableOpacity>
-          {canCreate && (
-            <TouchableOpacity
-              style={[s.iconBtn, s.iconBtnPrimary]}
-              onPress={() => router.push('/orders/new')}
-              activeOpacity={0.7}
-            >
-              <Text style={s.plusText}>+</Text>
-            </TouchableOpacity>
-          )}
+      <View style={s.headerArea}>
+        <TouchableOpacity onPress={() => logout()} activeOpacity={0.6}>
+          <Text style={s.exit}>Выйти</Text>
+        </TouchableOpacity>
+        <Text style={s.title}>Управление заказами</Text>
+        <View style={s.iconRow}>
+          <IconButton name="plus" onPress={() => router.push('/orders/new')} />
+          <IconButton name="user" onPress={() => router.push('/clients')} />
+          <IconButton name="search" onPress={() => setShowSearch(v => !v)} />
+          <IconButton name="filter" onPress={() => setShowFilters(v => !v)} />
         </View>
       </View>
 
-      {/* Search bar */}
+      {/* Search */}
       {showSearch && (
         <View style={s.searchBar}>
           <TextInput
@@ -140,48 +133,41 @@ export default function OrdersScreen() {
             placeholderTextColor="#94A3B8"
             value={search}
             onChangeText={setSearch}
+            autoFocus
           />
         </View>
       )}
 
-      {/* Status filters */}
-      <FlatList
-        horizontal
-        data={STATUS_FILTERS}
-        keyExtractor={item => item.label}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={s.filtersContent}
-        style={s.filtersList}
-        renderItem={({ item }) => {
-          const active = statusFilter === item.key;
-          return (
-            <TouchableOpacity
-              onPress={() => setStatusFilter(item.key)}
-              style={[s.chip, active && s.chipActive]}
-              activeOpacity={0.7}
-            >
-              <Text style={[s.chipText, active && s.chipTextActive]}>{item.label}</Text>
-            </TouchableOpacity>
-          );
-        }}
-      />
+      {/* Filters */}
+      {showFilters && (
+        <FlatList
+          horizontal
+          data={STATUS_FILTERS}
+          keyExtractor={item => item.label}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.filtersContent}
+          style={s.filtersList}
+          renderItem={({ item }) => {
+            const active = statusFilter === item.key;
+            return (
+              <TouchableOpacity onPress={() => setStatusFilter(item.key)} style={[s.chip, active && s.chipActive]} activeOpacity={0.7}>
+                <Text style={[s.chipText, active && s.chipTextActive]}>{item.label}</Text>
+              </TouchableOpacity>
+            );
+          }}
+        />
+      )}
 
       {/* List */}
       {loading && (
-        <View style={s.centered}>
-          <ActivityIndicator color="#60CCED" size="large" />
-        </View>
+        <View style={s.centered}><ActivityIndicator color="#60CCED" size="large" /></View>
       )}
-
       {Boolean(error) && !loading && (
         <View style={s.centered}>
           <Text style={s.errorText}>{error}</Text>
-          <TouchableOpacity onPress={refetch} style={s.retryBtn}>
-            <Text style={s.retryText}>Повторить</Text>
-          </TouchableOpacity>
+          <TouchableOpacity onPress={refetch} style={s.retryBtn}><Text style={s.retryText}>Повторить</Text></TouchableOpacity>
         </View>
       )}
-
       {!loading && !error && (
         <FlatList
           data={filtered}
@@ -191,15 +177,14 @@ export default function OrdersScreen() {
           onRefresh={refetch}
           refreshing={loading}
           ListEmptyComponent={
-            <EmptyState
-              title="Нет заказов"
-              subtitle={search ? 'Попробуйте другой запрос' : 'Заказы появятся здесь'}
-            />
+            <EmptyState title="Нет заказов" subtitle={search ? 'Попробуйте другой запрос' : 'Заказы появятся здесь'} />
           }
           renderItem={({ item }) => (
             <OrderCard
               order={item}
+              showMenu={isOwner}
               onPress={() => router.push(`/orders/${item.id}`)}
+              onMenu={() => router.push(`/orders/${item.id}`)}
             />
           )}
         />
@@ -211,63 +196,33 @@ export default function OrdersScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F2F4F7' },
+  screen: { flex: 1, backgroundColor: '#FFFFFF' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
   errorText: { color: '#EF4444', fontSize: 14, textAlign: 'center', marginBottom: 12 },
   retryBtn: { paddingHorizontal: 20, paddingVertical: 8, backgroundColor: '#F4F4F4', borderRadius: 8 },
   retryText: { fontSize: 14, color: '#0F172A', fontFamily: 'TTNormsPro-Medium' },
 
-  // header
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 8 : 16,
-    paddingBottom: 12,
-    backgroundColor: '#F2F4F7',
+  headerArea: {
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 16 : 20,
+    paddingBottom: 14,
   },
-  title: { fontSize: 22, fontFamily: 'TTNormsPro-Bold', color: '#0F172A', letterSpacing: -0.3 },
-  headerRight: { flexDirection: 'row', gap: 8 },
-  iconBtn: {
-    width: 36, height: 36, borderRadius: 10,
-    backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#0F172A', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 2, elevation: 1,
-  },
-  iconBtnPrimary: { backgroundColor: '#60CCED' },
-  plusText: { fontSize: 20, color: '#FFFFFF', lineHeight: 22, fontFamily: 'TTNormsPro-Regular' },
+  exit: { fontSize: 16, color: '#94A3B8', fontFamily: 'TTNormsPro-Regular', marginBottom: 8 },
+  title: { fontSize: 30, fontFamily: 'TTNormsPro-Regular', color: '#0F172A', letterSpacing: -0.5 },
+  iconRow: { flexDirection: 'row', gap: 16, marginTop: 14, justifyContent: 'flex-end' },
 
-  // search icon (magnifier)
-  searchIcon: { width: 18, height: 18, position: 'relative', alignItems: 'center', justifyContent: 'center' },
-  searchCircle: {
-    width: 11, height: 11, borderRadius: 6,
-    borderWidth: 1.8, borderColor: '#475569',
-    position: 'absolute', top: 0, left: 0,
-  },
-  searchHandle: {
-    width: 1.8, height: 6, backgroundColor: '#475569',
-    borderRadius: 1, position: 'absolute', bottom: 0, right: 2,
-    transform: [{ rotate: '45deg' }],
-  },
-
-  // search bar
-  searchBar: { paddingHorizontal: 16, paddingBottom: 8 },
+  searchBar: { paddingHorizontal: 20, paddingBottom: 10 },
   searchInput: {
-    backgroundColor: '#FFFFFF', borderRadius: 10, height: 40,
-    paddingHorizontal: 14, fontSize: 14, color: '#0F172A',
-    fontFamily: 'TTNormsPro-Regular',
+    backgroundColor: '#F1F3F5', borderRadius: 10, height: 44,
+    paddingHorizontal: 16, fontSize: 15, color: '#0F172A', fontFamily: 'TTNormsPro-Regular',
   },
 
-  // filters
   filtersList: { flexGrow: 0 },
-  filtersContent: { paddingLeft: 16, paddingRight: 16, paddingBottom: 10, gap: 8, flexDirection: 'row' },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 7,
-    borderRadius: 20, backgroundColor: '#FFFFFF',
-  },
+  filtersContent: { paddingLeft: 20, paddingRight: 20, paddingBottom: 12, gap: 8, flexDirection: 'row' },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#EEF1F4' },
   chipActive: { backgroundColor: '#60CCED' },
-  chipText: { fontSize: 13, color: '#475569', fontFamily: 'TTNormsPro-Medium' },
+  chipText: { fontSize: 14, color: '#475569', fontFamily: 'TTNormsPro-Medium' },
   chipTextActive: { color: '#FFFFFF' },
 
-  // list
-  listContent: { paddingHorizontal: 16, paddingBottom: 24 },
+  listContent: { paddingBottom: 24 },
 });

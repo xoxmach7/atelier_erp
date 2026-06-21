@@ -2,10 +2,20 @@ import { apiClient } from './client';
 import type { Order, OrdersPage } from '../types/order';
 
 export interface CreateOrderPayload {
-  client_name: string;
-  client_phone: string;
-  address: string;
-  deadline: string;
+  customer_id?: string;
+  client_name?: string;
+  client_phone?: string;
+  responsible_user_id?: number;
+  measurement_date?: string;        // YYYY-MM-DD
+  planned_completion?: string;      // YYYY-MM-DD
+  installation_address_city?: string;
+  installation_address_street?: string;
+  installation_address_building?: string;
+  installation_address_apartment?: string;
+  installation_address_notes?: string;
+  // legacy simplified fields
+  address?: string;
+  deadline?: string;
   comment?: string;
 }
 
@@ -15,6 +25,10 @@ export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
 
 export async function updateOrder(id: string, payload: Partial<CreateOrderPayload>): Promise<Order> {
   return apiClient.patch<Order>(`/api/v1/orders/${id}/`, payload);
+}
+
+export async function deleteOrder(id: string): Promise<unknown> {
+  return apiClient.del(`/api/v1/orders/${id}/`);
 }
 
 export async function fetchOrders(status?: string, page = 1): Promise<OrdersPage> {

@@ -23,102 +23,130 @@ interface ChartPoint { month: string; revenue: number; paid: number; }
 interface DashboardResponse {
   orders: DashboardOrders; finance: DashboardFinance; chart: ChartPoint[];
 }
-interface OwnerCounters {
-  new_orders: number; needs_measurement: number; needs_quote: number;
-  materials_not_ready: number; in_sewing: number; on_installation: number;
-  waiting_payment: number; paid_needs_completion: number; overdue: number;
-}
-interface OwnerQueueResponse { counters: OwnerCounters; }
+interface InventoryItemLite { is_low_stock: boolean; }
+interface InventoryListResponse { count: number; results: InventoryItemLite[]; }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmt(v: number) {
-  if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + ' млн ₸';
-  if (v >= 1_000) return (v / 1_000).toFixed(0) + ' тыс ₸';
-  return v + ' ₸';
+const MONTHS_RU = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+function monthLabel(ym: string): string {
+  const mm = parseInt(ym.slice(5, 7), 10);
+  return MONTHS_RU[mm - 1] ?? ym.slice(5);
+}
+function fmtAxis(v: number): string {
+  const a = Math.abs(v);
+  if (a >= 1_000_000) return (v / 1_000_000).toFixed(1) + 'М';
+  if (a >= 1_000) return (v / 1_000).toFixed(0) + 'к';
+  return String(Math.round(v));
 }
 
-// ─── Counter Row ──────────────────────────────────────────────────────────────
+type ChartMode = 'profit' | 'revenue' | 'paid';
+function valueFor(p: ChartPoint, mode: ChartMode): number {
+  if (mode === 'paid') return p.paid;
+  if (mode === 'profit') return p.revenue - p.paid;
+  return p.revenue;
+}
 
-function CounterRow({
-  label, value, valueColor, warn, onPress,
-}: { label: string; value: number; valueColor?: string; warn?: boolean; onPress?: () => void }) {
+// ─── Bar Chart (ось Y + сетка + нулевая линия) ─────────────────────────────────
+
+const PLOT_H = 200;
+const GRID_LINES = 5;
+
+function BarChart({ data, mode }: { data: ChartPoint[]; mode: ChartMode }) {
+  const { top, bottom, ticks } = useMemo(() => {
+    const vals = data.map((d) => valueFor(d, mode));
+    const maxV = Math.max(...vals, 0);
+    const minV = Math.min(...vals, 0);
+    const t = maxV <= 0 ? 1 : maxV * 1.1;
+    const b = minV >= 0 ? 0 : minV * 1.1;
+    const arr: number[] = [];
+    for (let i = 0; i < GRID_LINES; i++) arr.push(t - ((t - b) * i) / (GRID_LINES - 1));
+    return { top: t, bottom: b, ticks: arr };
+  }, [data, mode]);
+
+  const range = top - bottom || 1;
+  const yOf = (v: number) => ((top - v) / range) * PLOT_H;
+  const zeroY = yOf(0);
+
   return (
-    <TouchableOpacity style={s.counterRow} onPress={onPress} activeOpacity={onPress ? 0.6 : 1}>
-      <View style={s.counterLeft}>
-        <Text style={s.counterLabel}>{label}</Text>
-        {warn && <Text style={s.warnIcon}> ⚠</Text>}
+    <View style={s.chartRow}>
+      {/* Y axis labels */}
+      <View style={s.yAxis}>
+        {ticks.map((t, i) => (
+          <Text key={i} style={s.yLabel}>{fmtAxis(t)}</Text>
+        ))}
       </View>
-      <View style={s.counterRight}>
-        <Text style={[s.counterValue, valueColor ? { color: valueColor } : null]}>
-          {value}
-        </Text>
-        {onPress && <Text style={s.arrow}> ›</Text>}
+
+      {/* Plot */}
+      <View style={s.plot}>
+        {/* horizontal dashed gridlines */}
+        {ticks.map((_, i) => (
+          <View key={`g${i}`} style={[s.gridLine, { top: (PLOT_H * i) / (GRID_LINES - 1) }]} />
+        ))}
+        {/* zero baseline */}
+        <View style={[s.zeroLine, { top: zeroY }]} />
+
+        {/* columns */}
+        <View style={s.colsRow}>
+          {data.map((p, i) => {
+            const v = valueFor(p, mode);
+            const yv = yOf(v);
+            const barTop = Math.min(yv, zeroY);
+            const barH = Math.max(Math.abs(yv - zeroY), 2);
+            return (
+              <View key={i} style={s.col}>
+                <View style={s.colBg} />
+                <View style={[s.bar, { top: barTop, height: barH }]} />
+              </View>
+            );
+          })}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ─── Stat pill ────────────────────────────────────────────────────────────────
+
+function StatPill({
+  label, value, valueColor, onPress,
+}: { label: string; value: number; valueColor: string; onPress?: () => void }) {
+  return (
+    <TouchableOpacity style={s.pill} activeOpacity={onPress ? 0.6 : 1} onPress={onPress}>
+      <Text style={s.pillLabel}>{label}</Text>
+      <View style={s.pillRight}>
+        <Text style={[s.pillValue, { color: valueColor }]}>{value}</Text>
+        <Text style={s.pillChevron}>›</Text>
       </View>
     </TouchableOpacity>
   );
 }
 
-// ─── Bar Chart ────────────────────────────────────────────────────────────────
-
-function BarChart({ data, mode }: { data: ChartPoint[]; mode: 'revenue' | 'paid' | 'profit' }) {
-  const maxValue = useMemo(() => {
-    const vals = data.flatMap((d) => [d.revenue, d.paid]);
-    return Math.max(...vals, 1);
-  }, [data]);
-
-  return (
-    <View style={s.barsRow}>
-      {data.map((point, i) => {
-        const value = mode === 'paid' ? point.paid : point.revenue;
-        const hp = maxValue > 0 ? (value / maxValue) * 100 : 0;
-        const month = point.month.slice(5);
-        return (
-          <View key={i} style={s.barCol}>
-            <View style={s.barWrap}>
-              <View style={[s.bar, { height: `${Math.max(hp, 4)}%` as any }]} />
-            </View>
-            <Text style={s.barLabel}>{month}</Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-// ─── Finance Row ──────────────────────────────────────────────────────────────
-
-function FinanceRow({ label, value, color }: { label: string; value: number; color?: string }) {
-  return (
-    <View style={s.finRow}>
-      <Text style={s.finLabel}>{label}</Text>
-      <Text style={[s.finValue, color ? { color } : null]}>{fmt(value)}</Text>
-    </View>
-  );
-}
-
 // ─── Owner Dashboard ──────────────────────────────────────────────────────────
 
-type ChartMode = 'revenue' | 'paid' | 'profit';
+const CYAN = '#60CCED';
+const RED = '#EF4444';
+const ORANGE = '#F59E0B';
 
 function OwnerDashboard() {
-  const { user, logout } = useAuthContext();
+  const { logout } = useAuthContext();
   const [data, setData] = useState<DashboardResponse | null>(null);
+  const [lowStock, setLowStock] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chartMode, setChartMode] = useState<ChartMode>('revenue');
 
-  const displayName = user
-    ? [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username
-    : '';
-
-  const fetchDashboard = useCallback(async (isRefresh = false) => {
+  const fetchAll = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get<DashboardResponse>('/api/v1/dashboard/');
-      setData(res);
+      const [dash, inv] = await Promise.all([
+        apiClient.get<DashboardResponse>('/api/v1/dashboard/'),
+        apiClient.get<InventoryListResponse>('/api/v1/inventory-items/?page_size=200').catch(() => null),
+      ]);
+      setData(dash);
+      if (inv?.results) setLowStock(inv.results.filter((it) => it.is_low_stock).length);
     } catch (err: any) {
       setError(err?.message ?? 'Не удалось загрузить данные');
     } finally {
@@ -127,31 +155,25 @@ function OwnerDashboard() {
     }
   }, []);
 
-  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   if (loading) {
-    return (
-      <View style={s.centered}>
-        <ActivityIndicator color="#60CCED" size="large" />
-      </View>
-    );
+    return <View style={s.centered}><ActivityIndicator color={CYAN} size="large" /></View>;
   }
-
   if (error) {
     return (
       <View style={s.centered}>
         <Text style={s.errorText}>{error}</Text>
-        <TouchableOpacity onPress={() => fetchDashboard()} style={s.retryBtn}>
+        <TouchableOpacity onPress={() => fetchAll()} style={s.retryBtn}>
           <Text style={s.retryText}>Повторить</Text>
         </TouchableOpacity>
       </View>
     );
   }
-
   if (!data) return null;
-  const { orders, finance, chart } = data;
+  const { orders, chart } = data;
 
-  const toggleLabels: { key: ChartMode; label: string }[] = [
+  const toggles: { key: ChartMode; label: string }[] = [
     { key: 'profit', label: 'Прибыль' },
     { key: 'revenue', label: 'Выручка' },
     { key: 'paid', label: 'Расходы' },
@@ -163,111 +185,59 @@ function OwnerDashboard() {
       contentContainerStyle={s.scrollContent}
       showsVerticalScrollIndicator={false}
       refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => { setRefreshing(true); fetchDashboard(true); }}
-          tintColor="#60CCED"
-        />
+        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchAll(true); }} tintColor={CYAN} />
       }
     >
       {/* Header */}
-      <View style={s.header}>
-        <View>
-          <Text style={s.orgName}>Название организации</Text>
-          <Text style={s.headerSub}>01.01.2025 - н.в.</Text>
-        </View>
-        <TouchableOpacity onPress={() => fetchDashboard()} style={s.refreshBtn}>
-          <View style={s.refreshIcon}>
-            <View style={s.refreshArc} />
-          </View>
+      <Text style={s.orgName}>Название организации</Text>
+      <View style={s.periodRow}>
+        <Text style={s.periodText}>01.09.2025 - н.в.</Text>
+        <TouchableOpacity activeOpacity={0.6}>
+          <Text style={s.periodLink}>Выбрать период</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Counters as rows */}
-      <View style={s.card}>
-        <CounterRow label="Все заказы" value={orders.total} onPress={() => {}} />
-        <View style={s.divider} />
-        <CounterRow label="В работе" value={orders.in_work} valueColor="#3B82F6" onPress={() => {}} />
-        <View style={s.divider} />
-        <CounterRow
-          label="Ожидают оплаты"
-          value={orders.awaiting_payment}
-          valueColor={orders.awaiting_payment > 0 ? '#F59E0B' : '#0F172A'}
-          warn={orders.awaiting_payment > 0}
-          onPress={() => {}}
-        />
-        <View style={s.divider} />
-        <CounterRow
-          label="Просрочено"
-          value={orders.overdue}
-          valueColor={orders.overdue > 0 ? '#EF4444' : '#0F172A'}
-          warn={orders.overdue > 0}
-          onPress={() => {}}
-        />
-        <View style={s.divider} />
-        <CounterRow
-          label="Материалы на исходе"
-          value={0}
-          valueColor="#F59E0B"
-          onPress={() => {}}
-        />
-      </View>
-
-      {/* Finance */}
-      <View style={[s.card, { marginTop: 12 }]}>
-        <FinanceRow label="Выручка" value={finance.total_revenue} />
-        <View style={s.divider} />
-        <FinanceRow label="Оплачено" value={finance.total_paid} color="#22C55E" />
-        <View style={s.divider} />
-        <FinanceRow label="Долг" value={finance.total_debt} color="#EF4444" />
-        <View style={[s.divider, { marginVertical: 12 }]} />
-        <View style={s.finMonthRow}>
-          <View>
-            <Text style={s.finMonthLabel}>В этом месяце</Text>
-            <Text style={s.finMonthValue}>{fmt(finance.this_month_revenue)}</Text>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={s.finMonthLabel}>Оплачено</Text>
-            <Text style={[s.finMonthValue, { color: '#22C55E' }]}>{fmt(finance.this_month_paid)}</Text>
-          </View>
-        </View>
+      {/* Segmented toggle */}
+      <View style={s.segRow}>
+        {toggles.map(({ key, label }) => {
+          const active = chartMode === key;
+          return (
+            <TouchableOpacity
+              key={key}
+              onPress={() => setChartMode(key)}
+              style={[s.seg, active ? s.segActive : s.segInactive]}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.segText, active ? s.segTextActive : s.segTextInactive]}>{label}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Chart */}
-      <View style={[s.card, { marginTop: 12 }]}>
-        <View style={s.chartHeader}>
-          <Text style={s.chartTitle}>6 месяцев</Text>
-          <View style={s.toggleWrap}>
-            {toggleLabels.map(({ key, label }) => {
-              const active = chartMode === key;
-              return (
-                <TouchableOpacity
-                  key={key}
-                  onPress={() => setChartMode(key)}
-                  style={[s.toggleBtn, active && s.toggleBtnActive]}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[s.toggleText, active ? s.toggleTextActive : s.toggleTextInactive]}>
-                    {label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+      <BarChart data={chart} mode={chartMode} />
+      <View style={s.xAxis}>
+        <View style={s.xAxisSpacer} />
+        <View style={s.xLabelsRow}>
+          {chart.map((p, i) => (
+            <Text key={i} style={s.xLabel}>{monthLabel(p.month)}</Text>
+          ))}
         </View>
-        <BarChart data={chart} mode={chartMode} />
       </View>
 
-      {/* Totals */}
-      <Text style={s.totals}>
-        Всего заказов: {orders.total}  ·  Отменено: {orders.cancelled}
-      </Text>
+      {/* Stat pills */}
+      <View style={s.pills}>
+        <StatPill label="Все заказы (за период)" value={orders.total} valueColor={CYAN} onPress={() => {}} />
+        <StatPill label="В работе" value={orders.in_work} valueColor={CYAN} onPress={() => {}} />
+        <StatPill label="Ожидают оплаты" value={orders.awaiting_payment} valueColor={CYAN} onPress={() => {}} />
+        <StatPill label="Просрочено" value={orders.overdue} valueColor={RED} onPress={() => {}} />
+        <StatPill label="Материалы на исходе" value={lowStock} valueColor={ORANGE} onPress={() => {}} />
+      </View>
 
-      {/* Logout - blue button per Figma */}
-      <TouchableOpacity style={s.logoutBtnBlue} onPress={() => logout()} activeOpacity={0.85}>
-        <Text style={s.logoutBtnText}>Выйти из профиля</Text>
+      {/* Logout */}
+      <TouchableOpacity style={s.logoutBtn} onPress={() => logout()} activeOpacity={0.85}>
+        <Text style={s.logoutText}>Выйти из профиля</Text>
       </TouchableOpacity>
-
     </ScrollView>
   );
 }
@@ -346,7 +316,6 @@ function NonOwnerView() {
           icon={getIcon(item)}
         />
       ))}
-
     </ScrollView>
   );
 }
@@ -361,145 +330,70 @@ export default function TodayScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: '#F2F4F7' },
-  scrollContent: { padding: 16, paddingBottom: 32, paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 8 : 8 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
+  scroll: { flex: 1, backgroundColor: '#FFFFFF' },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 24 : 24,
+  },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60, backgroundColor: '#FFFFFF' },
   errorText: { color: '#EF4444', fontSize: 14, textAlign: 'center', marginBottom: 12 },
   retryBtn: { paddingHorizontal: 20, paddingVertical: 8, backgroundColor: '#F4F4F4', borderRadius: 8 },
   retryText: { fontSize: 14, color: '#0F172A', fontFamily: 'TTNormsPro-Medium' },
 
   // header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    paddingTop: 8,
-  },
-  orgName: {
-    fontSize: 20,
-    fontFamily: 'TTNormsPro-Bold',
-    color: '#0F172A',
-    letterSpacing: -0.3,
-  },
-  headerSub: {
-    fontSize: 12,
-    color: '#94A3B8',
-    fontFamily: 'TTNormsPro-Regular',
-    marginTop: 2,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontFamily: 'TTNormsPro-Bold',
-    color: '#0F172A',
-    letterSpacing: -0.3,
-  },
-  logoutSmall: {
-    fontSize: 12,
-    color: '#94A3B8',
-    fontFamily: 'TTNormsPro-Regular',
-    paddingTop: 6,
-  },
-  refreshBtn: { padding: 4 },
-  refreshIcon: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
-  refreshArc: {
-    width: 16, height: 16, borderRadius: 8,
-    borderWidth: 2, borderColor: '#60CCED',
-    borderTopColor: 'transparent',
-  },
+  orgName: { fontSize: 34, fontFamily: 'TTNormsPro-Regular', color: '#0F172A', letterSpacing: -0.5 },
+  periodRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, marginBottom: 20 },
+  periodText: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Regular' },
+  periodLink: { fontSize: 18, color: '#94A3B8', fontFamily: 'TTNormsPro-Regular', marginLeft: 14 },
 
-  // card
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 10 },
+  // non-owner header
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, paddingTop: 8 },
+  headerTitle: { fontSize: 20, fontFamily: 'TTNormsPro-Bold', color: '#0F172A', letterSpacing: -0.3 },
+  logoutSmall: { fontSize: 12, color: '#94A3B8', fontFamily: 'TTNormsPro-Regular', paddingTop: 6 },
 
-  // counter rows
-  counterRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 6,
-  },
-  counterLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  counterRight: { flexDirection: 'row', alignItems: 'center' },
-  counterLabel: { fontSize: 14, color: '#475569', fontFamily: 'TTNormsPro-Regular' },
-  counterValue: { fontSize: 20, fontFamily: 'TTNormsPro-Bold', color: '#0F172A' },
-  warnIcon: { fontSize: 13, color: '#F59E0B' },
-  arrow: { fontSize: 20, color: '#94A3B8', marginLeft: 4 },
-
-  // finance rows
-  finRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 2,
-  },
-  finLabel: { fontSize: 14, color: '#475569', fontFamily: 'TTNormsPro-Regular' },
-  finValue: { fontSize: 16, fontFamily: 'TTNormsPro-Bold', color: '#0F172A' },
-  finMonthRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  finMonthLabel: { fontSize: 12, color: '#94A3B8', fontFamily: 'TTNormsPro-Regular' },
-  finMonthValue: { fontSize: 14, fontFamily: 'TTNormsPro-Bold', color: '#0F172A', marginTop: 2 },
+  // segmented toggle
+  segRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+  seg: { flex: 1, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  segActive: { backgroundColor: '#60CCED' },
+  segInactive: { backgroundColor: '#EEF1F4' },
+  segText: { fontSize: 16, fontFamily: 'TTNormsPro-Regular' },
+  segTextActive: { color: '#FFFFFF' },
+  segTextInactive: { color: '#9AA5B1' },
 
   // chart
-  chartHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 12,
+  chartRow: { flexDirection: 'row', height: PLOT_H },
+  yAxis: { width: 42, height: PLOT_H, justifyContent: 'space-between', paddingRight: 6 },
+  yLabel: { fontSize: 11, color: '#94A3B8', textAlign: 'right', fontFamily: 'TTNormsPro-Regular' },
+  plot: { flex: 1, height: PLOT_H, position: 'relative' },
+  gridLine: {
+    position: 'absolute', left: 0, right: 0, height: 0,
+    borderTopWidth: 1, borderColor: '#E2E8F0', borderStyle: 'dashed',
   },
-  chartTitle: { fontSize: 15, fontFamily: 'TTNormsPro-Bold', color: '#0F172A' },
-  toggleWrap: { flexDirection: 'row', gap: 4, backgroundColor: '#60CCED', borderRadius: 10, padding: 3 },
-  toggleBtn: {
-    paddingHorizontal: 8, paddingVertical: 5,
-    borderRadius: 8,
-  },
-  toggleBtnActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  toggleText: { fontSize: 11, fontFamily: 'TTNormsPro-Medium' },
-  toggleTextActive: { color: '#0F172A' },
-  toggleTextInactive: { color: '#FFFFFF' },
+  zeroLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: '#CBD5E1' },
+  colsRow: { flexDirection: 'row', height: PLOT_H, alignItems: 'stretch' },
+  col: { flex: 1, height: PLOT_H, position: 'relative', alignItems: 'center', marginHorizontal: 3 },
+  colBg: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: '#F1F5F9', borderRadius: 2 },
+  bar: { position: 'absolute', left: '18%', right: '18%', backgroundColor: '#60CCED', borderRadius: 2 },
 
-  // bars
-  barsRow: {
-    flexDirection: 'row', alignItems: 'flex-end',
-    justifyContent: 'space-between', height: 120, gap: 4,
-  },
-  barCol: { flex: 1, alignItems: 'center' },
-  barWrap: { width: '100%', height: 100, justifyContent: 'flex-end' },
-  bar: { width: '100%', backgroundColor: '#60CCED', borderRadius: 4, minHeight: 4 },
-  barLabel: { fontSize: 10, color: '#94A3B8', marginTop: 4, fontFamily: 'TTNormsPro-Regular' },
+  // x axis
+  xAxis: { flexDirection: 'row', marginTop: 6 },
+  xAxisSpacer: { width: 42 },
+  xLabelsRow: { flex: 1, flexDirection: 'row' },
+  xLabel: { flex: 1, textAlign: 'center', fontSize: 12, color: '#475569', fontFamily: 'TTNormsPro-Regular' },
 
-  // totals
-  totals: {
-    marginTop: 16, textAlign: 'center',
-    fontSize: 12, color: '#94A3B8', fontFamily: 'TTNormsPro-Regular',
+  // stat pills
+  pills: { marginTop: 24, gap: 14 },
+  pill: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#F1F3F5', borderRadius: 16, paddingHorizontal: 22, height: 64,
   },
+  pillLabel: { fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', flex: 1 },
+  pillRight: { flexDirection: 'row', alignItems: 'center' },
+  pillValue: { fontSize: 24, fontFamily: 'TTNormsPro-Bold' },
+  pillChevron: { fontSize: 22, color: '#94A3B8', marginLeft: 10 },
 
-  // logout blue (Figma)
-  logoutBtnBlue: {
-    marginTop: 20,
-    marginBottom: 8,
-    backgroundColor: '#60CCED',
-    borderRadius: 12,
-    paddingVertical: 15,
-    alignItems: 'center' as const,
-  },
-  logoutBtnText: {
-    fontSize: 15,
-    color: '#FFFFFF',
-    fontFamily: 'TTNormsPro-Bold',
-  },
-
+  // logout
+  logoutBtn: { marginTop: 28, backgroundColor: '#60CCED', borderRadius: 14, paddingVertical: 18, alignItems: 'center' },
+  logoutText: { fontSize: 17, color: '#FFFFFF', fontFamily: 'TTNormsPro-Regular' },
 });
