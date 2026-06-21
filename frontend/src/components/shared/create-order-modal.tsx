@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ModalCloseX } from "./modal-close";
 import { useCreateOrder } from "@/hooks/useOrders";
 import { useStaff } from "@/hooks/useStaff";
 import { useCustomers, useCreateCustomer } from "@/hooks/useCustomers";
@@ -226,8 +227,9 @@ export function CreateOrderModal({ isOpen, onClose, onSuccess, prefillCustomer }
 
   return (
     <Dialog open={isOpen} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-[560px] p-0 gap-0 overflow-auto max-h-[90vh] [&>button]:right-4 [&>button]:top-4 [&>button>svg]:h-5 [&>button>svg]:w-5">
-        <form onSubmit={handleSubmit} className="px-[52px] pt-10 pb-10">
+      <DialogContent className="sm:max-w-[560px] p-0 gap-0 overflow-auto max-h-[90vh] [&>button]:hidden">
+        <ModalCloseX onClose={onClose} />
+        <form onSubmit={handleSubmit} className="px-[52px] pt-[72px] pb-10">
           <DialogHeader className="mb-8">
             <DialogTitle className="text-[28px] font-semibold text-[#0F172A]">Создание заказа</DialogTitle>
           </DialogHeader>

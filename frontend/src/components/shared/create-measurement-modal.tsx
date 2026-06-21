@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ModalCloseX } from "./modal-close";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -159,8 +160,9 @@ export function CreateMeasurementModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[560px] p-0 gap-0 overflow-auto max-h-[90vh]">
-        <div className="px-8 pt-7 pb-8">
+      <DialogContent className="sm:max-w-[560px] p-0 gap-0 overflow-auto max-h-[90vh] [&>button]:hidden">
+        <ModalCloseX onClose={() => handleOpenChange(false)} />
+        <div className="px-8 pt-[72px] pb-8">
           {/* Header */}
           <DialogHeader className="mb-7">
             <DialogTitle className="text-[24px] font-bold text-[var(--t1)]">

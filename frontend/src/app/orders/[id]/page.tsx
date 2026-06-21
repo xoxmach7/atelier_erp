@@ -9,6 +9,7 @@ import { CreateMeasurementModal } from "@/components/shared/create-measurement-m
 import { CreateKPModal } from "@/components/shared/create-kp-modal";
 import { CreatePrepaymentModal } from "@/components/shared/create-prepayment-modal";
 import { MyTaskCard } from "@/components/shared/my-task-card";
+import { ModalCloseX } from "@/components/shared/modal-close";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { LoadingState } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
@@ -176,10 +177,10 @@ function EditItemModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 pt-[68px]">
+        <ModalCloseX onClose={onClose} />
+        <div className="mb-6">
           <span className="text-[16px] font-semibold text-[#0F172A]">Редактировать позицию</span>
-          <button onClick={onClose} className="text-[#94A3B8] hover:text-[#475569] text-xl leading-none">✕</button>
         </div>
 
         <div className="space-y-3">
@@ -1326,6 +1327,7 @@ export default function OrderDetailPage() {
         onClose={() => setPrepayModalOpen(false)}
         onSave={handlePrepaySubmit}
         orderTotal={total}
+        payments={order.payments}
         isLoading={prepayLoading}
       />
 

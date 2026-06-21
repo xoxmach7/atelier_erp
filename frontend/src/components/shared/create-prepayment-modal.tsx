@@ -1,18 +1,25 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { ModalCloseX } from "./modal-close";
+import type { PaymentDTO } from "@/types";
 
 interface CreatePrepaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: { amount: number; pct: number; method: string }) => void;
   orderTotal?: number;
+  payments?: PaymentDTO[];
+  requiredPct?: number;
   isLoading?: boolean;
 }
 
 function fmtNum(v: string | number): string {
   return String(v).replace(/\D/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+function fmtDate(v: string): string {
+  if (!v) return "—";
+  return new Date(v).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
 export function CreatePrepaymentModal({
@@ -20,52 +27,31 @@ export function CreatePrepaymentModal({
   onClose,
   onSave,
   orderTotal = 0,
+  payments = [],
+  requiredPct = 50,
   isLoading = false,
 }: CreatePrepaymentModalProps) {
-  const initialPct = orderTotal > 0 ? 50 : 0;
-  const initialAmount = orderTotal > 0 ? Math.round(orderTotal * 0.5) : 0;
-
-  const [pct, setPct] = useState(String(initialPct));
-  const [amount, setAmount] = useState(initialAmount > 0 ? String(initialAmount) : "");
+  const [amount, setAmount] = useState("");
 
   useEffect(() => {
-    if (isOpen) {
-      const p = orderTotal > 0 ? 50 : 0;
-      const a = orderTotal > 0 ? Math.round(orderTotal * 0.5) : 0;
-      setPct(String(p));
-      setAmount(a > 0 ? String(a) : "");
-    }
-  }, [isOpen, orderTotal]);
-
-  function handlePct(raw: string) {
-    const v = raw.replace(/\D/g, "");
-    setPct(v);
-    if (orderTotal > 0 && v !== "") {
-      const computed = Math.round(orderTotal * parseInt(v, 10) / 100);
-      setAmount(String(computed));
-    }
-  }
-
-  function handleAmount(raw: string) {
-    const v = raw.replace(/\s/g, "").replace(/\D/g, "");
-    setAmount(v);
-    if (orderTotal > 0 && v !== "") {
-      const computed = Math.min(100, Math.round(parseInt(v, 10) / orderTotal * 100));
-      setPct(String(computed));
-    }
-  }
-
-  function handleSubmit() {
-    const amountNum = parseInt(amount.replace(/\s/g, ""), 10) || 0;
-    const pctNum = parseInt(pct, 10) || 0;
-    if (amountNum <= 0) return;
-    onSave({ amount: amountNum, pct: pctNum, method: "cash" });
-  }
+    if (isOpen) setAmount("");
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
+  const prepay = payments.filter((p) => p.payment_type === "prepayment");
+  const required = Math.round((orderTotal * requiredPct) / 100);
+  const paid = prepay.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+  const remaining = Math.max(0, required - paid);
+
   const amountNum = parseInt(amount.replace(/\s/g, ""), 10) || 0;
   const canSubmit = amountNum > 0 && !isLoading;
+
+  function submit() {
+    if (amountNum <= 0) return;
+    const pct = orderTotal > 0 ? Math.round((amountNum / orderTotal) * 100) : 0;
+    onSave({ amount: amountNum, pct, method: "cash" });
+  }
 
   return (
     <div
@@ -73,68 +59,67 @@ export function CreatePrepaymentModal({
       style={{ background: "rgba(15,23,42,.35)", backdropFilter: "blur(4px)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div
-        className="w-full bg-white rounded-[14px] shadow-2xl overflow-hidden"
-        style={{ maxWidth: 480, animation: "modalIn .2s ease-out" }}
-      >
-        <style>{`
-          @keyframes modalIn {
-            from { opacity: 0; transform: translateY(12px) scale(.97); }
-            to   { opacity: 1; transform: translateY(0) scale(1); }
-          }
-        `}</style>
+      <div className="relative w-full max-w-[480px] rounded-[14px] bg-white shadow-2xl">
+        <ModalCloseX onClose={onClose} />
 
-        <div className="p-7 pb-8">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-7">
-            <h2 className="text-[24px] font-bold text-[#0F172A]">Предоплата</h2>
-            <button
-              onClick={onClose}
-              className="text-[#475569] hover:text-[#0F172A] transition-colors p-0.5"
-            >
-              <X size={22} />
-            </button>
+        <div className="px-7 pb-8 pt-[72px]">
+          <h2 className="mb-7 text-[24px] font-medium text-[#0F172A]">Предоплата</h2>
+
+          {/* Размер */}
+          <div className="mb-5 flex items-center gap-4">
+            <span className="w-32 shrink-0 text-[16px] text-[#475569]">Размер:</span>
+            <span className="text-[18px] font-medium text-[#0F172A]">{fmtNum(required)} ₸</span>
           </div>
 
-          <div className="flex flex-col gap-5">
-            {/* % field */}
-            <div className="flex items-center gap-4">
-              <label className="text-[15px] font-medium text-[#0F172A] w-44 shrink-0">
-                Размер предоплаты:
-              </label>
-              <input
-                inputMode="numeric"
-                value={pct}
-                onChange={(e) => handlePct(e.target.value)}
-                className="w-20 text-left rounded-[10px] bg-[#E9E9E9] border-none px-3 py-[11px] text-[15px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#0EA5E9]"
-              />
-              <span className="text-[16px] text-[#475569]">%</span>
-            </div>
-
-            {/* Amount field */}
-            <div className="flex items-center gap-4">
-              <label className="text-[15px] font-medium text-[#0F172A] w-44 shrink-0">
-                Внесено:
-              </label>
+          {/* Внесено + добавить */}
+          <div className="mb-5 flex items-center gap-3">
+            <span className="w-32 shrink-0 text-[16px] text-[#475569]">Внесено:</span>
+            <div className="flex items-center gap-2 rounded-[10px] bg-[#E9E9E9] px-3 py-[11px]">
               <input
                 inputMode="numeric"
                 value={amount ? fmtNum(amount) : ""}
-                onChange={(e) => handleAmount(e.target.value)}
+                onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
                 placeholder="0"
-                className="w-44 text-left rounded-[10px] bg-[#E9E9E9] border-none px-3 py-[11px] text-[15px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#0EA5E9]"
+                className="w-32 border-none bg-transparent text-[15px] text-[#0F172A] outline-none"
               />
-              <span className="text-[16px] text-[#475569]">₸</span>
+              <span className="text-[15px] text-[#475569]">₸</span>
             </div>
-
-            {/* Submit */}
             <button
-              onClick={handleSubmit}
+              type="button"
+              onClick={submit}
               disabled={!canSubmit}
-              className="w-full py-[14px] rounded-[10px] bg-[#60CCED] text-white text-[15px] font-semibold mt-2 transition-opacity hover:bg-[#4DBCE0] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-[#60CCED] text-[22px] leading-none text-white transition-colors hover:bg-[#4DBCE0] disabled:opacity-50"
+              aria-label="Добавить платёж"
             >
-              {isLoading ? "Сохранение..." : "Сохранить"}
+              +
             </button>
           </div>
+
+          {/* История */}
+          {prepay.length > 0 && (
+            <div className="mb-6 rounded-[10px] bg-[#F8FAFC] px-5 py-4">
+              {prepay.map((p) => (
+                <div key={p.id} className="flex items-center justify-between py-1.5 text-[15px] text-[#0F172A]">
+                  <span>{fmtDate(p.received_at)}</span>
+                  <span>{fmtNum(p.amount)} ₸</span>
+                  <span className="text-[#94A3B8]">—</span>
+                </div>
+              ))}
+              <div className="mt-1.5 flex items-center justify-between border-t border-[#E2E8F0] pt-2.5 text-[15px] font-medium text-[#0F172A]">
+                <span>Осталось</span>
+                <span>{fmtNum(remaining)} ₸</span>
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!canSubmit}
+            className="w-full rounded-[10px] bg-[#60CCED] py-[14px] text-[15px] font-semibold text-white transition-colors hover:bg-[#4DBCE0] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoading ? "Сохранение..." : "Сохранить"}
+          </button>
         </div>
       </div>
     </div>
