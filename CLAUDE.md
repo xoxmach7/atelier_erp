@@ -54,6 +54,8 @@
 - **P4-ARCH** Multi-tenancy (Tenant, TenantMembership, middleware, migrations 0018+0019) — done 2026-06-13 (35d3149)
 - **Frontend** редизайн v2, orders/[id] v4, workspace, customers, work-экраны — done
 - **B1** responsible_user + designer select + лейбл — done 2026-06-13
+- **Склад** общий инвентарь `InventoryItem` (категория/единица/кол-во/цена/порог «на исходе»), API `/api/v1/inventory-items/` (чтение всем, запись склад/владелец, soft-delete), миграция 0021. Экран «Материалы»: объединённая таблица (ткань Fabric + позиции InventoryItem) + добавление/редактирование/удаление. `Fabric` оставлен как каталог КП. — done 2026-06-21 (3bb8840)
+- **Fix** dashboard: редирект по роли вынесен в useEffect (был setState-in-render) — done 2026-06-21 (47c7fa6)
 
 ### 🔲 Активные задачи
 | # | Задача | Приоритет |
@@ -74,9 +76,10 @@
 - Домен добавлен в CORS_ALLOWED_ORIGINS и CSRF_TRUSTED_ORIGINS в Railway Variables
 
 ## VirtioFS — важно для файловых правок
-- Sandbox (bash/python) НЕ пишет в Windows-папку через Edit/Write инструменты
-- Все правки файлов: `python3 -c "open(path,'w').write(content)"` через bash
-- Git операции — только из терминала пользователя, не из sandbox
+- Edit/Write инструменты ПИШУТ в Windows-папку корректно (на машине пользователя файл верный сразу).
+- НО: sandbox (bash/python) читает host-правки с задержкой и иногда «рваными» страницами (torn reads) — `import`/`tsc`/`makemigrations` могут видеть устаревший/обрезанный файл. cp-roundtrip `mount→/tmp→mount` ОПАСЕН (рваное чтение может побить файл).
+- Надёжный приём для проверки в sandbox: писать файл со стороны sandbox (heredoc/`git show HEAD:path` → правка в /tmp → один `cp /tmp→mount`), затем гонять tsc/pytest. Целостность сверять через `git diff --numstat` (не должно быть лишних удалений) и AST/py_compile.
+- Git операции — только из терминала пользователя, не из sandbox.
 
 ## Тесты (зелёные MVP, 41 штука)
 ```
