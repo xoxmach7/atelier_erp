@@ -161,7 +161,7 @@ export function CreateMeasurementModal({
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[560px] p-0 gap-0 overflow-auto max-h-[90vh] [&>button]:hidden">
-        <ModalCloseX onClose={() => handleOpenChange(false)} />
+        <div><ModalCloseX onClose={() => handleOpenChange(false)} /></div>
         <div className="px-8 pt-[72px] pb-8">
           {/* Header */}
           <DialogHeader className="mb-7">

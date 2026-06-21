@@ -230,7 +230,7 @@ function DashboardContent() {
   const orgName = "Название организации";
 
   return (
-    <div className="bg-[#FAFAFA] p-8">
+    <div className="min-h-screen bg-[#FAFAFA] p-8">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>

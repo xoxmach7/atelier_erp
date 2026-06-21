@@ -228,7 +228,7 @@ export function CreateOrderModal({ isOpen, onClose, onSuccess, prefillCustomer }
   return (
     <Dialog open={isOpen} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-[560px] p-0 gap-0 overflow-auto max-h-[90vh] [&>button]:hidden">
-        <ModalCloseX onClose={onClose} />
+        <div><ModalCloseX onClose={onClose} /></div>
         <form onSubmit={handleSubmit} className="px-[52px] pt-[72px] pb-10">
           <DialogHeader className="mb-8">
             <DialogTitle className="text-[28px] font-semibold text-[#0F172A]">Создание заказа</DialogTitle>

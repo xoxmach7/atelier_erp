@@ -122,7 +122,7 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
   return (
     <Dialog open={isOpen} onOpenChange={(o) => { if (!o) close(); }}>
       <DialogContent className="sm:max-w-[560px] p-0 gap-0 overflow-auto max-h-[90vh] [&>button]:hidden">
-        <ModalCloseX onClose={close} />
+        <div><ModalCloseX onClose={close} /></div>
         <DialogHeader className="sr-only">
           <DialogTitle>Коммерческое предложение</DialogTitle>
         </DialogHeader>
