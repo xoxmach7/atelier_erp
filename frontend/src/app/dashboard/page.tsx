@@ -263,7 +263,7 @@ function DashboardContent() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 lg:gap-[38px]">
         <StatCard label="Все заказы (за период)" value={orders?.total ?? 0}                 href="/orders"         />
         <StatCard label="В работе"               value={orders?.in_work ?? 0}               href="/orders?status=active"         />
-        <StatCard label="Ожидают оплаты"         value={orders?.awaiting_payment ?? 0}      href="/work/finance"   />
+        <StatCard label="Ожидают оплаты"         value={orders?.awaiting_payment ?? 0}      href="/orders?status=waiting"   />
         <StatCard label="Просрочено"             value={orders?.overdue ?? 0}               href="/orders?status=overdue"         valueColor="text-[#DC2626]" />
         <StatCard label="Материалы на исходе"    value={counters?.materials_not_ready ?? 0} href="/work/warehouse" valueColor="text-[#D97706]" />
       </div>
