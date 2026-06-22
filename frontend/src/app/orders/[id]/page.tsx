@@ -49,7 +49,7 @@ import {
 } from "@/hooks/useOrders";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRole } from "@/hooks/useRole";
-import { useCreatePayment } from "@/hooks/usePayments";
+import { useCreatePayment, useDeletePayment } from "@/hooks/usePayments";
 import type {
   OrderDetailDTO,
   OrderItemDTO,
@@ -755,6 +755,16 @@ export default function OrderDetailPage() {
   const changeHandoverMutation    = useChangeHandoverStage();
   const deleteMutation            = useDeleteOrder();
   const createPaymentMutation     = useCreatePayment();
+  const deletePaymentMutation     = useDeletePayment();
+
+  const handlePrepayDelete = async (paymentId: string) => {
+    try {
+      await deletePaymentMutation.mutateAsync(paymentId);
+      await refetchOrder();
+    } catch {
+      setActionError("Не удалось удалить платёж");
+    }
+  };
 
   const handlePrepaySubmit = async (data: { amount: number; pct: number; method: string }) => {
     if (!data.amount || data.amount <= 0) return;
@@ -1329,6 +1339,8 @@ export default function OrderDetailPage() {
         orderTotal={total}
         payments={order.payments}
         isLoading={prepayLoading}
+        onDelete={handlePrepayDelete}
+        deletingId={deletePaymentMutation.isPending ? deletePaymentMutation.variables ?? null : null}
       />
 
       {/* ── Cancel / Delete confirm ──────────────────────────────── */}

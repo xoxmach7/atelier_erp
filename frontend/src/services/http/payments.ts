@@ -3,7 +3,7 @@
  * Handles all HTTP operations for payments
  */
 
-import { get, post } from "./client";
+import { get, post, del } from "./client";
 import type { PaymentDTO } from "@/types";
 
 interface PaymentsListResponse {
@@ -52,4 +52,11 @@ export async function fetchPaymentById(id: string): Promise<PaymentDTO> {
  */
 export async function createPayment(data: CreatePaymentInput): Promise<PaymentDTO> {
   return post<PaymentDTO>(PAYMENTS_ENDPOINT, data);
+}
+
+/**
+ * Delete a payment by ID (owner only).
+ */
+export async function deletePayment(id: string): Promise<void> {
+  return del<void>(`${PAYMENTS_ENDPOINT}${id}/`);
 }

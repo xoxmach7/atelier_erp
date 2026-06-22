@@ -3,7 +3,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createPayment, fetchPayments, fetchPaymentById } from "@/services/http/payments";
+import { createPayment, fetchPayments, fetchPaymentById, deletePayment } from "@/services/http/payments";
 import type { CreatePaymentInput } from "@/services/http/payments";
 import type { PaymentDTO } from "@/types";
 
@@ -69,6 +69,22 @@ export function useCreatePayment() {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["orders", "detail", payment.order] });
       queryClient.invalidateQueries({ queryKey: ["order-execution", payment.order] });
+    },
+  });
+}
+
+/**
+ * Hook for deleting a payment (owner only).
+ */
+export function useDeletePayment() {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, string>({
+    mutationFn: deletePayment,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [PAYMENTS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["order-execution"] });
     },
   });
 }

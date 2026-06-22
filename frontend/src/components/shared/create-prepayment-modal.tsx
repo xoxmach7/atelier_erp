@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Trash2 } from "lucide-react";
 import { ModalCloseX } from "./modal-close";
 import type { PaymentDTO } from "@/types";
 
@@ -12,6 +13,8 @@ interface CreatePrepaymentModalProps {
   payments?: PaymentDTO[];
   requiredPct?: number;
   isLoading?: boolean;
+  onDelete?: (paymentId: string) => void;
+  deletingId?: string | null;
 }
 
 function fmtNum(v: string | number): string {
@@ -30,6 +33,8 @@ export function CreatePrepaymentModal({
   payments = [],
   requiredPct = 50,
   isLoading = false,
+  onDelete,
+  deletingId = null,
 }: CreatePrepaymentModalProps) {
   const [amount, setAmount] = useState("");
 
@@ -100,9 +105,22 @@ export function CreatePrepaymentModal({
             <div className="mb-6 rounded-[10px] bg-[#F8FAFC] px-5 py-4">
               {prepay.map((p) => (
                 <div key={p.id} className="flex items-center justify-between py-1.5 text-[15px] text-[#0F172A]">
-                  <span>{fmtDate(p.received_at)}</span>
-                  <span>{fmtNum(p.amount)} ₸</span>
-                  <span className="text-[#94A3B8]">—</span>
+                  <span className="flex-1">{fmtDate(p.received_at)}</span>
+                  <span className="flex-1 text-right">{fmtNum(p.amount)} ₸</span>
+                  {onDelete ? (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(p.id)}
+                      disabled={deletingId === p.id}
+                      className="ml-4 grid h-7 w-7 shrink-0 place-items-center rounded-[8px] text-[#94A3B8] transition-colors hover:bg-[#FEE2E2] hover:text-[#DC2626] disabled:opacity-40"
+                      aria-label="Удалить платёж"
+                      title="Удалить платёж"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  ) : (
+                    <span className="ml-4 text-[#94A3B8]">—</span>
+                  )}
                 </div>
               ))}
               <div className="mt-1.5 flex items-center justify-between border-t border-[#E2E8F0] pt-2.5 text-[15px] font-medium text-[#0F172A]">
