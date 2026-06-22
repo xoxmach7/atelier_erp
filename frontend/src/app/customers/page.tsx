@@ -40,6 +40,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ModalCloseX } from "@/components/shared/modal-close";
 
 /* ------------------------------------------------------------------ */
 /*  Customer Form (create / edit)                                     */
@@ -69,57 +70,64 @@ function CustomerForm({ initial, onSubmit, isPending, onCancel }: CustomerFormPr
     });
   }
 
+  const inputClass =
+    "w-full rounded-[10px] border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-[15px] text-[#0F172A] outline-none focus:border-[#0EA5E9] transition-colors placeholder:text-[#94A3B8]";
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="space-y-2">
-        <Label htmlFor="cust-name">
+    <form onSubmit={handleSubmit} className="px-6 sm:px-[52px] pt-[72px] pb-10">
+      <DialogHeader className="mb-8">
+        <DialogTitle className="text-[28px] font-semibold text-[#0F172A]">
+          {initial ? "Редактировать клиента" : "Добавление клиента"}
+        </DialogTitle>
+      </DialogHeader>
+
+      <div className="mb-6">
+        <label htmlFor="cust-name" className="block text-[15px] text-[#0F172A] mb-2">
           1. Фамилия и имя <span className="text-[#DC2626]">*</span>
-        </Label>
-        <Input
+        </label>
+        <input
           id="cust-name"
           placeholder="Ахметов Данияр"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           autoFocus
+          className={inputClass}
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="cust-phone">
+      <div className="mb-6">
+        <label htmlFor="cust-phone" className="block text-[15px] text-[#0F172A] mb-2">
           2. Телефон <span className="text-[#DC2626]">*</span>
-        </Label>
-        <Input
+        </label>
+        <input
           id="cust-phone"
           placeholder="+7 (777) 000-00-00"
           value={phone}
           onChange={(e) => setPhone(maskPhoneInput(e.target.value))}
           inputMode="tel"
+          className={inputClass}
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="cust-email">Email</Label>
-        <Input
+      <div className="mb-8">
+        <label htmlFor="cust-email" className="block text-[15px] text-[#0F172A] mb-2">Email</label>
+        <input
           id="cust-email"
           type="email"
           placeholder="email@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          className={inputClass}
         />
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isPending}>
-          Отмена
-        </Button>
-        <Button
-          type="submit"
-          disabled={!isValid || isPending}
-          className="bg-[#60CCED] hover:bg-[#4DBCE0] text-white"
-        >
-          {isPending ? "Сохранение..." : initial ? "Сохранить" : "Создать"}
-        </Button>
-      </div>
+      <button
+        type="submit"
+        disabled={!isValid || isPending}
+        className="w-full rounded-[10px] bg-[#60CCED] py-3.5 text-[16px] font-medium text-white hover:bg-[#4DBCE0] transition-all disabled:opacity-60"
+      >
+        {isPending ? "Сохранение..." : initial ? "Сохранить" : "Создать"}
+      </button>
     </form>
   );
 }
@@ -305,17 +313,8 @@ export default function CustomersPage() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[460px]">
-          <DialogHeader>
-            <DialogTitle>
-              {editingCustomer ? "Редактировать клиента" : "Добавление клиента"}
-            </DialogTitle>
-            <DialogDescription>
-              {editingCustomer
-                ? "Измените данные и нажмите Сохранить"
-                : "Заполните имя и телефон"}
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-[460px] p-0 gap-0 overflow-auto max-h-[90vh] [&>button]:hidden">
+          <div><ModalCloseX onClose={() => setDialogOpen(false)} /></div>
           <CustomerForm
             initial={editingCustomer}
             onSubmit={handleFormSubmit}
