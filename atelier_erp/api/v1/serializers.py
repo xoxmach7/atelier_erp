@@ -95,6 +95,8 @@ class OrderListSerializer(serializers.ModelSerializer):
     designer_name = serializers.SerializerMethodField()
     ui_badge = serializers.SerializerMethodField()
     material_readiness_label = serializers.CharField(source='get_material_readiness_display', read_only=True)
+    production_stage_label = serializers.CharField(source='get_production_stage_display', read_only=True)
+    handover_stage_label = serializers.CharField(source='get_handover_stage_display', read_only=True)
 
     class Meta:
         model = Order
@@ -103,7 +105,9 @@ class OrderListSerializer(serializers.ModelSerializer):
             'status', 'status_display', 'ui_badge',
             'total_amount', 'paid_amount', 'balance_due',
             'designer_name', 'created_at', 'planned_completion',
-            'material_readiness', 'material_readiness_label'
+            'material_readiness', 'material_readiness_label',
+            'production_stage', 'production_stage_label',
+            'handover_stage', 'handover_stage_label'
         ]
         read_only_fields = ['order_number', 'created_at']
 

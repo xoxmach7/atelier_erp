@@ -1058,7 +1058,7 @@ export default function OrderDetailPage() {
               </div>
 
               {/* History */}
-              <div className="w-[380px] shrink-0 rounded-xl border border-[#CBD5E1] p-6">
+              <div className="w-full md:w-[380px] shrink-0 rounded-xl border border-[#CBD5E1] p-6">
                 <div className="flex items-center justify-center gap-2 mb-5">
                   <img src="/icons/history.png" width={20} height={20} alt="" />
                   <span className="text-[16px] font-medium text-[#0F172A]">История</span>
@@ -1156,7 +1156,7 @@ export default function OrderDetailPage() {
                 </div>
 
                 {/* История */}
-                <div className="w-[380px] shrink-0 rounded-xl border border-[#CBD5E1] p-6">
+                <div className="w-full md:w-[380px] shrink-0 rounded-xl border border-[#CBD5E1] p-6">
                   <div className="flex items-center gap-2 mb-5">
                     <img src="/icons/history.png" width={20} height={20} alt="" />
                     <span className="text-[16px] font-medium text-[#0F172A]">История</span>
@@ -1213,7 +1213,7 @@ export default function OrderDetailPage() {
                 </div>
 
                 {/* История */}
-                <div className="w-[380px] shrink-0 rounded-xl border border-[#CBD5E1] p-6">
+                <div className="w-full md:w-[380px] shrink-0 rounded-xl border border-[#CBD5E1] p-6">
                   <div className="flex items-center gap-2 mb-5">
                     <img src="/icons/history.png" width={20} height={20} alt="" />
                     <span className="text-[16px] font-medium text-[#0F172A]">История</span>

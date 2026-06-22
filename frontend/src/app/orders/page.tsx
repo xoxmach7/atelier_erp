@@ -28,9 +28,10 @@ function OrdersContent() {
   const { logout } = useAuth();
 
   // Filters state
+  const statusFromUrl = (searchParams.get("status") as ListStatusKey) || "";
   const [search, setSearch] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
-  const [listStatusFilter, setListStatusFilter] = useState<ListStatusKey>("");
+  const [showFilters, setShowFilters] = useState(!!statusFromUrl);
+  const [listStatusFilter, setListStatusFilter] = useState<ListStatusKey>(statusFromUrl);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 

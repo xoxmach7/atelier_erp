@@ -9,9 +9,9 @@ export function ModalCloseX({ onClose }: { onClose: () => void }) {
       type="button"
       onClick={onClose}
       aria-label="Закрыть"
-      className="absolute left-5 top-5 z-10 grid h-10 w-10 place-items-center rounded-[10px] bg-[#60CCED] text-white transition-colors hover:bg-[#4DBCE0]"
+      className="absolute left-5 top-5 z-10 grid h-9 w-9 place-items-center rounded-[10px] bg-[#60CCED] text-white transition-colors hover:bg-[#4DBCE0]"
     >
-      <X size={22} />
+      <X size={20} />
     </button>
   );
 }

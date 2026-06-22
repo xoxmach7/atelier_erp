@@ -181,7 +181,7 @@ export default function CustomersPage() {
       <div className="min-h-screen bg-[#F0F4F8]">
         <div className="bg-white rounded-xl shadow-sm">
           {/* Top bar */}
-          <div className="flex items-center justify-between px-[52px] py-[30px]">
+          <div className="flex flex-wrap items-center justify-between gap-4 px-4 sm:px-[52px] py-5 sm:py-[30px]">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => router.back()}

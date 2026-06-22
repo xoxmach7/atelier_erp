@@ -76,6 +76,10 @@ export interface OrderListItemDTO {
   status_display?: string;
   material_readiness?: string;
   material_readiness_label?: string;
+  production_stage?: string;
+  production_stage_label?: string;
+  handover_stage?: string;
+  handover_stage_label?: string;
   ui_badge?: { color: string; label: string };
 }
 

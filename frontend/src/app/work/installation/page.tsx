@@ -1,122 +1,163 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Search, LogOut } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
-import { ErrorState, LoadingState } from "@/components/shared";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { useInstallationQueue } from "@/hooks/useWorkQueues";
-import { changeHandoverStage } from "@/services/http/orders";
-import type { InstallationTask } from "@/services/http/work";
-import { formatAddress } from "@/utils/formatAddress";
-import { EmptyRoleState, MaterialsList, StatusPill, TaskSection, WorkOrderHeader, WorkspaceHeader, formatDate } from "@/components/layout/role-workspace";
-import { Loader2 } from "lucide-react";
+import { useOrders } from "@/hooks/useOrders";
+import { useAuth } from "@/contexts/auth-context";
 
-function InstallationCard({
-  task,
-  onStartInstallation,
-  onFinishInstallation,
-  pendingId,
-}: {
-  task: InstallationTask;
-  onStartInstallation?: (id: string) => void;
-  onFinishInstallation?: (id: string) => void;
-  pendingId?: string | null;
-}) {
-  const isPending = pendingId === task.id;
-
-  return (
-    <Card className="border-slate-200 bg-white shadow-sm">
-      <CardContent className="space-y-3 p-4">
-        <WorkOrderHeader task={task} right={<StatusPill label={task.handover_stage_label} tone="sky" />} />
-        <div className="grid gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
-          <div><span className="font-medium">Телефон:</span> {task.customer_phone || "не указан"}</div>
-          <div><span className="font-medium">Адрес:</span> {formatAddress(task.installation_address) || "адрес не указан"}</div>
-          <div><span className="font-medium">Дата:</span> {formatDate(task.installation_date || task.planned_completion_date)}</div>
-        </div>
-        <MaterialsList items={task.items_to_install} emptyText="Позиции для установки ещё не сформированы." />
-        <div className="flex flex-wrap gap-2">
-          <StatusPill label={task.photo_report_count > 0 ? "фото: " + task.photo_report_count : "фото нет"} tone={task.photo_report_count > 0 ? "green" : "amber"} />
-          <StatusPill label={task.completion_act_status === "missing" ? "АВР нет" : "АВР создан"} tone={task.completion_act_status === "missing" ? "amber" : "green"} />
-          <StatusPill label={task.signed_act_uploaded ? "подписан" : "подпись нужна"} tone={task.signed_act_uploaded ? "green" : "amber"} />
-          {task.handover_stage === "pending" && (
-            <Button size="sm" disabled={isPending} onClick={() => onStartInstallation?.(task.id)}>
-              {isPending ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
-              Начать установку
-            </Button>
-          )}
-          {task.handover_stage === "in_progress" && (
-            <Button size="sm" className="bg-[#16A34A] hover:bg-[#15803D] text-white" disabled={isPending} onClick={() => onFinishInstallation?.(task.id)}>
-              {isPending ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
-              Установка завершена
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
+const STAGE: Record<string, { label: string; color: string }> = {
+  pending:     { label: "Ожидает",     color: "#DC2626" },
+  scheduled:   { label: "Запланирован", color: "#D97706" },
+  in_progress: { label: "Установка",   color: "#D97706" },
+  done:        { label: "Установлено", color: "#16A34A" },
+};
+function stageStatus(v?: string) {
+  return STAGE[v ?? ""] ?? { label: "—", color: "#94A3B8" };
 }
 
-function InstallationWorkspace() {
-  const queue = useInstallationQueue();
-  const queryClient = useQueryClient();
+const FILTERS = [
+  { key: "",            label: "Все" },
+  { key: "pending",     label: "Ожидает" },
+  { key: "in_progress", label: "Установка" },
+  { key: "done",        label: "Установлено" },
+] as const;
 
-  type HandoverStage = 'not_required' | 'pending' | 'scheduled' | 'in_progress' | 'done';
+function InstallationOrdersContent() {
+  const router = useRouter();
+  const { logout } = useAuth();
+  const [search, setSearch] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [stageFilter, setStageFilter] = useState<string>("");
 
-  const handoverMutation = useMutation({
-    mutationFn: ({ orderId, stage }: { orderId: string; stage: HandoverStage }) =>
-      changeHandoverStage(orderId, { handover_stage: stage }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["work-queues", "installation"] });
-    },
-  });
-
-  const pendingId = handoverMutation.isPending ? handoverMutation.variables?.orderId : null;
-
-  if (queue.isLoading) return <LoadingState message="Загрузка установки..." />;
-  if (queue.isError) return <ErrorState title="Не удалось загрузить установку" description={queue.error?.message || "Проверьте API очереди установки."} />;
-
-  const data = queue.data;
-  const activeInstallation = [...(data?.ready_for_installation ?? []), ...(data?.in_installation ?? [])];
+  const { data, isLoading } = useOrders({ pageSize: 200, search: search || undefined });
+  const all = data?.results ?? [];
+  const orders = stageFilter ? all.filter((o) => o.handover_stage === stageFilter) : all;
 
   return (
-    <ProtectedRoute>
-      <WorkspaceHeader title="Установка" description="Куда ехать, кому звонить, что установить и что закрыть после установки." />
-
-      <div className="grid gap-6 xl:grid-cols-2">
-        <TaskSection title="Готово к установке" count={activeInstallation.length}>
-          <div className="grid gap-3">
-            {activeInstallation.map((task) => (
-              <InstallationCard
-                key={task.id}
-                task={task}
-                onStartInstallation={(id) => handoverMutation.mutate({ orderId: id, stage: "in_progress" })}
-                onFinishInstallation={(id) => handoverMutation.mutate({ orderId: id, stage: "done" })}
-                pendingId={pendingId}
-              />
-            ))}
-            {!activeInstallation.length ? <EmptyRoleState text="Нет заказов, готовых к установке." /> : null}
+    <div className="min-h-screen bg-[#F0F4F8]">
+      <div className="bg-white rounded-xl shadow-sm">
+        {/* Top bar */}
+        <div className="flex flex-wrap items-center justify-between gap-4 px-4 sm:px-[52px] py-5 sm:py-[30px]">
+          <div className="flex items-center gap-4">
+            <h1 className="text-[26px] font-semibold text-[#0F172A] whitespace-nowrap">Установка</h1>
+            <div className="flex items-center gap-10 ml-[48px]">
+              <button
+                onClick={() => setShowFilters((v) => !v)}
+                className={`text-[15px] transition-colors ${
+                  showFilters || stageFilter ? "text-[#0EA5E9]" : "text-[#475569] hover:text-[#0EA5E9]"
+                }`}
+              >
+                Фильтры
+              </button>
+            </div>
           </div>
-        </TaskSection>
 
-        <TaskSection title="Нужны фото или АВР" count={data?.needs_photo_or_avr.length || 0}>
-          <div className="grid gap-3">
-            {data?.needs_photo_or_avr.map((task) => (
-              <InstallationCard
-                key={task.id}
-                task={task}
-                onFinishInstallation={(id) => handoverMutation.mutate({ orderId: id, stage: "done" })}
-                pendingId={pendingId}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2">
+              <Search size={14} className="text-[#94A3B8]" />
+              <input
+                type="text"
+                placeholder="Поиск по клиенту"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="border-none bg-transparent text-[14px] text-[#0F172A] outline-none w-[170px] placeholder:text-[#94A3B8]"
               />
-            ))}
-            {!data?.needs_photo_or_avr.length ? <EmptyRoleState text="Нет незакрытых фото или АВР." /> : null}
+            </div>
+            <button
+              onClick={() => logout()}
+              title="Выйти"
+              className="flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] px-3 py-[7px] text-[13px] text-[#475569] hover:text-[#DC2626] hover:border-[#DC2626] transition-colors"
+            >
+              <LogOut size={15} />
+              Выйти
+            </button>
           </div>
-        </TaskSection>
+        </div>
+
+        {/* Filter pills */}
+        {showFilters && (
+          <div className="px-4 sm:px-[52px] pb-4 flex gap-2 flex-wrap">
+            {FILTERS.map((f) => {
+              const active = stageFilter === f.key;
+              const color = f.key ? stageStatus(f.key).color : "#0EA5E9";
+              return (
+                <button
+                  key={f.key}
+                  onClick={() => setStageFilter(f.key)}
+                  className="px-4 py-1.5 rounded-full text-[12px] font-semibold transition-all"
+                  style={{
+                    background: active ? color + "14" : "transparent",
+                    border: `1.5px solid ${active ? color : "#E2E8F0"}`,
+                    color: active ? color : "#475569",
+                  }}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-[#60CCED]">
+                <th className="px-4 sm:px-[52px] py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">№</th>
+                <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Клиент</th>
+                <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Дата создания</th>
+                <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Дизайнер</th>
+                <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Статус</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={5} className="px-4 sm:px-[52px] py-10 text-center text-[#94A3B8]">Загрузка...</td></tr>
+              ) : orders.length === 0 ? (
+                <tr><td colSpan={5} className="px-4 sm:px-[52px] py-10 text-center text-[#94A3B8]">Заказы не найдены</td></tr>
+              ) : (
+                orders.map((order, i) => {
+                  const st = stageStatus(order.handover_stage);
+                  return (
+                    <tr
+                      key={order.id}
+                      onClick={() => router.push(`/orders/${order.id}`)}
+                      className="border-b border-dashed border-[#CBD5E1] cursor-pointer hover:bg-[#F8FAFC] transition-colors"
+                    >
+                      <td className="px-4 sm:px-[52px] py-4 font-medium text-[#0F172A] whitespace-nowrap">{order.order_number || i + 1}</td>
+                      <td className="px-6 py-4 text-[14px] text-[#0F172A]">{order.customer_name || "—"}</td>
+                      <td className="px-6 py-4 text-[14px] text-[#0F172A] whitespace-nowrap">
+                        {order.created_at
+                          ? new Date(order.created_at).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" })
+                          : "—"}
+                      </td>
+                      <td className="px-6 py-4 text-[14px] text-[#0F172A]">{order.designer_name || "—"}</td>
+                      <td className="px-6 py-4 font-medium whitespace-nowrap" style={{ color: st.color }}>
+                        {st.label}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-[#F1F5F9] px-4 sm:px-[52px] py-3 text-[13px] text-[#94A3B8]">
+          Показано {orders.length} из {all.length} заказов
+        </div>
       </div>
-    </ProtectedRoute>
+    </div>
   );
 }
 
 export default function InstallationWorkPage() {
-  return <InstallationWorkspace />;
+  return (
+    <ProtectedRoute>
+      <InstallationOrdersContent />
+    </ProtectedRoute>
+  );
 }
