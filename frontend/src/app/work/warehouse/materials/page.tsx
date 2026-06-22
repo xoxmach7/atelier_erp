@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ArrowLeft, Plus, Loader2, X } from "lucide-react";
+import { Search, ArrowLeft, Plus, Loader2, X, HelpCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { ModalCloseX } from "@/components/shared/modal-close";
 import { fetchFabrics } from "@/services/http/fabrics";
 import {
   fetchInventoryItems,
@@ -178,7 +179,10 @@ function MaterialsContent() {
   const isLoading = fabricsLoading || itemsLoading;
 
   const submitDisabled =
-    saving || !form.name.trim() || form.quantity === "" || form.price_per_unit === "";
+    saving || !form.sku.trim() || !form.name.trim() || !form.unit;
+
+  const inputCls =
+    "w-full rounded-[10px] bg-[#E9E9E9] px-4 py-[14px] text-[15px] text-[#0F172A] outline-none placeholder:text-[#94A3B8]";
 
   const handleRowClick = (r: Row) => {
     if (r.source !== "item" || !r.rawId) return;
@@ -188,15 +192,14 @@ function MaterialsContent() {
 
   const handleSubmit = () => {
     setFormError("");
+    if (!form.sku.trim()) return setFormError("Укажите артикул");
     if (!form.name.trim()) return setFormError("Укажите наименование");
-    if (form.quantity === "" || parseFloat(form.quantity) < 0) return setFormError("Некорректное количество");
-    if (form.price_per_unit === "" || parseFloat(form.price_per_unit) < 0) return setFormError("Некорректная цена");
     const payload = {
       name: form.name.trim(),
       category: form.category,
       unit: form.unit,
-      quantity: form.quantity,
-      price_per_unit: form.price_per_unit,
+      quantity: form.quantity || "0",
+      price_per_unit: form.price_per_unit || "0",
       low_stock_threshold: form.low_stock_threshold || 0,
       sku: form.sku.trim() || undefined,
       supplier: form.supplier.trim() || undefined,
@@ -228,7 +231,7 @@ function MaterialsContent() {
                 onClick={openAdd}
                 className="flex items-center gap-1.5 text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
               >
-                <Plus size={16} /> Добавить материал
+                <Plus size={16} /> Добавить позицию
               </button>
               <button
                 onClick={() => setLowOnly((v) => !v)}
@@ -301,148 +304,123 @@ function MaterialsContent() {
         </div>
       </div>
 
-      {/* Add / edit material modal */}
+      {/* Create / edit inventory item modal */}
       {modalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center p-6"
+          style={{ background: "rgba(15,23,42,.35)", backdropFilter: "blur(4px)" }}
           onClick={() => !saving && closeModal()}
         >
           <div
-            className="w-full max-w-[520px] rounded-xl bg-white shadow-xl"
+            className="relative w-full max-w-[480px] rounded-[14px] bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-[#F1F5F9] px-6 py-4">
-              <h2 className="text-[18px] font-semibold text-[#0F172A]">
-                {editingId ? "Редактировать материал" : "Добавить материал"}
-              </h2>
-              <button
-                onClick={() => !saving && closeModal()}
-                className="text-[#94A3B8] hover:text-[#475569]"
-              >
-                <X size={20} />
-              </button>
-            </div>
+            <ModalCloseX onClose={() => !saving && closeModal()} />
 
-            <div className="space-y-4 px-6 py-5">
-              <div>
-                <label className="mb-1 block text-[13px] font-medium text-[#475569]">Наименование *</label>
+            <div className="px-6 sm:px-[52px] pb-10 pt-[72px]">
+              <h2 className="mb-8 text-[28px] font-semibold text-[#0F172A]">
+                {editingId ? "Редактирование позиции" : "Создание позиции"}
+              </h2>
+
+              {/* 1. Артикул */}
+              <div className="mb-6">
+                <label className="block text-[15px] text-[#0F172A] mb-2">
+                  1. Артикул <span className="text-[#DC2626]">*</span>
+                </label>
                 <input
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="Напр. Крючки металлические"
-                  className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-[14px] text-[#0F172A] outline-none focus:border-[#60CCED]"
+                  value={form.sku}
+                  onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                  autoFocus
+                  className={inputCls}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-[13px] font-medium text-[#475569]">Категория</label>
-                  <select
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value as InventoryCategory })}
-                    className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-[14px] text-[#0F172A] outline-none focus:border-[#60CCED]"
-                  >
-                    {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-[13px] font-medium text-[#475569]">Единица</label>
+              {/* 2. Наименование */}
+              <div className="mb-6">
+                <label className="block text-[15px] text-[#0F172A] mb-2">
+                  2. Наименование <span className="text-[#DC2626]">*</span>
+                </label>
+                <input
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className={inputCls}
+                />
+              </div>
+
+              {/* 3. Единица измерения */}
+              <div className="mb-6">
+                <label className="block text-[15px] text-[#0F172A] mb-2">
+                  3. Единица измерения <span className="text-[#DC2626]">*</span>
+                </label>
+                <div className="relative">
                   <select
                     value={form.unit}
                     onChange={(e) => setForm({ ...form, unit: e.target.value as InventoryUnit })}
-                    className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-[14px] text-[#0F172A] outline-none focus:border-[#60CCED]"
+                    className={`${inputCls} appearance-none pr-10`}
                   >
                     {UNITS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                   </select>
+                  <svg
+                    className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#475569]"
+                    width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
+                  >
+                    <path d="M12 16 6 9h12z" />
+                  </svg>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-[13px] font-medium text-[#475569]">Количество *</label>
-                  <input
-                    type="number" min="0" step="0.01"
-                    value={form.quantity}
-                    onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-                    placeholder="0"
-                    className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-[14px] text-[#0F172A] outline-none focus:border-[#60CCED]"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[13px] font-medium text-[#475569]">Цена за ед., ₸ *</label>
+              {/* 4. Стоимость */}
+              <div className="mb-6">
+                <label className="block text-[15px] text-[#0F172A] mb-2">4. Стоимость за м/шт.</label>
+                <div className="flex items-center gap-3">
                   <input
                     type="number" min="0" step="0.01"
                     value={form.price_per_unit}
                     onChange={(e) => setForm({ ...form, price_per_unit: e.target.value })}
                     placeholder="0"
-                    className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-[14px] text-[#0F172A] outline-none focus:border-[#60CCED]"
+                    className={`${inputCls} flex-1`}
                   />
+                  <span className="text-[18px] text-[#475569] shrink-0">₸</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-[13px] font-medium text-[#475569]">Порог «на исходе»</label>
-                  <input
-                    type="number" min="0" step="0.01"
-                    value={form.low_stock_threshold}
-                    onChange={(e) => setForm({ ...form, low_stock_threshold: e.target.value })}
-                    placeholder="0"
-                    className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-[14px] text-[#0F172A] outline-none focus:border-[#60CCED]"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[13px] font-medium text-[#475569]">Артикул</label>
-                  <input
-                    value={form.sku}
-                    onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                    placeholder="необязательно"
-                    className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-[14px] text-[#0F172A] outline-none focus:border-[#60CCED]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-[13px] font-medium text-[#475569]">Поставщик</label>
+              {/* 5. Минимальный запас */}
+              <div className="mb-8">
+                <label className="flex items-center gap-2 text-[15px] text-[#0F172A] mb-2">
+                  5. Минимальный запас
+                  <span title="Если остаток опустится ниже этого значения, позиция подсветится как «на исходе»">
+                    <HelpCircle size={16} className="text-[#94A3B8]" />
+                  </span>
+                </label>
                 <input
-                  value={form.supplier}
-                  onChange={(e) => setForm({ ...form, supplier: e.target.value })}
-                  placeholder="необязательно"
-                  className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-[14px] text-[#0F172A] outline-none focus:border-[#60CCED]"
+                  type="number" min="0" step="0.01"
+                  value={form.low_stock_threshold}
+                  onChange={(e) => setForm({ ...form, low_stock_threshold: e.target.value })}
+                  placeholder="0"
+                  className={inputCls}
                 />
               </div>
 
-              {formError && <p className="text-[13px] text-[#DC2626]">{formError}</p>}
-            </div>
+              {formError && <p className="mb-4 text-[14px] text-[#DC2626]">{formError}</p>}
 
-            <div className="flex items-center justify-between border-t border-[#F1F5F9] px-6 py-4">
-              <div>
-                {editingId && (
-                  <button
-                    onClick={handleDelete}
-                    disabled={saving}
-                    className="text-[14px] text-[#DC2626] hover:underline disabled:opacity-50"
-                  >
-                    Удалить
-                  </button>
-                )}
-              </div>
-              <div className="flex gap-3">
+              <button
+                onClick={handleSubmit}
+                disabled={submitDisabled}
+                className="flex w-full items-center justify-center gap-2 rounded-[10px] bg-[#60CCED] py-[14px] text-[16px] font-semibold text-white transition-colors hover:bg-[#4DBCE0] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {(createMutation.isPending || updateMutation.isPending) && <Loader2 size={16} className="animate-spin" />}
+                {editingId ? "Сохранить" : "Создать"}
+              </button>
+
+              {editingId && (
                 <button
-                  onClick={() => !saving && closeModal()}
-                  className="rounded-lg px-4 py-2 text-[14px] text-[#475569] hover:bg-[#F1F5F9]"
+                  onClick={handleDelete}
+                  disabled={saving}
+                  className="mt-4 w-full text-center text-[14px] text-[#DC2626] hover:underline disabled:opacity-50"
                 >
-                  Отмена
+                  Удалить позицию
                 </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={submitDisabled}
-                  className="flex items-center gap-2 rounded-lg bg-[#60CCED] px-5 py-2 text-[14px] font-medium text-white hover:bg-[#3FB8DE] disabled:opacity-50"
-                >
-                  {(createMutation.isPending || updateMutation.isPending) && <Loader2 size={16} className="animate-spin" />}
-                  Сохранить
-                </button>
-              </div>
+              )}
             </div>
           </div>
         </div>
