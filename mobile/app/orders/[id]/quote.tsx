@@ -31,9 +31,7 @@ export default function QuoteScreen() {
   const [orderNum, setOrderNum] = useState('');
   const [lines, setLines] = useState<Line[]>([]);
   const [fabricNames, setFabricNames] = useState<Record<string, string>>({});
-  const [prepay, setPrepay] = useState('50');
   const [deposit, setDeposit] = useState('');
-  const [depositTouched, setDepositTouched] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,9 +60,7 @@ export default function QuoteScreen() {
     [lines],
   );
 
-  const depositValue = depositTouched
-    ? (parseFloat(deposit) || 0)
-    : Math.round(total * (parseFloat(prepay) || 0) / 100);
+  const prepayAmount = Math.round(total * 0.5);
 
   const setQty = (i: number, delta: number) =>
     setLines(ls => ls.map((l, idx) => idx === i ? { ...l, qty: Math.max(1, l.qty + delta) } : l));
@@ -79,7 +75,7 @@ export default function QuoteScreen() {
     try {
       const payload: CreateQuotePayload = {
         order_id: idStr,
-        prepayment_percent: (parseFloat(prepay) || 0) / 100,
+        prepayment_percent: 0.5,
         items: lines.map(l => ({
           room_name: l.m.room_name,
           window_name: l.m.window_name,
@@ -155,17 +151,18 @@ export default function QuoteScreen() {
 
           <View style={s.prepayRow}>
             <Text style={s.prepayLabel}>Размер предоплаты:</Text>
-            <TextInput style={s.prepayInput} value={prepay} onChangeText={setPrepay} keyboardType="numeric" />
-            <Text style={s.prepayUnit}>%</Text>
+            <Text style={s.prepayAmount}>{money(prepayAmount)} ₸</Text>
           </View>
 
           <View style={s.prepayRow}>
             <Text style={s.prepayLabel}>Внесено:</Text>
             <TextInput
               style={s.depositInput}
-              value={depositTouched ? deposit : String(depositValue)}
-              onChangeText={(v) => { setDepositTouched(true); setDeposit(v); }}
+              value={deposit}
+              onChangeText={setDeposit}
               keyboardType="numeric"
+              placeholder="0"
+              placeholderTextColor="#94A3B8"
             />
             <Text style={s.prepayUnit}>₸</Text>
           </View>
@@ -212,6 +209,7 @@ const s = StyleSheet.create({
   prepayRow: { flexDirection: 'row', alignItems: 'center', marginTop: 18 },
   prepayLabel: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Regular' },
   prepayInput: { width: 76, backgroundColor: '#E9E9E9', borderRadius: 10, height: 44, marginLeft: 12, paddingHorizontal: 14, fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Regular' },
+  prepayAmount: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Bold', marginLeft: 16 },
   depositInput: { flex: 1, backgroundColor: '#E9E9E9', borderRadius: 10, height: 44, marginLeft: 12, paddingHorizontal: 14, fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Regular' },
   prepayUnit: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', marginLeft: 10 },
 
