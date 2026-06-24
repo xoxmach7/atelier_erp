@@ -3,7 +3,8 @@ import {
   View, Text, FlatList, TouchableOpacity,
   ActivityIndicator, TextInput, StyleSheet, Platform, StatusBar,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../../src/components/EmptyState';
 import { IconButton, Icon } from '../../src/components/Icon';
 import { useOrders } from '../../src/hooks/useOrder';
@@ -88,15 +89,24 @@ const card = StyleSheet.create({
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
+function isOverdue(o: Order): boolean {
+  if (!o.planned_completion) return false;
+  if (o.status === 'completed' || o.status === 'cancelled') return false;
+  const today = new Date().toISOString().split('T')[0];
+  return o.planned_completion.split('T')[0] < today;
+}
+
 export default function OrdersScreen() {
   const router = useRouter();
   const { primaryRole, logout } = useAuthContext();
-  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const params = useLocalSearchParams<{ status?: string }>();
+  const insets = useSafeAreaInsets();
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(params.status || undefined);
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
-  const { data, loading, error, refetch } = useOrders(statusFilter);
+  const { data, loading, error, refetch } = useOrders(statusFilter === 'overdue' ? undefined : statusFilter);
 
   const filtered = search.trim()
     ? data.filter(o =>
@@ -106,14 +116,16 @@ export default function OrdersScreen() {
       )
     : data;
 
+  const visible = statusFilter === 'overdue' ? filtered.filter(isOverdue) : filtered;
+
   const isOwner = primaryRole === 'owner';
 
   return (
     <View style={s.screen}>
       {/* Header */}
-      <View style={s.headerArea}>
-        <TouchableOpacity onPress={() => logout()} activeOpacity={0.6}>
-          <Text style={s.exit}>Выйти</Text>
+      <View style={[s.headerArea, { paddingTop: insets.top + 14 }]}>
+        <TouchableOpacity onPress={() => (isOwner ? router.back() : logout())} activeOpacity={0.6}>
+          <Text style={s.exit}>{isOwner ? 'Назад' : 'Выйти'}</Text>
         </TouchableOpacity>
         <Text style={s.title}>Управление заказами</Text>
         <View style={s.iconRow}>
@@ -170,9 +182,9 @@ export default function OrdersScreen() {
       )}
       {!loading && !error && (
         <FlatList
-          data={filtered}
+          data={visible}
           keyExtractor={item => String(item.id)}
-          contentContainerStyle={s.listContent}
+          contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 24 }]}
           showsVerticalScrollIndicator={false}
           onRefresh={refetch}
           refreshing={loading}

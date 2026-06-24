@@ -3,6 +3,8 @@ import {
   View, Text, StyleSheet, ActivityIndicator,
   TouchableOpacity, ScrollView, RefreshControl, Platform, StatusBar,
 } from 'react-native';
+import { Redirect, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthContext } from '../../src/context/AuthContext';
 import { apiClient } from '../../src/api/client';
 import { useWorkQueue } from '../../src/hooks/useWorkQueues';
@@ -130,6 +132,8 @@ const ORANGE = '#F59E0B';
 
 function OwnerDashboard() {
   const { logout } = useAuthContext();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [lowStock, setLowStock] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -182,7 +186,7 @@ function OwnerDashboard() {
   return (
     <ScrollView
       style={s.scroll}
-      contentContainerStyle={s.scrollContent}
+      contentContainerStyle={[s.scrollContent, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchAll(true); }} tintColor={CYAN} />
@@ -227,10 +231,10 @@ function OwnerDashboard() {
 
       {/* Stat pills */}
       <View style={s.pills}>
-        <StatPill label="Все заказы (за период)" value={orders.total} valueColor={CYAN} onPress={() => {}} />
-        <StatPill label="В работе" value={orders.in_work} valueColor={CYAN} onPress={() => {}} />
-        <StatPill label="Ожидают оплаты" value={orders.awaiting_payment} valueColor={CYAN} onPress={() => {}} />
-        <StatPill label="Просрочено" value={orders.overdue} valueColor={RED} onPress={() => {}} />
+        <StatPill label="Все заказы (за период)" value={orders.total} valueColor={CYAN} onPress={() => router.push('/(tabs)/orders')} />
+        <StatPill label="В работе" value={orders.in_work} valueColor={CYAN} onPress={() => router.push('/(tabs)/orders?status=in_work')} />
+        <StatPill label="Ожидают оплаты" value={orders.awaiting_payment} valueColor={CYAN} onPress={() => router.push('/(tabs)/orders?status=waiting_final_payment')} />
+        <StatPill label="Просрочено" value={orders.overdue} valueColor={RED} onPress={() => router.push('/(tabs)/orders?status=overdue')} />
         <StatPill label="Материалы на исходе" value={lowStock} valueColor={ORANGE} onPress={() => {}} />
       </View>
 
@@ -246,6 +250,7 @@ function OwnerDashboard() {
 
 function NonOwnerView() {
   const { primaryRole, user, logout } = useAuthContext();
+  const insets = useSafeAreaInsets();
   const { data, loading, error, refetch } = useWorkQueue(primaryRole);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -279,7 +284,7 @@ function NonOwnerView() {
   return (
     <ScrollView
       style={s.scroll}
-      contentContainerStyle={s.scrollContent}
+      contentContainerStyle={[s.scrollContent, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#60CCED" />
@@ -324,6 +329,7 @@ function NonOwnerView() {
 
 export default function TodayScreen() {
   const { primaryRole } = useAuthContext();
+  if (primaryRole === 'designer') return <Redirect href="/(tabs)/orders" />;
   return primaryRole === 'owner' ? <OwnerDashboard /> : <NonOwnerView />;
 }
 
