@@ -16,7 +16,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: { display: 'none' },
         tabBarItemStyle: styles.tabItem,
         tabBarShowLabel: false,
       }}
