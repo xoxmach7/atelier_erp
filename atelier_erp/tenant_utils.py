@@ -25,11 +25,23 @@ class TenantModelMixin:
         """
         return getattr(self.request, 'tenant', None) or None
 
-    def get_queryset(self):
-        qs = super().get_queryset()
+    def scope_to_tenant(self, qs):
+        """Явно применить tenant-фильтр к произвольному queryset.
+
+        ВАЖНО: если ViewSet переопределяет get_queryset() своим методом
+        (нужно для ролевой фильтрации — см. OrderViewSet, CustomerViewSet
+        и т.д.), Python MRO НЕ вызывает get_queryset() миксина автоматически —
+        переопределение в дочернем классе полностью его перекрывает.
+        Раньше это приводило к тому, что тенант-фильтрация тихо не применялась
+        нигде, кроме вьюсетов без своего get_queryset (например InventoryItemViewSet).
+
+        Использовать: в конце собственного get_queryset() дочернего класса
+        оборачивать финальный (уже отфильтрованный по роли/query-параметрам)
+        qs через `return self.scope_to_tenant(qs)`.
+        """
         tenant = self._current_tenant()
 
-        # Суперюзер без тенанта — видит всё (Railway shell, admin панель)
+        # Суперюзер без тенанта — видит всё (Railway shell, админка)
         if self.request.user.is_superuser and tenant is None:
             return qs
 
@@ -39,6 +51,12 @@ class TenantModelMixin:
             return qs.filter(**{self.tenant_field: None})
 
         return qs.filter(**{self.tenant_field: tenant})
+
+    def get_queryset(self):
+        """Используется только вьюсетами, которые НЕ переопределяют get_queryset
+        сами (например InventoryItemViewSet). Вьюсеты с ролевой логикой
+        должны вызывать self.scope_to_tenant(...) явно в конце своего метода."""
+        return self.scope_to_tenant(super().get_queryset())
 
     def perform_create(self, serializer):
         tenant = self._current_tenant()

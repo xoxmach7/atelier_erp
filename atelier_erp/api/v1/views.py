@@ -69,34 +69,41 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
-        """Срез заказов по роли.
+        """Срез заказов по роли + изоляция по тенанту.
 
         Полный список всех заказов компании — только Owner и Designer.
         Остальные роли видят только свой операционный срез по статусам.
         Пользователь без подходящей группы не видит ничего (default deny).
         select_related('customer') убирает N+1 в списке.
+
+        scope_to_tenant() применяется в конце ко всем веткам — без него
+        (см. tenant_utils.TenantModelMixin) заказы одного тенанта были бы
+        видны сотрудникам другого при появлении второго клиента.
         """
         qs = Order.objects.select_related('customer').order_by('-created_at')
         user = self.request.user
 
         if user_in(user, *Roles.FULL_ORDER_ACCESS):
-            return qs
-        if user_in(user, Roles.WAREHOUSE):
-            return qs.filter(status__in=[
+            scoped = qs
+        elif user_in(user, Roles.WAREHOUSE):
+            scoped = qs.filter(status__in=[
                 Order.Status.IN_WORK,
                 Order.Status.IN_PRODUCTION,
                 Order.Status.READY,
             ])
-        if user_in(user, Roles.SEAMSTRESS):
-            return qs.filter(status=Order.Status.IN_PRODUCTION)
-        if user_in(user, Roles.INSTALLER):
-            return qs.filter(status__in=[
+        elif user_in(user, Roles.SEAMSTRESS):
+            scoped = qs.filter(status=Order.Status.IN_PRODUCTION)
+        elif user_in(user, Roles.INSTALLER):
+            scoped = qs.filter(status__in=[
                 Order.Status.READY,
                 Order.Status.ON_INSTALLATION,
                 Order.Status.WAITING_FINAL_PAYMENT,
             ])
-        # Нет подходящей роли — ничего не показываем (default deny).
-        return qs.none()
+        else:
+            # Нет подходящей роли — ничего не показываем (default deny).
+            scoped = qs.none()
+
+        return self.scope_to_tenant(scoped)
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'customer']
     search_fields = ['order_number', 'customer__full_name', 'customer__phone']
@@ -2083,7 +2090,7 @@ class QuoteViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
         order_id = self.request.query_params.get('order')
         if order_id:
             queryset = queryset.filter(order_id=order_id)
-        return queryset
+        return self.scope_to_tenant(queryset)
 
     def create(self, request, *args, **kwargs):
         """Create quote for an existing order"""
@@ -2207,7 +2214,7 @@ class CustomerViewSet(TenantModelMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Customer.objects.filter(is_active=True)
-        return qs
+        return self.scope_to_tenant(qs)
 
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
@@ -2243,7 +2250,7 @@ class PaymentViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
-        return Payment.objects.select_related('order').all()
+        return self.scope_to_tenant(Payment.objects.select_related('order').all())
 
 
 # ---------------------------------------------------------------------------
@@ -2273,9 +2280,9 @@ class MeasurementViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
         return MeasurementSerializer
 
     def get_queryset(self):
-        return Measurement.objects.select_related(
-            'curtain_fabric', 'tulle_fabric'
-        ).all()
+        return self.scope_to_tenant(
+            Measurement.objects.select_related('curtain_fabric', 'tulle_fabric').all()
+        )
 
 
 class StaffListView(APIView):

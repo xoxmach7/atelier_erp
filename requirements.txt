@@ -23,7 +23,7 @@ djangorestframework-simplejwt>=5.3.0,<6.0  # JWT authentication
 # Utilities
 Pillow>=10.0.0,<12.0  # Image handling
 python-dateutil>=2.8.0,<3.0
-xhtml2pdf>=0.2.16,<0.3  # PDF generation for quotes (pure-Python, no system deps)
+xhtml2pdf>=0.2.17,<0.3  # PDF generation for quotes (pure-Python, no system deps); >=0.2.17 fixes CVE-2024-25885 (ReDoS)
 
 # File storage (S3 / Cloudflare R2)
 django-storages>=1.14.0,<2.0

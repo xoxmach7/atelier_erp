@@ -228,9 +228,16 @@ class TestOrderLifecycleIntegration:
         # handover_stage = not_required AND production_stage = done
 
         # 13. Upload PhotoReport
+        # Настоящий минимальный JPEG (не просто текстовые байты с content_type
+        # image/jpeg) — с 2026-07-05 сериализатор проверяет реальное содержимое
+        # файла через Pillow, а не только заявленный клиентом Content-Type.
+        import io
+        from PIL import Image as PILImage
+        _img_buf = io.BytesIO()
+        PILImage.new('RGB', (1, 1), color='white').save(_img_buf, format='JPEG')
         image = SimpleUploadedFile(
             "lifecycle_test.jpg",
-            b"JPEG lifecycle content",
+            _img_buf.getvalue(),
             content_type="image/jpeg"
         )
         photo_response = authenticated_client.post(
@@ -259,9 +266,11 @@ class TestOrderLifecycleIntegration:
         assert act_response.data['act']['status'] == 'draft'
 
         # 15. Upload signed AVR
+        # Настоящий минимальный PDF-заголовок — с 2026-07-05 сериализатор
+        # проверяет magic bytes ('%PDF-'), а не только Content-Type.
         signed_file = SimpleUploadedFile(
             "signed_act.pdf",
-            b"PDF signed act content",
+            b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF",
             content_type="application/pdf"
         )
         signed_response = authenticated_client.post(

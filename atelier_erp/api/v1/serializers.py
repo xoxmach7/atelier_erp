@@ -736,19 +736,40 @@ class PhotoReportUploadSerializer(serializers.Serializer):
     ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
 
     def validate_file(self, value):
-        """Validate file type and size"""
+        """Validate file type and size.
+
+        content_type пришедший в заголовке — клиент может подделать
+        (переименовать произвольный файл в .png). Поэтому дополнительно
+        проверяем реальное содержимое через Pillow (magic bytes), а не
+        только заявленный Content-Type.
+        """
         # Check file size
         if value.size > self.MAX_FILE_SIZE:
             raise serializers.ValidationError(
                 f'File size must be less than 10 MB. Current size: {value.size / (1024*1024):.1f} MB'
             )
 
-        # Check content type
+        # Check content type (заявленный клиентом)
         content_type = value.content_type
         if content_type not in self.ALLOWED_TYPES:
             raise serializers.ValidationError(
                 f'Only image files are allowed (JPEG, PNG, WebP). Got: {content_type}'
             )
+
+        # Проверка реального содержимого файла (защита от подмены расширения/content-type)
+        from PIL import Image, UnidentifiedImageError
+        try:
+            value.seek(0)
+            with Image.open(value) as img:
+                img.verify()
+            value.seek(0)
+            with Image.open(value) as img2:
+                if img2.format not in ('JPEG', 'PNG', 'WEBP'):
+                    raise serializers.ValidationError('Файл не является изображением поддерживаемого формата.')
+        except (UnidentifiedImageError, OSError):
+            raise serializers.ValidationError('Файл повреждён или не является реальным изображением.')
+        finally:
+            value.seek(0)
 
         return value
 
@@ -807,18 +828,44 @@ class OrderCompletionActUploadSerializer(serializers.Serializer):
     ]
 
     def validate_signed_file(self, value):
-        """Validate file type and size"""
+        """Validate file type and size.
+
+        Помимо заявленного content_type (который клиент может подделать)
+        проверяем реальные magic bytes файла: PDF-подпись или валидное
+        изображение через Pillow.
+        """
         # Check file size
         if value.size > self.MAX_FILE_SIZE:
             raise serializers.ValidationError(
                 f'Размер файла должен быть меньше 20 МБ. Текущий размер: {value.size / (1024*1024):.1f} МБ'
             )
 
-        # Check content type
+        # Check content type (заявленный клиентом)
         content_type = value.content_type
         if content_type not in self.ALLOWED_TYPES:
             raise serializers.ValidationError(
                 f'Разрешены только PDF и изображения (JPEG, PNG, WebP). Получено: {content_type}'
             )
+
+        # Проверка реального содержимого файла
+        value.seek(0)
+        header = value.read(5)
+        value.seek(0)
+        if content_type == 'application/pdf':
+            if not header.startswith(b'%PDF-'):
+                raise serializers.ValidationError('Файл не является настоящим PDF.')
+        else:
+            from PIL import Image, UnidentifiedImageError
+            try:
+                with Image.open(value) as img:
+                    img.verify()
+                value.seek(0)
+                with Image.open(value) as img2:
+                    if img2.format not in ('JPEG', 'PNG', 'WEBP'):
+                        raise serializers.ValidationError('Файл не является изображением поддерживаемого формата.')
+            except (UnidentifiedImageError, OSError):
+                raise serializers.ValidationError('Файл повреждён или не является реальным изображением.')
+            finally:
+                value.seek(0)
 
         return value
