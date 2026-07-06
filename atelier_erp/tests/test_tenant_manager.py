@@ -1,6 +1,8 @@
+from decimal import Decimal
+
 from django.test import TestCase
 
-from atelier_erp.models import Customer, Tenant
+from atelier_erp.models import Customer, Order, Tenant
 from atelier_erp.tenant_context import ALL_TENANTS, set_current_tenant_id, reset_current_tenant_id
 
 
@@ -65,6 +67,81 @@ class TenantManagerTests(TestCase):
         token = set_current_tenant_id(self.tenant_a.id)
         try:
             count = Customer.all_tenants.count()
+        finally:
+            reset_current_tenant_id(token)
+        self.assertEqual(count, 3)
+
+
+class OrderTenantManagerTests(TestCase):
+    def setUp(self):
+        self.tenant_a = Tenant.objects.create(name='Ателье А', slug='atelier-a-order')
+        self.tenant_b = Tenant.objects.create(name='Ателье Б', slug='atelier-b-order')
+
+        self.customer = Customer.objects.create(
+            full_name='Общий клиент', phone='+79990000009', tenant=None
+        )
+
+        self.order_a = Order.objects.create(
+            order_number='О-2026-101',
+            customer=self.customer,
+            status=Order.Status.NEW,
+            total_amount=Decimal('10000.00'),
+            paid_amount=Decimal('0.00'),
+            tenant=self.tenant_a,
+        )
+        self.order_b = Order.objects.create(
+            order_number='О-2026-102',
+            customer=self.customer,
+            status=Order.Status.NEW,
+            total_amount=Decimal('20000.00'),
+            paid_amount=Decimal('0.00'),
+            tenant=self.tenant_b,
+        )
+        self.order_none = Order.objects.create(
+            order_number='О-2026-103',
+            customer=self.customer,
+            status=Order.Status.NEW,
+            total_amount=Decimal('30000.00'),
+            paid_amount=Decimal('0.00'),
+            tenant=None,
+        )
+
+    def test_filters_by_current_tenant(self):
+        token = set_current_tenant_id(self.tenant_a.id)
+        try:
+            numbers = set(Order.objects.values_list('order_number', flat=True))
+        finally:
+            reset_current_tenant_id(token)
+        self.assertEqual(numbers, {'О-2026-101'})
+
+    def test_other_tenant_isolated(self):
+        token = set_current_tenant_id(self.tenant_b.id)
+        try:
+            numbers = set(Order.objects.values_list('order_number', flat=True))
+        finally:
+            reset_current_tenant_id(token)
+        self.assertEqual(numbers, {'О-2026-102'})
+
+    def test_no_tenant_context_shows_null_tenant_rows(self):
+        token = set_current_tenant_id(None)
+        try:
+            numbers = set(Order.objects.values_list('order_number', flat=True))
+        finally:
+            reset_current_tenant_id(token)
+        self.assertEqual(numbers, {'О-2026-103'})
+
+    def test_all_tenants_sentinel_shows_everything(self):
+        token = set_current_tenant_id(ALL_TENANTS)
+        try:
+            numbers = set(Order.objects.values_list('order_number', flat=True))
+        finally:
+            reset_current_tenant_id(token)
+        self.assertEqual(numbers, {'О-2026-101', 'О-2026-102', 'О-2026-103'})
+
+    def test_unfiltered_manager_still_available_for_admin(self):
+        token = set_current_tenant_id(self.tenant_a.id)
+        try:
+            count = Order.all_tenants.count()
         finally:
             reset_current_tenant_id(token)
         self.assertEqual(count, 3)

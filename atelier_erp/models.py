@@ -314,7 +314,7 @@ class Service(models.Model):
         verbose_name_plural = 'Services'
 
 
-class InventoryItem(UUIDModel, AuditedModel):
+class InventoryItem(TenantManagerMixin, UUIDModel, AuditedModel):
     """General warehouse stock item — ткань, тюль, карниз, фурнитура, прочее.
 
     Отдельно от Fabric (каталог тканей для КП): здесь живёт физический склад
@@ -407,7 +407,7 @@ class InventoryItem(UUIDModel, AuditedModel):
 # ORDER CONTEXT (Core Domain)
 # ============================================
 
-class Order(UUIDModel, AuditedModel):
+class Order(TenantManagerMixin, UUIDModel, AuditedModel):
     """Order aggregate root - the core entity"""
     
     class Status(models.TextChoices):
@@ -994,7 +994,7 @@ class Measurement(UUIDModel):
 # TASK CONTEXT (Lead Management)
 # ============================================
 
-class Task(UUIDModel, AuditedModel):
+class Task(TenantManagerMixin, UUIDModel, AuditedModel):
     """Task aggregate - pre-order lead management"""
     
     class Status(models.TextChoices):
@@ -1403,7 +1403,7 @@ class OrderMaterial(UUIDModel):
 # PRODUCTION CONTEXT
 # ============================================
 
-class ProductionAssignment(UUIDModel, AuditedModel):
+class ProductionAssignment(TenantManagerMixin, UUIDModel, AuditedModel):
     """Assignment of order to seamstress"""
     
     class Status(models.TextChoices):
@@ -1503,7 +1503,7 @@ class ProductionLog(UUIDModel):
         verbose_name_plural = 'Production Logs'
 
 
-class SeamstressPayment(UUIDModel, AuditedModel):
+class SeamstressPayment(TenantManagerMixin, UUIDModel, AuditedModel):
     """Payment to seamstress for completed work"""
     
     class Status(models.TextChoices):
