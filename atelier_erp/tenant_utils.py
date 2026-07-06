@@ -15,7 +15,26 @@ from atelier_erp.tenant_context import ALL_TENANTS, get_current_tenant_id
 
 
 class TenantModelMixin:
-    """Mixin для DRF ViewSet — изолирует данные по тенанту."""
+    """Mixin для DRF ViewSet — изолирует данные по тенанту.
+
+    С введением TenantManager (см. TenantManagerMixin ниже) фильтрация
+    ЧТЕНИЯ для моделей с прямым tenant FK (Customer, Order, Task,
+    InventoryItem, ProductionAssignment, SeamstressPayment) теперь
+    происходит УЖЕ на уровне ORM-менеджера — Model.objects.all() сам по
+    себе безопасен. Вызов scope_to_tenant() в get_queryset() ViewSet'а для
+    этих моделей остаётся как ВТОРАЯ ЛИНИЯ ЗАЩИТЫ (defense in depth), а не
+    дублирующая ручная фильтрация по недосмотру — не удалять его при
+    рефакторинге.
+
+    Для моделей БЕЗ прямого tenant FK (Payment, Quote, Measurement — см.
+    TenantViaOrderMixin ниже) TenantManager не применяется вообще (у них
+    нет поля tenant, только order__tenant), поэтому для них
+    scope_to_tenant() — ЕДИНСТВЕННАЯ защита чтения, а не второй уровень.
+
+    perform_create() остаётся единственным местом, которое проставляет
+    tenant при создании для моделей с прямым FK — это ORM-менеджер сделать
+    не может (менеджер видит только уже сохранённые строки, чтение, не запись).
+    """
 
     tenant_field = 'tenant'   # имя FK-поля на модели
 

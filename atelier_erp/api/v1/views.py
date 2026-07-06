@@ -76,9 +76,15 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
         Пользователь без подходящей группы не видит ничего (default deny).
         select_related('customer') убирает N+1 в списке.
 
-        scope_to_tenant() применяется в конце ко всем веткам — без него
-        (см. tenant_utils.TenantModelMixin) заказы одного тенанта были бы
-        видны сотрудникам другого при появлении второго клиента.
+        Order.objects уже отфильтрован TenantManager на уровне ORM (см.
+        tenant_utils.TenantManagerMixin) — Order.objects.all() сам по себе
+        безопасен. Но здесь queryset строится ролевыми ветками (WAREHOUSE/
+        SEAMSTRESS/INSTALLER/default deny), поэтому scope_to_tenant()
+        применяется в конце ко ВСЕМ веткам как вторая линия защиты
+        (defense in depth): без него (см. tenant_utils.TenantModelMixin)
+        заказы одного тенанта были бы видны сотрудникам другого при
+        появлении второго клиента, если по какой-то причине ORM-уровень
+        не сработал (например, ContextVar не был выставлен вне HTTP-запроса).
         """
         qs = Order.objects.select_related('customer').order_by('-created_at')
         user = self.request.user
@@ -1880,6 +1886,12 @@ class TaskViewSet(TenantModelMixin, viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'scheduled_date']
 
     def get_queryset(self):
+        # Task.objects уже отфильтрован TenantManager на уровне ORM (см.
+        # tenant_utils.TenantManagerMixin) — Task.objects.all() сам по себе
+        # безопасен. scope_to_tenant() здесь — вторая линия защиты
+        # (defense in depth): если ContextVar по какой-то причине не был
+        # выставлен (например, вызов вне HTTP-запроса), она всё равно
+        # применит фильтр через request.tenant.
         return self.scope_to_tenant(Task.objects.all().order_by('-created_at'))
 
     def get_serializer_class(self):
@@ -2058,6 +2070,13 @@ class InventoryItemViewSet(TenantModelMixin, viewsets.ModelViewSet):
     POST   /api/v1/inventory-items/      — create (склад/владелец)
     PATCH  /api/v1/inventory-items/{id}/ — update (склад/владелец)
     DELETE /api/v1/inventory-items/{id}/ — soft-delete (склад/владелец)
+
+    Не переопределяет get_queryset(): использует TenantModelMixin.get_queryset()
+    по умолчанию (см. tenant_utils.py), который вызывает scope_to_tenant()
+    поверх super().get_queryset() (т.е. поверх `queryset` ниже). InventoryItem
+    также под TenantManagerMixin, так что фильтрация по тенанту здесь
+    двухуровневая: ORM-менеджер (InventoryItem.objects) + scope_to_tenant()
+    миксина (defense in depth).
     """
     queryset = InventoryItem.objects.filter(is_active=True).order_by('category', 'name')
     serializer_class = InventoryItemSerializer
@@ -2217,6 +2236,12 @@ class CustomerViewSet(TenantModelMixin, viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
+        # Customer.objects уже отфильтрован TenantManager на уровне ORM (см.
+        # tenant_utils.TenantManagerMixin) — Customer.objects.all() сам по
+        # себе безопасен. scope_to_tenant() здесь — вторая линия защиты
+        # (defense in depth), а не дублирующая ручная фильтрация: она
+        # страхует на случай, если ContextVar не был выставлен (вызов вне
+        # HTTP-запроса и т.п.).
         qs = Customer.objects.filter(is_active=True)
         return self.scope_to_tenant(qs)
 
