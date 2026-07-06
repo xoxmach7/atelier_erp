@@ -2113,6 +2113,10 @@ class QuoteViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
         order_id = self.request.query_params.get('order')
         if order_id:
             queryset = queryset.filter(order_id=order_id)
+        # Quote не имеет прямого tenant FK и не покрывается TenantManager
+        # (см. TenantViaOrderMixin в tenant_utils.py) — фильтрация идёт через
+        # order__tenant. scope_to_tenant() здесь ЕДИНСТВЕННАЯ линия защиты,
+        # а не вторая: удаление вызова полностью открывает кросс-тенантный доступ.
         return self.scope_to_tenant(queryset)
 
     def create(self, request, *args, **kwargs):
@@ -2279,6 +2283,10 @@ class PaymentViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
+        # Payment не имеет прямого tenant FK и не покрывается TenantManager
+        # (см. TenantViaOrderMixin в tenant_utils.py) — фильтрация идёт через
+        # order__tenant. scope_to_tenant() здесь ЕДИНСТВЕННАЯ линия защиты,
+        # а не вторая: удаление вызова полностью открывает кросс-тенантный доступ.
         return self.scope_to_tenant(Payment.objects.select_related('order').all())
 
 
@@ -2309,6 +2317,10 @@ class MeasurementViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
         return MeasurementSerializer
 
     def get_queryset(self):
+        # Measurement не имеет прямого tenant FK и не покрывается TenantManager
+        # (см. TenantViaOrderMixin в tenant_utils.py) — фильтрация идёт через
+        # order__tenant. scope_to_tenant() здесь ЕДИНСТВЕННАЯ линия защиты,
+        # а не вторая: удаление вызова полностью открывает кросс-тенантный доступ.
         return self.scope_to_tenant(
             Measurement.objects.select_related('curtain_fabric', 'tulle_fabric').all()
         )
