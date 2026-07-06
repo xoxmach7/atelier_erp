@@ -1085,7 +1085,16 @@ class Task(UUIDModel, AuditedModel):
         related_name='source_task'
     )
     converted_at = models.DateTimeField(null=True, blank=True)
-    
+
+    tenant = models.ForeignKey(
+        'Tenant',
+        on_delete=models.CASCADE,
+        related_name='+',
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
     class Meta:
         db_table = 'tasks'
         ordering = ['-priority', '-created_at']

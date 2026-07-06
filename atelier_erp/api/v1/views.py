@@ -1864,7 +1864,7 @@ class DashboardView(APIView):
         })
 
 
-class TaskViewSet(viewsets.ModelViewSet):
+class TaskViewSet(TenantModelMixin, viewsets.ModelViewSet):
     """
     Task API v1
     List/Retrieve: GET /api/v1/tasks/
@@ -1878,7 +1878,10 @@ class TaskViewSet(viewsets.ModelViewSet):
     filterset_fields = ['status', 'client_phone']
     search_fields = ['task_number', 'client_name', 'client_phone']
     ordering_fields = ['created_at', 'scheduled_date']
-    
+
+    def get_queryset(self):
+        return self.scope_to_tenant(Task.objects.all().order_by('-created_at'))
+
     def get_serializer_class(self):
         if self.action == 'list':
             return TaskListSerializer
@@ -1902,7 +1905,8 @@ class TaskViewSet(viewsets.ModelViewSet):
                     address=serializer.validated_data.get('address', ''),
                     notes=serializer.validated_data.get('notes', ''),
                     scheduled_date=serializer.validated_data.get('scheduled_date'),
-                    created_by=request.user
+                    created_by=request.user,
+                    tenant=self._current_tenant()
                 )
                 uow.commit()
                 

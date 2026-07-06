@@ -40,7 +40,8 @@ class TaskService:
         priority: int = 1,
         assigned_designer_id: Optional[UUID] = None,
         task_number: str = None,
-        created_by: Optional[UUID] = None
+        created_by: Optional[UUID] = None,
+        tenant=None
     ) -> Task:
         """
         Create new task (lead).
@@ -87,7 +88,8 @@ class TaskService:
             priority=priority,
             assigned_designer_id=assigned_designer_id,
             status=Task.Status.LEAD,
-            created_by_id=created_by
+            created_by_id=created_by,
+            tenant=tenant
         )
         
         # Create initial history
