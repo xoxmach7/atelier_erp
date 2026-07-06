@@ -51,7 +51,7 @@
 - **P4-CRITI** S3/R2 хранилище медиафайлов — done 2026-06-09
 - **P4-SEC** Throttling 200/min user, 20/min anon — done 2026-06-09
 - **P4-CFG** CORS без LAN-IP — done 2026-06-09
-- **P4-ARCH** Multi-tenancy (Tenant, TenantMembership, middleware, migrations 0018+0019) — done 2026-06-13 (35d3149)
+- **P4-ARCH** Multi-tenancy (Tenant, TenantMembership, middleware, migrations 0018+0019) — done 2026-06-13 (35d3149). **Уточнение 2026-07-06**: аудит нашёл, что `Task` (лиды) остался без tenant-изоляции (queryset без фильтра, модель без FK) — сквозная утечка данных между ателье. Исправлено 2026-07-06 (50edd15): добавлено поле `tenant` (migration 0022), `TaskViewSet` подключён к `TenantModelMixin`.
 - **Frontend** редизайн v2, orders/[id] v4, workspace, customers, work-экраны — done
 - **B1** responsible_user + designer select + лейбл — done 2026-06-13
 - **Склад** общий инвентарь `InventoryItem` (категория/единица/кол-во/цена/порог «на исходе»), API `/api/v1/inventory-items/` (чтение всем, запись склад/владелец, soft-delete), миграция 0021. Экран «Материалы»: объединённая таблица (ткань Fabric + позиции InventoryItem) + добавление/редактирование/удаление. `Fabric` оставлен как каталог КП. — done 2026-06-21 (3bb8840)
@@ -92,7 +92,7 @@ python manage.py test --settings=atelier_erp.settings_test \
   atelier_erp.tests.test_role_access \
   atelier_erp.tests.test_p1_security_numbering
 ```
-Остальные 47 падают — легаси-тесты, сломаны до P0, не наши.
+**Уточнение 2026-07-06**: полный прогон — 65 тестов, 11 ошибок, но все 11 это `ModuleNotFoundError: No module named 'pytest'` (не установлен pytest в окружении), а не органические поломки легаси-тестов. Решается установкой pytest, не переписыванием тестов.
 
 ## Что сделано в P0/P1
 - Единый реестр ролей (`atelier_erp/roles.py`)
