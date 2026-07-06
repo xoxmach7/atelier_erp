@@ -14,6 +14,8 @@ from django.db.models import CheckConstraint, Q, UniqueConstraint, Index
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from atelier_erp.tenant_utils import TenantManagerMixin
+
 
 # ============================================
 # SHARED ABSTRACT MODELS
@@ -63,7 +65,7 @@ class UUIDModel(models.Model):
 # CUSTOMER CONTEXT
 # ============================================
 
-class Customer(UUIDModel, TimestampedModel):
+class Customer(TenantManagerMixin, UUIDModel, TimestampedModel):
     """Customer aggregate - normalized contact info"""
     
     full_name = models.CharField(max_length=255, db_index=True)

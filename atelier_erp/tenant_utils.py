@@ -9,6 +9,10 @@ TenantModelMixin — добавлять к ViewSet'ам, которые рабо
 
 from __future__ import annotations
 
+from django.db import models
+
+from atelier_erp.tenant_context import ALL_TENANTS, get_current_tenant_id
+
 
 class TenantModelMixin:
     """Mixin для DRF ViewSet — изолирует данные по тенанту."""
@@ -82,3 +86,58 @@ class TenantViaOrderMixin(TenantModelMixin):
     def perform_create(self, serializer):
         # tenant берётся из связанного order, отдельно не проставляем.
         serializer.save()
+
+
+class TenantManager(models.Manager):
+    """
+    Менеджер модели, фильтрующий по текущему tenant (из ContextVar).
+
+    Используется как ОСНОВНОЙ менеджер (`objects`) на моделях с прямым
+    полем `tenant`. Это защита на уровне ORM: `Model.objects.all()`
+    физически не может вернуть чужие данные, в отличие от DRF-миксина
+    TenantModelMixin, который защищает только ViewSet'ы, явно его
+    вызывающие (см. инцидент с TaskViewSet, где фильтрация была пропущена).
+
+    Правила:
+      - contextvar == '__ALL__' (суперюзер без tenant, Railway shell) → без фильтра.
+      - contextvar == None (тенанты не настроены / анонимный контекст,
+        например management-команда, запущенная не через HTTP) →
+        показываем строки с tenant=None (совместимость с single-tenant
+        данными, как и раньше в TenantModelMixin.scope_to_tenant).
+      - contextvar == <id> → filter(tenant_id=<id>).
+
+    Для «сырого» доступа без фильтра (админка, скрипты миграции данных)
+    использовать `Model.all_tenants` — см. TenantManagerMixin ниже.
+    """
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        tenant_id = get_current_tenant_id()
+
+        if tenant_id == ALL_TENANTS:
+            return qs
+        if tenant_id is None:
+            return qs.filter(tenant__isnull=True)
+        return qs.filter(tenant_id=tenant_id)
+
+
+class TenantManagerMixin(models.Model):
+    """
+    Miксин для моделей с полем tenant: добавляет `objects` (отфильтрованный
+    TenantManager) и `all_tenants` (обычный Manager без фильтра — для
+    админки, дата-миграций, superuser-скриптов).
+
+    Использование:
+        class Customer(TenantManagerMixin, UUIDModel, TimestampedModel):
+            tenant = models.ForeignKey(...)
+            ...
+
+    ВАЖНО: порядок менеджеров имеет значение в Django — первый объявленный
+    менеджер класса становится default manager. Объявляем `objects` первым.
+    """
+
+    objects = TenantManager()
+    all_tenants = models.Manager()
+
+    class Meta:
+        abstract = True
