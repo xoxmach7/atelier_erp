@@ -118,11 +118,14 @@ class TenantManager(models.Manager):
     вызывающие (см. инцидент с TaskViewSet, где фильтрация была пропущена).
 
     Правила:
-      - contextvar == '__ALL__' (суперюзер без tenant, Railway shell) → без фильтра.
-      - contextvar == None (тенанты не настроены / анонимный контекст,
-        например management-команда, запущенная не через HTTP) →
-        показываем строки с tenant=None (совместимость с single-tenant
-        данными, как и раньше в TenantModelMixin.scope_to_tenant).
+      - contextvar == '__ALL__' (дефолт ContextVar, когда никто его не
+        выставлял — management-команда/Celery/shell вне HTTP-запроса;
+        либо суперюзер без tenant внутри HTTP-запроса) → без фильтра.
+      - contextvar == None (ТОЛЬКО явный результат middleware внутри
+        HTTP-запроса: тенант не определён для аутентифицированного
+        не-суперюзера без TenantMembership) → показываем строки с
+        tenant=None (совместимость с single-tenant данными, как и
+        раньше в TenantModelMixin.scope_to_tenant).
       - contextvar == <id> → filter(tenant_id=<id>).
 
     Для «сырого» доступа без фильтра (админка, скрипты миграции данных)
