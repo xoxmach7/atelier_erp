@@ -609,7 +609,7 @@ class Order(TenantManagerMixin, UUIDModel, AuditedModel):
         terminal = (self.Status.COMPLETED, self.Status.CANCELLED)
         if self.status in terminal:
             return False
-        return self.planned_completion < timezone.now().date()
+        return self.planned_completion < timezone.localtime(timezone.now()).date()
 
 
 class OrderItem(UUIDModel):

@@ -427,8 +427,9 @@ class ProductionService:
             a.total_payment for a in assignments
         )
         
-        overdue = [a for a in assignments if a.deadline and a.deadline < timezone.now().date()]
-        
+        today = timezone.localtime(timezone.now()).date()
+        overdue = [a for a in assignments if a.deadline and a.deadline < today]
+
         return {
             'seamstress_id': seamstress_id,
             'active_assignments': len(assignments),
@@ -439,7 +440,7 @@ class ProductionService:
                 {
                     'order_number': a.order.order_number,
                     'deadline': a.deadline,
-                    'days_overdue': (timezone.now().date() - a.deadline).days
+                    'days_overdue': (today - a.deadline).days
                 }
                 for a in overdue
             ]

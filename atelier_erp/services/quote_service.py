@@ -77,7 +77,7 @@ class QuoteService:
         total = subtotal + installation_cost + delivery_cost - discount_amount
         
         # Create quote
-        valid_until = timezone.now().date() + timedelta(days=valid_days)
+        valid_until = timezone.localtime(timezone.now()).date() + timedelta(days=valid_days)
         
         quote = Quote.objects.create(
             quote_number=quote_number,
@@ -226,7 +226,7 @@ class QuoteService:
             raise QuoteNotApprovedError(f"Quote must be sent before approval, current status: {quote.status}")
         
         # Check expiration
-        if quote.valid_until and quote.valid_until < timezone.now().date():
+        if quote.valid_until and quote.valid_until < timezone.localtime(timezone.now()).date():
             quote.status = Quote.Status.EXPIRED
             quote.save(update_fields=['status', 'updated_at'])
             raise QuoteExpiredError(f"Quote expired on {quote.valid_until}")
@@ -299,7 +299,7 @@ class QuoteService:
         Returns:
             Number of quotes marked as expired
         """
-        today = timezone.now().date()
+        today = timezone.localtime(timezone.now()).date()
         
         expired = Quote.objects.filter(
             status__in=[Quote.Status.SENT, Quote.Status.DRAFT],
@@ -339,7 +339,7 @@ class QuoteService:
         total = subtotal + installation_cost + delivery_cost - discount_amount
 
         if valid_until is None:
-            valid_until = timezone.now().date() + timedelta(days=7)
+            valid_until = timezone.localtime(timezone.now()).date() + timedelta(days=7)
 
         with transaction.atomic():
             # Одно КП на заказ: при создании нового перезаписываем прежнее
@@ -610,7 +610,7 @@ class QuoteService:
             'total': quote.total,
             'prepayment_required': quote.total * quote.prepayment_percent,
             'valid_until': quote.valid_until,
-            'is_expired': quote.valid_until and quote.valid_until < timezone.now().date()
+            'is_expired': quote.valid_until and quote.valid_until < timezone.localtime(timezone.now()).date()
         }
 
     # ============================================

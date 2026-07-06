@@ -284,7 +284,7 @@ class OrderService:
         
         # Update order
         order.status = Order.Status.COMPLETED
-        order.actual_completion = timezone.now().date()
+        order.actual_completion = timezone.localtime(timezone.now()).date()
         if installation_date:
             order.installation_date = installation_date
         order.save(update_fields=['status', 'actual_completion', 'installation_date', 'updated_at'])
