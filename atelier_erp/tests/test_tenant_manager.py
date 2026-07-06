@@ -51,6 +51,15 @@ class TenantManagerTests(TestCase):
             reset_current_tenant_id(token)
         self.assertEqual(names, {'Клиент А', 'Клиент Б', 'Клиент без тенанта'})
 
+    def test_no_context_set_at_all_shows_all_tenants(self):
+        # Симулирует management-команду / Celery-таску / shell — код, который
+        # никогда не вызывает set_current_tenant_id (middleware не запускался).
+        # ContextVar остаётся нетронутым и отдаёт default = ALL_TENANTS, поэтому
+        # Customer.objects.all() должен видеть ВСЕ записи, а не только tenant=None
+        # (это и есть регрессия, которую фиксит смена default с None на ALL_TENANTS).
+        names = set(Customer.objects.values_list('full_name', flat=True))
+        self.assertEqual(names, {'Клиент А', 'Клиент Б', 'Клиент без тенанта'})
+
     def test_unfiltered_manager_still_available_for_admin(self):
         # Явный «сырой» доступ без tenant-фильтра — нужен для админки/миграций данных.
         token = set_current_tenant_id(self.tenant_a.id)
