@@ -5,13 +5,14 @@ ContextVar (atelier_erp.tenant_context), который читает TenantManag
 на уровне ORM — это даёт защиту от утечки данных между тенантами
 даже там, где ViewSet забыл вызвать scope_to_tenant().
 
-Работает ПОСЛЕ AuthenticationMiddleware / JWT-аутентификации DRF,
-поэтому использует lazy-резолв: tenant подгружается только при первом
-обращении к request.tenant.
+Работает ПОСЛЕ AuthenticationMiddleware / JWT-аутентификации DRF.
+Tenant резолвится один раз, эагерно (сразу при входе в middleware) —
+то же значение присваивается request.tenant и используется для
+выставления ContextVar, повторного резолва при обращении к
+request.tenant не происходит.
 """
 
 from __future__ import annotations
-from django.utils.functional import SimpleLazyObject
 
 from atelier_erp.tenant_context import (
     ALL_TENANTS,
@@ -42,12 +43,12 @@ class TenantMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        request.tenant = SimpleLazyObject(lambda: _get_tenant(request))
-
-        # ContextVar должен быть выставлен ДО того, как view начнёт делать
-        # ORM-запросы. request.tenant — ленивый, поэтому резолвим его здесь
-        # явно (после AuthenticationMiddleware user уже известен).
+        # Резолвим tenant один раз, эагерно (после AuthenticationMiddleware
+        # user уже известен) — то же значение уходит и в request.tenant,
+        # и в ContextVar, который должен быть выставлен ДО того, как view
+        # начнёт делать ORM-запросы.
         tenant = _get_tenant(request)
+        request.tenant = tenant
         user = getattr(request, 'user', None)
 
         if tenant is not None:

@@ -14,7 +14,7 @@ ContextVar для текущего tenant запроса.
 from __future__ import annotations
 
 import contextvars
-from typing import Optional, Union
+from typing import Union
 
 TenantContextValue = Union[int, str, None]
 
