@@ -12,3 +12,4 @@ web-build/
 .DS_Store
 .env
 env.d.ts
+coverage/
