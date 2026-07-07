@@ -18,6 +18,13 @@ describe('ApiClient', () => {
     client = new ApiClient();
   });
 
+  afterEach(() => {
+    // client.ts stores the unauthorized callback in a module-level `let`, which Jest
+    // does not reset between it() blocks in the same file. Reset it here so a mock
+    // registered by one test can't leak into (or be silently invoked by) a later one.
+    setUnauthorizedCallback(() => {});
+  });
+
   it('sends GET with Authorization header when token exists', async () => {
     await AsyncStorage.setItem('atelier_access_token', 'token-123');
     mockFetchOnce({ ok: true, status: 200, json: async () => ({ hello: 'world' }) });
