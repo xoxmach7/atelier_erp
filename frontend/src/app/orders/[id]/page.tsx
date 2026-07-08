@@ -721,12 +721,30 @@ export default function OrderDetailPage() {
   const [matTransferred, setMatTransferred] = useState(false);
 
   /* ---- guard against literal [id] placeholder in URL ---- */
-  if (
-    !orderId ||
-    orderId === "[id]" ||
-    orderId === "%5Bid%5D" ||
-    (orderId.startsWith("[") && orderId.endsWith("]"))
-  ) {
+  const hasValidOrderId =
+    !!orderId &&
+    orderId !== "[id]" &&
+    orderId !== "%5Bid%5D" &&
+    !(orderId.startsWith("[") && orderId.endsWith("]"));
+
+  const { data: order, isLoading, error, refetch: refetchOrder } = useOrder(
+    hasValidOrderId ? orderId : ""
+  );
+  const {
+    data: execution,
+    refetch: refetchExecution,
+  } = useOrderExecution(hasValidOrderId ? orderId : "");
+
+  /* ---- mutations ---- */
+  const changeStatusMutation      = useChangeOrderStatus();
+  const changeMaterialMutation    = useChangeMaterialReadiness();
+  const changeProductionMutation  = useChangeProductionStage();
+  const changeHandoverMutation    = useChangeHandoverStage();
+  const deleteMutation            = useDeleteOrder();
+  const createPaymentMutation     = useCreatePayment();
+  const deletePaymentMutation     = useDeletePayment();
+
+  if (!hasValidOrderId) {
     return (
       <ProtectedRoute>
         <div className="min-h-screen bg-[#F0F4F8] p-8">
@@ -741,21 +759,6 @@ export default function OrderDetailPage() {
       </ProtectedRoute>
     );
   }
-
-  const { data: order, isLoading, error, refetch: refetchOrder } = useOrder(orderId);
-  const {
-    data: execution,
-    refetch: refetchExecution,
-  } = useOrderExecution(orderId);
-
-  /* ---- mutations ---- */
-  const changeStatusMutation      = useChangeOrderStatus();
-  const changeMaterialMutation    = useChangeMaterialReadiness();
-  const changeProductionMutation  = useChangeProductionStage();
-  const changeHandoverMutation    = useChangeHandoverStage();
-  const deleteMutation            = useDeleteOrder();
-  const createPaymentMutation     = useCreatePayment();
-  const deletePaymentMutation     = useDeletePayment();
 
   const handlePrepayDelete = async (paymentId: string) => {
     try {
