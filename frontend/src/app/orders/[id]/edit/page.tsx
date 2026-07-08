@@ -58,6 +58,7 @@ export default function EditOrderPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Prefill form when order data loads
+  /* eslint-disable react-hooks/set-state-in-effect -- one-time prefill once async order data arrives */
   useEffect(() => {
     if (order) {
       setFormData({
@@ -69,6 +70,7 @@ export default function EditOrderPage() {
       });
     }
   }, [order]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const canEdit = role === "owner" || role === "designer";
 

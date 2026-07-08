@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { X } from "lucide-react";
 import {
   Dialog,
@@ -41,7 +41,14 @@ interface CreateMeasurementModalProps {
 /*  Component                                                           */
 /* ------------------------------------------------------------------ */
 
-export function CreateMeasurementModal({
+export function CreateMeasurementModal(props: CreateMeasurementModalProps) {
+  // Remount on open (and when switching which measurement is being edited) so
+  // form state always starts fresh/prefilled without a setState-in-effect reset.
+  const modalKey = props.isOpen ? (props.measurement?.id ?? "new") : "closed";
+  return <CreateMeasurementModalInner key={modalKey} {...props} />;
+}
+
+function CreateMeasurementModalInner({
   isOpen,
   onClose,
   orderId,
@@ -49,16 +56,16 @@ export function CreateMeasurementModal({
   onSuccess,
 }: CreateMeasurementModalProps) {
   // Form state
-  const [roomName, setRoomName] = useState("");
-  const [windowName, setWindowName] = useState("");
-  const [widthCm, setWidthCm] = useState("");
-  const [heightCm, setHeightCm] = useState("");
-  const [curtainFabricId, setCurtainFabricId] = useState("");
-  const [curtainMeters, setCurtainMeters] = useState("");
-  const [tulleFabricId, setTulleFabricId] = useState("");
-  const [tulleMeters, setTulleMeters] = useState("");
-  const [mountingType, setMountingType] = useState("");
-  const [notes, setNotes] = useState("");
+  const [roomName, setRoomName] = useState(measurement?.room_name || "");
+  const [windowName, setWindowName] = useState(measurement?.window_name || "");
+  const [widthCm, setWidthCm] = useState(measurement?.width_cm != null ? String(measurement.width_cm) : "");
+  const [heightCm, setHeightCm] = useState(measurement?.height_cm != null ? String(measurement.height_cm) : "");
+  const [curtainFabricId, setCurtainFabricId] = useState(measurement?.curtain_fabric || "");
+  const [curtainMeters, setCurtainMeters] = useState(measurement?.curtain_meters ? String(measurement.curtain_meters) : "");
+  const [tulleFabricId, setTulleFabricId] = useState(measurement?.tulle_fabric || "");
+  const [tulleMeters, setTulleMeters] = useState(measurement?.tulle_meters ? String(measurement.tulle_meters) : "");
+  const [mountingType, setMountingType] = useState(measurement?.mounting_type || "");
+  const [notes, setNotes] = useState(measurement?.notes || "");
 
   // Data hooks
   const { data: fabricsData } = useFabrics({ pageSize: 100, isActive: true });
@@ -84,26 +91,6 @@ export function CreateMeasurementModal({
     setMountingType("");
     setNotes("");
   };
-
-  // Префилл при открытии в режиме редактирования (или сброс при создании)
-  useEffect(() => {
-    if (!isOpen) return;
-    if (measurement) {
-      setRoomName(measurement.room_name || "");
-      setWindowName(measurement.window_name || "");
-      setWidthCm(measurement.width_cm != null ? String(measurement.width_cm) : "");
-      setHeightCm(measurement.height_cm != null ? String(measurement.height_cm) : "");
-      setCurtainFabricId(measurement.curtain_fabric || "");
-      setCurtainMeters(measurement.curtain_meters ? String(measurement.curtain_meters) : "");
-      setTulleFabricId(measurement.tulle_fabric || "");
-      setTulleMeters(measurement.tulle_meters ? String(measurement.tulle_meters) : "");
-      setMountingType(measurement.mounting_type || "");
-      setNotes(measurement.notes || "");
-    } else {
-      resetForm();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, measurement]);
 
   // Submit
   const handleSubmit = async (e: React.FormEvent) => {

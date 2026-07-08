@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { ModalCloseX } from "./modal-close";
 import type { PaymentDTO } from "@/types";
@@ -38,11 +38,12 @@ export function CreatePrepaymentModal({
 }: CreatePrepaymentModalProps) {
   const [amount, setAmount] = useState("");
 
-  useEffect(() => {
-    if (isOpen) setAmount("");
-  }, [isOpen]);
-
   if (!isOpen) return null;
+
+  function handleClose() {
+    setAmount("");
+    onClose();
+  }
 
   const prepay = payments.filter((p) => p.payment_type === "prepayment");
   const required = Math.round((orderTotal * requiredPct) / 100);
@@ -56,16 +57,17 @@ export function CreatePrepaymentModal({
     if (amountNum <= 0) return;
     const pct = orderTotal > 0 ? Math.round((amountNum / orderTotal) * 100) : 0;
     onSave({ amount: amountNum, pct, method: "cash" });
+    setAmount("");
   }
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
       style={{ background: "rgba(15,23,42,.35)", backdropFilter: "blur(4px)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
       <div className="relative w-full max-w-[480px] rounded-[14px] bg-white shadow-2xl">
-        <ModalCloseX onClose={onClose} />
+        <ModalCloseX onClose={handleClose} />
 
         <div className="px-7 pb-8 pt-[72px]">
           <h2 className="mb-7 text-[24px] font-medium text-[#0F172A]">Предоплата</h2>

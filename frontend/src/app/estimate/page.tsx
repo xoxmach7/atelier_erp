@@ -110,6 +110,7 @@ function EstimateContent() {
       ? orderData.customer.id
       : orderData.customer;
     if (customerId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs local selection once async orderData arrives, guarded by selectedCustomerId to run only once
       setSelectedCustomerId(customerId);
     }
   }, [orderData, selectedCustomerId]);
@@ -203,6 +204,7 @@ function EstimateContent() {
   /**
    * Prefill estimate from order measurements when order data loads
    */
+  /* eslint-disable react-hooks/set-state-in-effect -- one-time prefill once async orderData arrives, guarded by isPrefilled */
   useEffect(() => {
     if (orderFromQuery && orderData && !isPrefilled) {
       const measurements = orderData.measurements || [];
@@ -216,6 +218,7 @@ function EstimateContent() {
       }
     }
   }, [orderFromQuery, orderData, isPrefilled, measurementsToEstimateRooms, setProject]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const addItemToRoom = (roomId: string) => {
     const room = project.rooms.find((r) => r.id === roomId);

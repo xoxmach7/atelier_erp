@@ -79,7 +79,10 @@ export function useEstimateDraft(): UseEstimateDraftReturn {
   const [hasDraft, setHasDraft] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // Load draft from localStorage on mount
+  // Load draft from localStorage on mount. Runs once after mount (not during
+  // render) because localStorage is unavailable during SSR — this is the
+  // client-side hydration step, not a reset reacting to a dependency change.
+  /* eslint-disable react-hooks/set-state-in-effect -- one-time client hydration from localStorage, cannot run during SSR render */
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -97,6 +100,7 @@ export function useEstimateDraft(): UseEstimateDraftReturn {
     }
     setIsHydrated(true);
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Save draft to localStorage
   const saveDraft = useCallback(() => {
