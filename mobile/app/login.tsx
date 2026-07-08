@@ -42,12 +42,16 @@ export default function LoginScreen() {
               style={s.logo}
               resizeMode="contain"
             />
+            <Text style={s.appName}>
+              <Text style={s.appNameBold}>Sheber</Text> Atelier
+            </Text>
+            <Text style={s.orgPlaceholder}>Название организации</Text>
           </View>
 
           {/* Form */}
           <View style={s.form}>
             <AppTextInput
-              placeholder="Логин"
+              placeholder="E-mail/телефон"
               value={username}
               onChangeText={setUsername}
               autoCapitalize="none"
@@ -65,7 +69,7 @@ export default function LoginScreen() {
               activeOpacity={0.85}
               disabled={loading}
             >
-              <Text style={s.btnText}>{loading ? 'Вход...' : 'Войти'}</Text>
+              <Text style={s.btnText}>{loading ? 'Вход...' : 'Вход'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -97,8 +101,23 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
   logo: {
-    width: 100,
-    height: 100,
+    width: 140,
+    height: 140,
+  },
+  appName: {
+    fontSize: 28,
+    color: '#0F172A',
+    fontFamily: 'TTNormsPro-Regular',
+    marginTop: 16,
+  },
+  appNameBold: {
+    fontFamily: 'TTNormsPro-Bold',
+  },
+  orgPlaceholder: {
+    fontSize: 20,
+    color: '#94A3B8',
+    fontFamily: 'TTNormsPro-Regular',
+    marginTop: 8,
   },
   form: {
     gap: 12,
