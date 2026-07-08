@@ -12,9 +12,6 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Security
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'change-this-in-production')
-
 # DEBUG по умолчанию ВЫКЛЮЧЕН. Для локальной разработки явно укажите DEBUG=True в .env.
 # В проде DEBUG=True отдаёт стектрейсы с кодом и секретами — никогда не включать.
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
@@ -22,6 +19,18 @@ DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 # Запущены ли тесты. Под тестами прод-настройки безопасности (SSL-redirect,
 # secure cookies) отключаются, иначе тестовый http-клиент получает 301 redirect.
 TESTING = ('test' in sys.argv) or ('pytest' in sys.modules)
+
+# Security
+_SECRET_KEY_FALLBACK = 'change-this-in-production'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', _SECRET_KEY_FALLBACK)
+
+# Публично известный дефолт-ключ недопустим в реальном проде: без DJANGO_SECRET_KEY
+# сессии/подписи можно подделать. Падаем на старте, а не тихо обслуживаем запросы.
+if SECRET_KEY == _SECRET_KEY_FALLBACK and not DEBUG and not TESTING:
+    raise RuntimeError(
+        'DJANGO_SECRET_KEY не задан в окружении. '
+        'Запуск с публичным дефолт-ключом в проде запрещён — задайте переменную окружения DJANGO_SECRET_KEY.'
+    )
 
 # Хосты только из окружения. Дефолт — локалка для разработки.
 # Прод-домены, LAN-IP и ngrok задавать через переменную ALLOWED_HOSTS (см. .env.example).
