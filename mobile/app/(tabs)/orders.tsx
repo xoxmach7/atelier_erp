@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   ActivityIndicator, TextInput, StyleSheet, Platform, StatusBar,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../../src/components/EmptyState';
 import { IconButton, Icon } from '../../src/components/Icon';
@@ -105,6 +106,15 @@ export default function OrdersScreen() {
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+
+  // Экран живёт внутри таб-навигатора и не размонтируется между переходами —
+  // без этого повторный router.push('/(tabs)/orders?status=...') с дашборда
+  // не обновлял бы фильтр, т.к. useState читает params только при первом монтировании.
+  useFocusEffect(
+    useCallback(() => {
+      setStatusFilter(params.status || undefined);
+    }, [params.status])
+  );
 
   const { data, loading, error, refetch } = useOrders(statusFilter === 'overdue' ? undefined : statusFilter);
 

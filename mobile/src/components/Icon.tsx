@@ -1,108 +1,144 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { TouchableOpacity, StyleSheet } from 'react-native';
+import Svg, { Path, Circle, Line, Rect, Polyline } from 'react-native-svg';
 
 export type IconName =
   | 'plus' | 'search' | 'user' | 'filter' | 'tenge' | 'edit' | 'trash'
   | 'dots' | 'calendar' | 'userAdd' | 'doc' | 'chevron' | 'minus';
 
 /**
- * Лёгкие иконки на чистых View/Text — без сторонних библиотек.
- * Рисуются в условном боксе 24×24, масштабируются через size.
+ * Иконки на react-native-svg — outline-стиль (24×24 viewBox, stroke-based),
+ * рендерятся идентично на всех платформах/устройствах в отличие от
+ * самодельных View-примитивов с rotate/absolute (те "плыли" на реальных
+ * Android-устройствах, хотя выглядели нормально в Expo Go на симуляторе).
  */
 export function Icon({ name, size = 20, color = '#FFFFFF' }: { name: IconName; size?: number; color?: string }) {
-  const u = size / 24;
-  const box = { width: size, height: size, alignItems: 'center' as const, justifyContent: 'center' as const };
+  const common = {
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: color,
+    strokeWidth: 2,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  };
 
   switch (name) {
     case 'plus':
-      return <View style={box}><Text style={{ color, fontSize: size * 1.15, lineHeight: size * 1.2, fontWeight: '400' }}>+</Text></View>;
+      return (
+        <Svg {...common}>
+          <Line x1="12" y1="5" x2="12" y2="19" />
+          <Line x1="5" y1="12" x2="19" y2="12" />
+        </Svg>
+      );
+
     case 'minus':
-      return <View style={box}><View style={{ width: 12 * u, height: 2 * u, backgroundColor: color, borderRadius: 1 }} /></View>;
+      return (
+        <Svg {...common}>
+          <Line x1="5" y1="12" x2="19" y2="12" />
+        </Svg>
+      );
+
     case 'chevron':
-      return <View style={box}><Text style={{ color, fontSize: size * 1.1, lineHeight: size * 1.15 }}>›</Text></View>;
+      return (
+        <Svg {...common}>
+          <Polyline points="9 6 15 12 9 18" />
+        </Svg>
+      );
+
     case 'tenge':
-      return <View style={box}><Text style={{ color, fontSize: size * 0.95, lineHeight: size, fontWeight: '500' }}>₸</Text></View>;
+      return (
+        <Svg {...common} strokeWidth={2.2}>
+          <Line x1="6" y1="9" x2="18" y2="9" />
+          <Line x1="6" y1="13" x2="18" y2="13" />
+          <Line x1="12" y1="9" x2="12" y2="20" />
+          <Line x1="12" y1="4" x2="12" y2="6" />
+        </Svg>
+      );
 
     case 'search':
       return (
-        <View style={box}>
-          <View style={{ width: 12 * u, height: 12 * u, borderRadius: 6 * u, borderWidth: 2 * u, borderColor: color, position: 'absolute', top: 3 * u, left: 3 * u }} />
-          <View style={{ width: 2 * u, height: 7 * u, backgroundColor: color, borderRadius: u, position: 'absolute', bottom: 2.5 * u, right: 4 * u, transform: [{ rotate: '45deg' }] }} />
-        </View>
+        <Svg {...common}>
+          <Circle cx="11" cy="11" r="7" />
+          <Line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </Svg>
       );
 
     case 'user':
       return (
-        <View style={box}>
-          <View style={{ width: 8.5 * u, height: 8.5 * u, borderRadius: 4.25 * u, backgroundColor: color, position: 'absolute', top: 3 * u }} />
-          <View style={{ width: 16 * u, height: 9 * u, borderTopLeftRadius: 8 * u, borderTopRightRadius: 8 * u, backgroundColor: color, position: 'absolute', bottom: 2.5 * u }} />
-        </View>
+        <Svg {...common}>
+          <Path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <Circle cx="12" cy="7" r="4" />
+        </Svg>
       );
 
     case 'userAdd':
       return (
-        <View style={box}>
-          <View style={{ width: 7.5 * u, height: 7.5 * u, borderRadius: 3.75 * u, backgroundColor: color, position: 'absolute', top: 3.5 * u, left: 4 * u }} />
-          <View style={{ width: 13 * u, height: 7.5 * u, borderTopLeftRadius: 6.5 * u, borderTopRightRadius: 6.5 * u, backgroundColor: color, position: 'absolute', bottom: 3 * u, left: 2.5 * u }} />
-          <Text style={{ color, fontSize: size * 0.6, fontWeight: '700', position: 'absolute', top: 0, right: 0 }}>+</Text>
-        </View>
+        <Svg {...common}>
+          <Path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <Circle cx="8.5" cy="7" r="4" />
+          <Line x1="20" y1="8" x2="20" y2="14" />
+          <Line x1="17" y1="11" x2="23" y2="11" />
+        </Svg>
       );
 
     case 'filter':
       return (
-        <View style={box}>
-          <View style={{ width: 0, height: 0, borderLeftWidth: 8 * u, borderRightWidth: 8 * u, borderTopWidth: 9 * u, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: color, position: 'absolute', top: 4 * u }} />
-          <View style={{ width: 2.5 * u, height: 6 * u, backgroundColor: color, position: 'absolute', bottom: 4 * u, borderRadius: u }} />
-        </View>
+        <Svg {...common}>
+          <Polyline points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+        </Svg>
       );
 
     case 'edit':
       return (
-        <View style={box}>
-          <View style={{ width: 4.5 * u, height: 15 * u, backgroundColor: color, borderRadius: 1.2 * u, transform: [{ rotate: '45deg' }] }} />
-          <View style={{ width: 4.5 * u, height: 3 * u, backgroundColor: color, position: 'absolute', bottom: 3 * u, left: 4 * u, transform: [{ rotate: '45deg' }] }} />
-        </View>
+        <Svg {...common}>
+          <Path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+          <Path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+        </Svg>
       );
 
     case 'trash':
       return (
-        <View style={box}>
-          <View style={{ width: 6 * u, height: 2 * u, backgroundColor: color, borderRadius: u, position: 'absolute', top: 3 * u }} />
-          <View style={{ width: 15 * u, height: 2 * u, backgroundColor: color, borderRadius: u, position: 'absolute', top: 5.5 * u }} />
-          <View style={{ width: 11 * u, height: 12 * u, borderWidth: 2 * u, borderColor: color, borderBottomLeftRadius: 2 * u, borderBottomRightRadius: 2 * u, borderTopWidth: 0, position: 'absolute', top: 8 * u }} />
-        </View>
+        <Svg {...common}>
+          <Polyline points="3 6 5 6 21 6" />
+          <Path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          <Line x1="10" y1="11" x2="10" y2="17" />
+          <Line x1="14" y1="11" x2="14" y2="17" />
+        </Svg>
       );
 
     case 'dots':
       return (
-        <View style={[box, { justifyContent: 'space-between', paddingVertical: 4 * u }]}>
-          {[0, 1, 2].map((i) => (
-            <View key={i} style={{ width: 3.4 * u, height: 3.4 * u, borderRadius: 1.7 * u, backgroundColor: color }} />
-          ))}
-        </View>
+        <Svg {...common} fill={color} stroke="none">
+          <Circle cx="12" cy="5" r="1.8" />
+          <Circle cx="12" cy="12" r="1.8" />
+          <Circle cx="12" cy="19" r="1.8" />
+        </Svg>
       );
 
     case 'calendar':
       return (
-        <View style={box}>
-          <View style={{ width: 16 * u, height: 15 * u, borderWidth: 2 * u, borderColor: color, borderRadius: 2.5 * u, position: 'absolute', top: 4 * u }} />
-          <View style={{ width: 16 * u, height: 4 * u, backgroundColor: color, position: 'absolute', top: 4 * u, borderTopLeftRadius: 1.5 * u, borderTopRightRadius: 1.5 * u }} />
-          <View style={{ width: 2 * u, height: 4 * u, backgroundColor: color, position: 'absolute', top: 1.5 * u, left: 7 * u, borderRadius: u }} />
-          <View style={{ width: 2 * u, height: 4 * u, backgroundColor: color, position: 'absolute', top: 1.5 * u, right: 7 * u, borderRadius: u }} />
-        </View>
+        <Svg {...common}>
+          <Rect x="3" y="4" width="18" height="18" rx="2" />
+          <Line x1="16" y1="2" x2="16" y2="6" />
+          <Line x1="8" y1="2" x2="8" y2="6" />
+          <Line x1="3" y1="10" x2="21" y2="10" />
+        </Svg>
       );
 
     case 'doc':
       return (
-        <View style={box}>
-          <View style={{ width: 14 * u, height: 17 * u, borderWidth: 2 * u, borderColor: color, borderRadius: 2 * u }} />
-          <View style={{ width: 7 * u, height: 2 * u, backgroundColor: color, position: 'absolute', top: 8 * u, borderRadius: u }} />
-          <View style={{ width: 7 * u, height: 2 * u, backgroundColor: color, position: 'absolute', top: 12 * u, borderRadius: u }} />
-        </View>
+        <Svg {...common}>
+          <Path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <Polyline points="14 2 14 8 20 8" />
+          <Line x1="9" y1="13" x2="15" y2="13" />
+          <Line x1="9" y1="17" x2="15" y2="17" />
+        </Svg>
       );
 
     default:
-      return <View style={box} />;
+      return null;
   }
 }
 
