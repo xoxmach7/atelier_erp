@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useQuote, useUpdateQuote, useDeleteQuote, useConvertQuoteToOrder } from "@/hooks/useQuotes";
+import { ApiClientError } from "@/services/http/client";
 import type { QuoteItemDTO, QuoteStatus } from "@/types";
 import {
   Calculator,
@@ -312,11 +313,10 @@ function QuoteDetailContent() {
       const order = await convertToOrder.mutateAsync({ quoteId });
       // Redirect to the created order detail page
       router.push(`/orders/${order.id}`);
-    } catch (err: any) {
+    } catch (err) {
       // Check if it's a duplicate conversion error (409)
-      // ApiClientError stores status on err.status and data on err.data
-      const status = err?.status || err?.response?.status;
-      const data = err?.data || err?.response?.data;
+      const status = err instanceof ApiClientError ? err.status : undefined;
+      const data = err instanceof ApiClientError ? (err.data as { error?: string; order_id?: string } | undefined) : undefined;
 
       if (status === 409 || data?.error?.includes('already converted')) {
         const existingOrderId = data?.order_id;
@@ -328,7 +328,8 @@ function QuoteDetailContent() {
         }
       } else {
         console.error("Failed to convert quote to order:", err);
-        alert(err?.message || "Не удалось создать заказ. Попробуйте позже.");
+        const message = err instanceof Error ? err.message : undefined;
+        alert(message || "Не удалось создать заказ. Попробуйте позже.");
       }
     }
   };
@@ -422,7 +423,7 @@ function QuoteDetailContent() {
                   title="КП должно быть в статусе 'Принято' для конвертации в заказ"
                 >
                   <AlertCircle className="mr-2 h-4 w-4" />
-                  Требуется статус "Принято"
+                  Требуется статус &quot;Принято&quot;
                 </Button>
               ) : (
                 <Button

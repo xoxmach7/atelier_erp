@@ -88,7 +88,7 @@ export function calculateRoomTotal(
   fabrics: FabricDTO[]
 ): RoomTotalResult {
   let roomTotal = 0;
-  let itemCount = room.items.length;
+  const itemCount = room.items.length;
 
   room.items.forEach((item) => {
     const { lineTotal } = calculateLineTotal(item, fabrics);

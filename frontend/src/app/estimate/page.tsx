@@ -22,6 +22,7 @@ import { useFabrics } from "@/hooks/useFabrics";
 import { useCustomers } from "@/hooks/useCustomers";
 import { useCreateCustomer } from "@/hooks/useCustomers";
 import { useOrder } from "@/hooks/useOrders";
+import { ApiClientError } from "@/services/http/client";
 import { useEstimateDraft } from "./hooks/useEstimateDraft";
 import { useCreateQuote, type CreateQuoteInput } from "@/hooks/useQuotes";
 import { fetchQuoteById, fetchQuotes } from "@/services/http/quotes";
@@ -824,14 +825,17 @@ function EstimateContent() {
                         setShowNewCustomerForm(false);
                         setNewCustomerName("");
                         setNewCustomerPhone("");
-                      } catch (err: any) {
+                      } catch (err) {
                         console.error("Failed to create customer:", err);
-                        const errorMsg = err?.response?.data?.phone?.[0]
-                          || err?.response?.data?.detail
-                          || err?.message
+                        const data = err instanceof ApiClientError
+                          ? (err.data as { phone?: string[]; detail?: string } | undefined)
+                          : undefined;
+                        const errorMsg = data?.phone?.[0]
+                          || data?.detail
+                          || (err instanceof Error ? err.message : undefined)
                           || "Не удалось создать клиента";
                         // Check if it's a phone validation error from backend
-                        if (err?.response?.data?.phone) {
+                        if (data?.phone) {
                           setPhoneError(errorMsg);
                         } else {
                           setCustomerError(errorMsg);
