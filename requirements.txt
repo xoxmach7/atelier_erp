@@ -34,4 +34,5 @@ gunicorn>=21.0.0,<24.0
 whitenoise>=6.5.0,<7.0  # Static files
 
 # Development (optional)
-# django-d
+pytest>=8.0.0,<9.0
+pytest-django>=4.8.0,<5.0
