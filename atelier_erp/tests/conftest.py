@@ -129,30 +129,6 @@ def service(db):
 
 
 @pytest.fixture
-def draft_order(db, customer):
-    """Draft order fixture"""
-    return Order.objects.create(
-        order_number='О-2024-001',
-        customer=customer,
-        status=Order.Status.DRAFT,
-        total_amount=Decimal('0.00'),
-        paid_amount=Decimal('0.00')
-    )
-
-
-@pytest.fixture
-def confirmed_order(db, customer):
-    """Confirmed order fixture"""
-    return Order.objects.create(
-        order_number='О-2024-002',
-        customer=customer,
-        status=Order.Status.APPROVED,
-        total_amount=Decimal('50000.00'),
-        paid_amount=Decimal('25000.00')
-    )
-
-
-@pytest.fixture
 def completed_order(db, customer):
     """Completed order fixture"""
     return Order.objects.create(

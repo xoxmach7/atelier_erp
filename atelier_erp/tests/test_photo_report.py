@@ -1,20 +1,29 @@
-import pytest
-pytestmark = pytest.mark.skip(reason="legacy — pre-P0, references removed code; pending rewrite")
 """
 Photo Report MVP Tests
 Targeted tests for PhotoReport functionality.
 """
 
+import io
 import pytest
 from decimal import Decimal
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.files.uploadedfile import SimpleUploadedFile
+from PIL import Image
 
 from atelier_erp.models import Order, PhotoReport, Customer, Fabric
 from atelier_erp.constants import HandoverStage, ProductionStage
+from atelier_erp.roles import Roles
 
 
 User = get_user_model()
+
+
+def _real_image_bytes(fmt='JPEG'):
+    """Сгенерировать минимальный валидный файл изображения для прохождения Pillow-валидации."""
+    buf = io.BytesIO()
+    Image.new('RGB', (2, 2)).save(buf, format=fmt)
+    return buf.getvalue()
 
 
 @pytest.mark.django_db
@@ -33,12 +42,15 @@ class TestPhotoReport:
 
     @pytest.fixture
     def user(self):
-        return User.objects.create_user(
+        user = User.objects.create_user(
             username='testuser',
             password='testpass',
             first_name='Test',
             last_name='User'
         )
+        owner_group, _ = Group.objects.get_or_create(name=Roles.OWNER)
+        user.groups.add(owner_group)
+        return user
 
     @pytest.fixture
     def customer(self):
@@ -146,7 +158,7 @@ class TestPhotoReport:
         url = f"/api/v1/orders/{order_handover_done.id}/photo-reports/"
         image = SimpleUploadedFile(
             "test.jpg",
-            b"JPEG content",
+            _real_image_bytes('JPEG'),
             content_type="image/jpeg"
         )
 
@@ -175,7 +187,7 @@ class TestPhotoReport:
         url = f"/api/v1/orders/{order_no_handover_production_done.id}/photo-reports/"
         image = SimpleUploadedFile(
             "test.png",
-            b"PNG content",
+            _real_image_bytes('PNG'),
             content_type="image/png"
         )
 
@@ -193,7 +205,7 @@ class TestPhotoReport:
         # Create photo report
         PhotoReport.objects.create(
             order=order_handover_done,
-            file=SimpleUploadedFile("test.jpg", b"JPEG", "image/jpeg"),
+            file=SimpleUploadedFile("test.jpg", _real_image_bytes('JPEG'), "image/jpeg"),
             caption='First photo',
             uploaded_by=user
         )
@@ -267,7 +279,7 @@ class TestPhotoReport:
         url = f"/api/v1/orders/{order_handover_done.id}/photo-reports/"
         image = SimpleUploadedFile(
             "test.jpg",
-            b"JPEG content for storage test",
+            _real_image_bytes('JPEG'),
             content_type="image/jpeg"
         )
 
@@ -285,7 +297,7 @@ class TestPhotoReport:
         url = f"/api/v1/orders/{order_handover_done.id}/photo-reports/"
         webp = SimpleUploadedFile(
             "test.webp",
-            b"WEBP content",
+            _real_image_bytes('WEBP'),
             content_type="image/webp"
         )
 

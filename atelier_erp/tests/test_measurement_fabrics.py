@@ -15,7 +15,9 @@ from decimal import Decimal
 from django.test import TestCase
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from atelier_erp.models import Measurement, Order, Customer, Fabric
+from atelier_erp.roles import Roles
 
 User = get_user_model()
 
@@ -180,6 +182,8 @@ class TestMeasurementAPI(TestCase):
             username="testuser",
             password="testpass123"
         )
+        owner_group, _ = Group.objects.get_or_create(name=Roles.OWNER)
+        self.user.groups.add(owner_group)
         self.client.force_authenticate(user=self.user)
 
         self.customer = Customer.objects.create(
@@ -197,7 +201,6 @@ class TestMeasurementAPI(TestCase):
             width_cm=280
         )
 
-    @pytest.mark.skip(reason="legacy — pre-P0, references removed code; pending rewrite")
     def test_api_returns_curtain_fabric_fields(self):
         """Test API returns curtain_fabric and curtain_meters"""
         measurement = Measurement.objects.create(
@@ -210,7 +213,7 @@ class TestMeasurementAPI(TestCase):
             curtain_meters=Decimal("4.5"),
         )
 
-        response = self.client.get(f'/api/measurements/{measurement.id}/')
+        response = self.client.get(f'/api/v1/measurements/{measurement.id}/')
         assert response.status_code == 200
 
         data = response.json()
@@ -220,7 +223,6 @@ class TestMeasurementAPI(TestCase):
         assert data['curtain_fabric'] == str(self.fabric.id)
         assert Decimal(str(data['curtain_meters'])) == Decimal("4.5")
 
-    @pytest.mark.skip(reason="legacy — pre-P0, references removed code; pending rewrite")
     def test_api_returns_tulle_fabric_fields(self):
         """Test API returns tulle_fabric and tulle_meters"""
         tulle_fabric = Fabric.objects.create(
@@ -240,7 +242,7 @@ class TestMeasurementAPI(TestCase):
             tulle_meters=Decimal("3.8"),
         )
 
-        response = self.client.get(f'/api/measurements/{measurement.id}/')
+        response = self.client.get(f'/api/v1/measurements/{measurement.id}/')
         assert response.status_code == 200
 
         data = response.json()
@@ -249,7 +251,6 @@ class TestMeasurementAPI(TestCase):
         assert 'tulle_meters' in data
         assert data['tulle_fabric'] == str(tulle_fabric.id)
 
-    @pytest.mark.skip(reason="legacy — pre-P0, references removed code; pending rewrite")
     def test_api_list_includes_fabric_fields(self):
         """Test API list endpoint includes fabric fields"""
         Measurement.objects.create(
@@ -262,18 +263,18 @@ class TestMeasurementAPI(TestCase):
             curtain_meters=Decimal("3.0"),
         )
 
-        response = self.client.get('/api/measurements/')
+        response = self.client.get('/api/v1/measurements/')
         assert response.status_code == 200
 
         data = response.json()
         assert 'results' in data
         if len(data['results']) > 0:
             item = data['results'][0]
-            assert 'curtain_fabric_hanger' in item
-            assert 'curtain_fabric_name' in item
+            assert 'curtain_fabric_details' in item
+            assert item['curtain_fabric_details']['hanger_number'] == self.fabric.hanger_number
+            assert item['curtain_fabric_details']['name'] == self.fabric.name
             assert 'curtain_meters' in item
 
-    @pytest.mark.skip(reason="legacy — pre-P0, references removed code; pending rewrite")
     def test_api_no_price_fields_in_response(self):
         """Test API does NOT return price/cost fields"""
         measurement = Measurement.objects.create(
@@ -286,7 +287,7 @@ class TestMeasurementAPI(TestCase):
             curtain_meters=Decimal("2.0"),
         )
 
-        response = self.client.get(f'/api/measurements/{measurement.id}/')
+        response = self.client.get(f'/api/v1/measurements/{measurement.id}/')
         assert response.status_code == 200
 
         data = response.json()
