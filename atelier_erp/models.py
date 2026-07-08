@@ -116,12 +116,20 @@ class Customer(TenantManagerMixin, UUIDModel, TimestampedModel):
 # INVENTORY CONTEXT
 # ============================================
 
-class Fabric(UUIDModel, AuditedModel):
+class Fabric(TenantManagerMixin, UUIDModel, AuditedModel):
     """Fabric inventory aggregate with reservation tracking"""
-    
+
+    tenant = models.ForeignKey(
+        'Tenant',
+        on_delete=models.CASCADE,
+        related_name='+',
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
     hanger_number = models.CharField(
         max_length=50,
-        unique=True,
         db_index=True,
         validators=[RegexValidator(
             regex=r'^[A-Z0-9-]{1,50}$',
@@ -175,6 +183,10 @@ class Fabric(UUIDModel, AuditedModel):
             CheckConstraint(
                 check=Q(reserved_meters__lte=models.F('stock_meters')),
                 name='fabric_reserved_not_exceed_stock'
+            ),
+            models.UniqueConstraint(
+                fields=['tenant', 'hanger_number'],
+                name='fabric_tenant_hanger_number_unique'
             ),
         ]
         verbose_name = 'Fabric'

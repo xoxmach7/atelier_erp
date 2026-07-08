@@ -2011,7 +2011,7 @@ class TaskViewSet(TenantModelMixin, viewsets.ModelViewSet):
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class InventoryAvailabilityViewSet(viewsets.ReadOnlyModelViewSet):
+class InventoryAvailabilityViewSet(TenantModelMixin, viewsets.ReadOnlyModelViewSet):
     """
     Inventory Availability API v1 - Read Only
     GET /api/v1/inventory/
@@ -2025,7 +2025,7 @@ class InventoryAvailabilityViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ['color', 'pattern', 'supplier', 'is_active']
     search_fields = ['hanger_number', 'name', 'color', 'pattern']
     ordering_fields = ['hanger_number', 'available_meters', 'price_per_meter']
-    
+
     @action(detail=False, methods=['post'])
     def check(self, request):
         """
@@ -2035,12 +2035,12 @@ class InventoryAvailabilityViewSet(viewsets.ReadOnlyModelViewSet):
         """
         serializer = InventoryCheckRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         fabric_id = serializer.validated_data['fabric_id']
         required_meters = serializer.validated_data['required_meters']
-        
+
         try:
-            fabric = Fabric.objects.get(id=fabric_id, is_active=True)
+            fabric = self.scope_to_tenant(Fabric.objects.filter(is_active=True)).get(id=fabric_id)
             available_meters = fabric.available_meters
             shortfall = None if available_meters >= required_meters else required_meters - available_meters
             
