@@ -173,6 +173,10 @@ export async function createQuote(payload: CreateQuotePayload): Promise<QuoteDTO
   return apiClient.post<QuoteDTO>('/api/v1/quotes/', payload);
 }
 
+export async function updateQuote(quoteId: string, payload: CreateQuotePayload): Promise<QuoteDTO> {
+  return apiClient.patch<QuoteDTO>(`/api/v1/quotes/${quoteId}/`, payload);
+}
+
 export async function generateQuotePdf(quoteId: string): Promise<{ pdf_url: string; pdf_generated: boolean; path: string }> {
   return apiClient.post<{ pdf_url: string; pdf_generated: boolean; path: string }>(`/api/v1/quotes/${quoteId}/generate-pdf/`, {});
 }

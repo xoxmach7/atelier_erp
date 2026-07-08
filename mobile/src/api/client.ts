@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DEFAULT_API_BASE_URL = 'http://10.0.2.2:8000';
 
-function getBaseUrl(): string {
+export function getBaseUrl(): string {
   const envUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   if (envUrl) return envUrl;
   return DEFAULT_API_BASE_URL;

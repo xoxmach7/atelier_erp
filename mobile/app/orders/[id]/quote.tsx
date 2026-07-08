@@ -86,9 +86,8 @@ export default function QuoteScreen() {
           line_total: (parseFloat(l.price) || 0) * l.qty,
         })),
       };
-      await createQuote(payload);
-      Alert.alert('Готово', 'КП создано');
-      router.back();
+      const quote = await createQuote(payload);
+      router.replace(`/orders/${idStr}/quote-summary?quoteId=${quote.id}`);
     } catch (e: any) {
       Alert.alert('Ошибка', e?.message ?? 'Не удалось создать КП');
     } finally { setSaving(false); }
