@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  fetchOrderById,
   getOrderPhotoReports,
   uploadOrderPhotoReport,
 } from "@/services/http/orders";
@@ -31,6 +32,19 @@ export default function OrderPhotosPage() {
     queryFn: () => getOrderPhotoReports(orderId),
     enabled: !!orderId,
   });
+
+  const { data: order } = useQuery({
+    queryKey: ["order", orderId],
+    queryFn: () => fetchOrderById(orderId),
+    enabled: !!orderId,
+  });
+
+  const uploadBlockedReason =
+    order?.status === "completed"
+      ? "Заказ завершён — загрузка фотоотчёта недоступна"
+      : order?.status === "cancelled"
+        ? "Заказ отменён — загрузка фотоотчёта недоступна"
+        : null;
 
   const uploadMutation = useMutation({
     mutationFn: (formData: FormData) => uploadOrderPhotoReport(orderId, formData),
@@ -99,34 +113,42 @@ export default function OrderPhotosPage() {
       {canUpload && (
         <Card className="mb-6">
           <CardContent className="pt-6">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadMutation.isPending}
-            >
-              {uploadMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Загрузка...
-                </>
-              ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Загрузить фото
-                </>
-              )}
-            </Button>
-            {uploadMutation.isError && (
-              <p className="text-sm text-red-600 mt-2">
-                {uploadMutation.error?.message || "Ошибка загрузки"}
-              </p>
+            {uploadBlockedReason ? (
+              <p className="text-sm text-muted-foreground">{uploadBlockedReason}</p>
+            ) : (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadMutation.isPending}
+                >
+                  {uploadMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Загрузка...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Загрузить фото
+                    </>
+                  )}
+                </Button>
+                {uploadMutation.isError && (
+                  <p className="text-sm text-red-600 mt-2">
+                    {uploadMutation.error?.message === "Failed to fetch"
+                      ? "Не удалось отправить фото. Проверьте соединение и размер файла, затем попробуйте ещё раз."
+                      : uploadMutation.error?.message || "Ошибка загрузки"}
+                  </p>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
