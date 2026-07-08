@@ -116,7 +116,7 @@ export function OrderRoleActions({
           doAction(() => changeHandoverStage(idStr, 'installed'), 'Установка выполнена')
         )}
         {a.can_upload_photo && btn('Загрузить фотоотчёт', 'secondary', () =>
-          Alert.alert('Скоро', 'Загрузка фото — следующий этап разработки')
+          router.push({ pathname: '/orders/[id]/photos', params: { id: idStr } })
         )}
         {btn('Выдача без установки', 'secondary', () =>
           doAction(() => changeHandoverStage(idStr, 'issued'), 'Выдача выполнена')
