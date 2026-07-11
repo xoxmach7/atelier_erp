@@ -977,6 +977,8 @@ class Measurement(UUIDModel):
         related_name='curtain_measurements'
     )
     curtain_meters = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('0'))
+    # Коэффициент сборки шторы (настраиваемый на окно). Метраж = width_cm * gathering / 100.
+    curtain_gathering = models.DecimalField(max_digits=4, decimal_places=2, default=Decimal('2.2'))
 
     tulle_fabric = models.ForeignKey(
         Fabric,
@@ -986,6 +988,8 @@ class Measurement(UUIDModel):
         related_name='tulle_measurements'
     )
     tulle_meters = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('0'))
+    # Коэффициент сборки тюля (настраиваемый на окно).
+    tulle_gathering = models.DecimalField(max_digits=4, decimal_places=2, default=Decimal('2.0'))
 
     notes = models.TextField(blank=True)
     measured_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')

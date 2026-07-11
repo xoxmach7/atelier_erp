@@ -66,11 +66,13 @@ export interface MeasurementPayload {
   window_number?: string;
   width: number | string;
   height: number | string;
-  fabric_type?: 'curtain' | 'tulle' | '';
-  fabric_meters?: number | string;
-  fabric_name?: string;
   mounting_type?: string;
   comment?: string;
+  // Раздельные ткани и коэффициенты сборки. Метраж вычисляет сервер.
+  curtain_fabric_name?: string;
+  curtain_gathering?: number | string;
+  tulle_fabric_name?: string;
+  tulle_gathering?: number | string;
 }
 
 export interface MeasurementsList {
@@ -84,8 +86,10 @@ export interface MeasurementsList {
     mounting_type?: string;
     curtain_fabric?: string | null;
     curtain_meters?: string;
+    curtain_gathering?: string;
     tulle_fabric?: string | null;
     tulle_meters?: string;
+    tulle_gathering?: string;
     notes?: string;
     measured_at?: string;
   }>;

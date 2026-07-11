@@ -16,18 +16,24 @@ interface MeasurementForm {
   window_number: string;
   width: string;
   height: string;
-  fabric_type: 'curtain' | 'tulle' | '';
-  fabric_meters: string;
-  fabric_name: string;
+  curtain_fabric_name: string;
+  curtain_gathering: string;
+  tulle_fabric_name: string;
+  tulle_gathering: string;
   mounting_type: string;
   comment: string;
 }
 
-const FABRIC_OPTIONS: { value: 'curtain' | 'tulle' | ''; label: string }[] = [
-  { value: '', label: 'Не выбрано' },
-  { value: 'curtain', label: 'Ткань' },
-  { value: 'tulle', label: 'Тюль' },
-];
+const DEFAULT_CURTAIN_GATHERING = '2.2';
+const DEFAULT_TULLE_GATHERING = '2.0';
+
+// Живое превью метража = ceil_0.1(ширина × сборка / 100). Источник истины — сервер.
+function previewMeters(widthCm: string, gathering: string): string {
+  const w = parseFloat(widthCm);
+  const g = parseFloat(gathering);
+  if (!w || !g) return '';
+  return (Math.ceil((w * g) / 100 * 10) / 10).toFixed(1);
+}
 
 export default function MeasurementsScreen() {
   const router = useRouter();
@@ -46,9 +52,10 @@ export default function MeasurementsScreen() {
     window_number: '',
     width: '',
     height: '',
-    fabric_type: '',
-    fabric_meters: '',
-    fabric_name: '',
+    curtain_fabric_name: '',
+    curtain_gathering: DEFAULT_CURTAIN_GATHERING,
+    tulle_fabric_name: '',
+    tulle_gathering: DEFAULT_TULLE_GATHERING,
     mounting_type: '',
     comment: '',
   });
@@ -93,11 +100,12 @@ export default function MeasurementsScreen() {
         window_number: form.window_number.trim() || undefined,
         width: widthNum,
         height: heightNum,
-        fabric_type: form.fabric_type || undefined,
-        fabric_meters: form.fabric_meters ? parseFloat(form.fabric_meters) : undefined,
-        fabric_name: form.fabric_name.trim() || undefined,
         mounting_type: form.mounting_type.trim() || undefined,
         comment: form.comment.trim() || undefined,
+        curtain_fabric_name: form.curtain_fabric_name.trim() || undefined,
+        curtain_gathering: form.curtain_fabric_name.trim() ? form.curtain_gathering : undefined,
+        tulle_fabric_name: form.tulle_fabric_name.trim() || undefined,
+        tulle_gathering: form.tulle_fabric_name.trim() ? form.tulle_gathering : undefined,
       };
 
       await createMeasurement(orderId, payload);
@@ -108,9 +116,10 @@ export default function MeasurementsScreen() {
         window_number: '',
         width: '',
         height: '',
-        fabric_type: '',
-        fabric_meters: '',
-        fabric_name: '',
+        curtain_fabric_name: '',
+        curtain_gathering: DEFAULT_CURTAIN_GATHERING,
+        tulle_fabric_name: '',
+        tulle_gathering: DEFAULT_TULLE_GATHERING,
         mounting_type: '',
         comment: '',
       });
@@ -229,49 +238,56 @@ export default function MeasurementsScreen() {
               </View>
 
               <View style={styles.field}>
-                <Text style={styles.label}>Тип ткани</Text>
-                <View style={styles.chipRow}>
-                  {FABRIC_OPTIONS.map(opt => (
-                    <TouchableOpacity
-                      key={opt.value}
-                      style={[styles.chip, form.fabric_type === opt.value && styles.chipActive]}
-                      onPress={() => setForm(p => ({ ...p, fabric_type: opt.value }))}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.chipText, form.fabric_type === opt.value && styles.chipTextActive]}>
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {form.fabric_type ? (
-                <>
-                  <View style={styles.field}>
-                    <Text style={styles.label}>Метраж (м)</Text>
+                <Text style={styles.label}>Ткань штор</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Название ткани"
+                  placeholderTextColor={colors.textMuted}
+                  value={form.curtain_fabric_name}
+                  onChangeText={v => setForm(p => ({ ...p, curtain_fabric_name: v }))}
+                />
+                {form.curtain_fabric_name.trim() ? (
+                  <View style={styles.gatheringRow}>
                     <TextInput
-                      style={styles.input}
-                      placeholder="3.5"
+                      style={[styles.input, { flex: 1 }]}
+                      placeholder="Сборка (2.2)"
                       placeholderTextColor={colors.textMuted}
-                      value={form.fabric_meters}
-                      onChangeText={v => setForm(p => ({ ...p, fabric_meters: v }))}
+                      value={form.curtain_gathering}
+                      onChangeText={v => setForm(p => ({ ...p, curtain_gathering: v }))}
                       keyboardType="numeric"
                     />
+                    {previewMeters(form.width, form.curtain_gathering) ? (
+                      <Text style={styles.metersHint}>≈ {previewMeters(form.width, form.curtain_gathering)} м</Text>
+                    ) : null}
                   </View>
+                ) : null}
+              </View>
 
-                  <View style={styles.field}>
-                    <Text style={styles.label}>Название ткани</Text>
+              <View style={styles.field}>
+                <Text style={styles.label}>Ткань тюля</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Название ткани"
+                  placeholderTextColor={colors.textMuted}
+                  value={form.tulle_fabric_name}
+                  onChangeText={v => setForm(p => ({ ...p, tulle_fabric_name: v }))}
+                />
+                {form.tulle_fabric_name.trim() ? (
+                  <View style={styles.gatheringRow}>
                     <TextInput
-                      style={styles.input}
-                      placeholder="Название ткани"
+                      style={[styles.input, { flex: 1 }]}
+                      placeholder="Сборка (2.0)"
                       placeholderTextColor={colors.textMuted}
-                      value={form.fabric_name}
-                      onChangeText={v => setForm(p => ({ ...p, fabric_name: v }))}
+                      value={form.tulle_gathering}
+                      onChangeText={v => setForm(p => ({ ...p, tulle_gathering: v }))}
+                      keyboardType="numeric"
                     />
+                    {previewMeters(form.width, form.tulle_gathering) ? (
+                      <Text style={styles.metersHint}>≈ {previewMeters(form.width, form.tulle_gathering)} м</Text>
+                    ) : null}
                   </View>
-                </>
-              ) : null}
+                ) : null}
+              </View>
 
               <View style={styles.field}>
                 <Text style={styles.label}>Тип крепления</Text>
@@ -391,6 +407,8 @@ const styles = StyleSheet.create({
   },
   textArea: { minHeight: 70, paddingTop: spacing.md },
   row: { flexDirection: 'row' },
+  gatheringRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
+  metersHint: { fontSize: typography.sizes.sm, color: colors.primary[500], fontWeight: '500' },
   chipRow: { flexDirection: 'row', gap: spacing.sm },
   chip: {
     paddingHorizontal: spacing.base,

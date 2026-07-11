@@ -174,28 +174,34 @@ class MeasurementSerializer(serializers.ModelSerializer):
             'id', 'room_name', 'window_name', 'width_cm', 'height_cm',
             'mounting_type', 'measured_at',
             # Phase 3: Curtain and tulle fabrics
-            'curtain_fabric', 'curtain_fabric_details', 'curtain_meters',
-            'tulle_fabric', 'tulle_fabric_details', 'tulle_meters',
+            'curtain_fabric', 'curtain_fabric_details', 'curtain_meters', 'curtain_gathering',
+            'tulle_fabric', 'tulle_fabric_details', 'tulle_meters', 'tulle_gathering',
             'notes',
         ]
 
 
 class MeasurementCreateSerializer(serializers.Serializer):
-    """Simplified measurement creation for mobile/web forms.
-    Maps designer-friendly fields to the Measurement model.
+    """Simplified measurement creation for mobile forms.
+
+    Принимает обе ткани (шторы + тюль) по имени и раздельные коэффициенты сборки.
+    Метраж (curtain_meters/tulle_meters) НЕ принимается от клиента — вычисляется
+    сервером из ширины окна и коэффициента сборки (см. services.measurement_calc).
     """
     room_name = serializers.CharField(max_length=100)
     window_number = serializers.CharField(max_length=100, required=False, allow_blank=True)
     width = serializers.DecimalField(max_digits=8, decimal_places=2)
     height = serializers.DecimalField(max_digits=8, decimal_places=2)
-    fabric_type = serializers.ChoiceField(
-        choices=[('curtain', 'Ткань'), ('tulle', 'Тюль')],
-        required=False, allow_blank=True
-    )
-    fabric_meters = serializers.DecimalField(max_digits=8, decimal_places=2, required=False)
-    fabric_name = serializers.CharField(required=False, allow_blank=True)
     mounting_type = serializers.CharField(max_length=50, required=False, allow_blank=True)
     comment = serializers.CharField(required=False, allow_blank=True)
+    # Раздельные ткани и коэффициенты сборки на окно
+    curtain_fabric_name = serializers.CharField(required=False, allow_blank=True)
+    curtain_gathering = serializers.DecimalField(
+        max_digits=4, decimal_places=2, required=False, default=Decimal('2.2')
+    )
+    tulle_fabric_name = serializers.CharField(required=False, allow_blank=True)
+    tulle_gathering = serializers.DecimalField(
+        max_digits=4, decimal_places=2, required=False, default=Decimal('2.0')
+    )
 
 
 class MeasurementWriteSerializer(serializers.ModelSerializer):
