@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { setUnauthorizedCallback } from '../api/client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -85,8 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const restore = async () => {
       try {
         const [access, refresh, userJson] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEYS.accessToken),
-          AsyncStorage.getItem(STORAGE_KEYS.refreshToken),
+          SecureStore.getItemAsync(STORAGE_KEYS.accessToken),
+          SecureStore.getItemAsync(STORAGE_KEYS.refreshToken),
           AsyncStorage.getItem(STORAGE_KEYS.user),
         ]);
 
@@ -136,10 +137,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const user: AuthUser = await meRes.json();
 
-    // 3. Persist
+    // 3. Persist — токены в SecureStore (зашифровано), профиль пользователя
+    // (не секрет) в AsyncStorage.
     await Promise.all([
-      AsyncStorage.setItem(STORAGE_KEYS.accessToken, access),
-      AsyncStorage.setItem(STORAGE_KEYS.refreshToken, refresh),
+      SecureStore.setItemAsync(STORAGE_KEYS.accessToken, access),
+      SecureStore.setItemAsync(STORAGE_KEYS.refreshToken, refresh),
       AsyncStorage.setItem(STORAGE_KEYS.user, JSON.stringify(user)),
     ]);
 
@@ -154,8 +156,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await Promise.all([
-      AsyncStorage.removeItem(STORAGE_KEYS.accessToken),
-      AsyncStorage.removeItem(STORAGE_KEYS.refreshToken),
+      SecureStore.deleteItemAsync(STORAGE_KEYS.accessToken),
+      SecureStore.deleteItemAsync(STORAGE_KEYS.refreshToken),
       AsyncStorage.removeItem(STORAGE_KEYS.user),
     ]);
 

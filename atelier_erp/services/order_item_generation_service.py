@@ -50,8 +50,13 @@ class OrderItemGenerationService:
         Returns None if no approved quote found.
         """
         from ..models import Quote
-        
+
         if quote:
+            # Explicitly provided quote_id может принадлежать другому tenant
+            # (Quote не имеет прямого tenant FK, только через order__tenant) —
+            # без этой проверки чужой approved-КП можно скопировать в свой заказ.
+            if quote.order_id and quote.order.tenant_id != order.tenant_id:
+                return None
             # Check if explicitly provided quote is approved
             if quote.status == Quote.Status.APPROVED:
                 return quote

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
 const DEFAULT_API_BASE_URL = 'http://10.0.2.2:8000';
 
@@ -40,7 +41,7 @@ export class ApiClient {
 
     this.refreshPromise = (async () => {
       try {
-        const refreshToken = await AsyncStorage.getItem(STORAGE.refresh);
+        const refreshToken = await SecureStore.getItemAsync(STORAGE.refresh);
         if (!refreshToken) return null;
 
         const res = await fetch(`${this.baseUrl}/api/auth/token/refresh/`, {
@@ -52,7 +53,7 @@ export class ApiClient {
         if (!res.ok) return null;
 
         const { access } = await res.json() as { access: string };
-        await AsyncStorage.setItem(STORAGE.access, access);
+        await SecureStore.setItemAsync(STORAGE.access, access);
         return access;
       } catch {
         return null;
@@ -70,7 +71,7 @@ export class ApiClient {
     retry = true,
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    const token = await AsyncStorage.getItem(STORAGE.access);
+    const token = await SecureStore.getItemAsync(STORAGE.access);
 
     const isFormData = options.body instanceof FormData;
     const headers: Record<string, string> = {
@@ -99,7 +100,7 @@ export class ApiClient {
         return this.request<T>(endpoint, options, false);
       }
       // Refresh failed — force logout
-      await Promise.all([AsyncStorage.removeItem(STORAGE.access), AsyncStorage.removeItem(STORAGE.refresh), AsyncStorage.removeItem('atelier_user')]);
+      await Promise.all([SecureStore.deleteItemAsync(STORAGE.access), SecureStore.deleteItemAsync(STORAGE.refresh), AsyncStorage.removeItem('atelier_user')]);
       onUnauthorized?.();
       throw {
         status: 401,

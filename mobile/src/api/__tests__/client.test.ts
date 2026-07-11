@@ -1,5 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { ApiClient, setUnauthorizedCallback } from '../client';
+
+const { __clear: clearSecureStore } = SecureStore as unknown as { __clear: () => void };
 
 function mockFetchOnce(response: Partial<Response> & { json?: () => Promise<unknown> }) {
   (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -14,6 +17,7 @@ describe('ApiClient', () => {
 
   beforeEach(async () => {
     await AsyncStorage.clear();
+    clearSecureStore();
     global.fetch = jest.fn();
     client = new ApiClient();
   });
@@ -26,7 +30,7 @@ describe('ApiClient', () => {
   });
 
   it('sends GET with Authorization header when token exists', async () => {
-    await AsyncStorage.setItem('atelier_access_token', 'token-123');
+    await SecureStore.setItemAsync('atelier_access_token', 'token-123');
     mockFetchOnce({ ok: true, status: 200, json: async () => ({ hello: 'world' }) });
 
     const result = await client.get('/api/v1/orders/');
@@ -75,8 +79,8 @@ describe('ApiClient', () => {
   });
 
   it('refreshes token on 401 and retries the request once with new token', async () => {
-    await AsyncStorage.setItem('atelier_access_token', 'expired-token');
-    await AsyncStorage.setItem('atelier_refresh_token', 'refresh-token-abc');
+    await SecureStore.setItemAsync('atelier_access_token', 'expired-token');
+    await SecureStore.setItemAsync('atelier_refresh_token', 'refresh-token-abc');
 
     (global.fetch as jest.Mock)
       .mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({}) } as Response) // original request
@@ -95,12 +99,12 @@ describe('ApiClient', () => {
     const retriedCall = (global.fetch as jest.Mock).mock.calls[2];
     expect(retriedCall[1].headers.Authorization).toBe('Bearer new-token');
 
-    expect(await AsyncStorage.getItem('atelier_access_token')).toBe('new-token');
+    expect(await SecureStore.getItemAsync('atelier_access_token')).toBe('new-token');
   });
 
   it('deduplicates concurrent refresh calls when two requests get 401 at the same time', async () => {
-    await AsyncStorage.setItem('atelier_access_token', 'expired-token');
-    await AsyncStorage.setItem('atelier_refresh_token', 'refresh-token-abc');
+    await SecureStore.setItemAsync('atelier_access_token', 'expired-token');
+    await SecureStore.setItemAsync('atelier_refresh_token', 'refresh-token-abc');
 
     (global.fetch as jest.Mock)
       .mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({}) } as Response) // request A original
@@ -124,8 +128,8 @@ describe('ApiClient', () => {
   });
 
   it('clears storage and calls onUnauthorized when refresh fails', async () => {
-    await AsyncStorage.setItem('atelier_access_token', 'expired-token');
-    await AsyncStorage.setItem('atelier_refresh_token', 'refresh-token-abc');
+    await SecureStore.setItemAsync('atelier_access_token', 'expired-token');
+    await SecureStore.setItemAsync('atelier_refresh_token', 'refresh-token-abc');
     await AsyncStorage.setItem('atelier_user', JSON.stringify({ id: 1 }));
 
     const onUnauthorized = jest.fn();
@@ -140,8 +144,8 @@ describe('ApiClient', () => {
       message: 'Сессия истекла. Войдите снова.',
     });
 
-    expect(await AsyncStorage.getItem('atelier_access_token')).toBeNull();
-    expect(await AsyncStorage.getItem('atelier_refresh_token')).toBeNull();
+    expect(await SecureStore.getItemAsync('atelier_access_token')).toBeNull();
+    expect(await SecureStore.getItemAsync('atelier_refresh_token')).toBeNull();
     expect(await AsyncStorage.getItem('atelier_user')).toBeNull();
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
   });
