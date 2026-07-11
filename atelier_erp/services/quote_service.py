@@ -476,6 +476,11 @@ class QuoteService:
         font_regular = os.path.join(fonts_dir, 'DejaVuSans.ttf').replace('\\', '/')
         font_bold = os.path.join(fonts_dir, 'DejaVuSans-Bold.ttf').replace('\\', '/')
 
+        import html as html_lib
+
+        def esc(v):
+            return html_lib.escape(str(v)) if v is not None else ''
+
         def money(v):
             try:
                 return f"{int(round(float(v))):,}".replace(',', ' ')
@@ -486,10 +491,10 @@ class QuoteService:
         for item in quote.items.all():
             items_rows += f"""
             <tr>
-                <td>{item.room_name or '-'}</td>
-                <td>{item.window_name or '-'}</td>
-                <td>{item.window_width_cm or '-'}×{item.window_height_cm or '-'}</td>
-                <td>{item.fabric_meters or '-'}</td>
+                <td>{esc(item.room_name) or '-'}</td>
+                <td>{esc(item.window_name) or '-'}</td>
+                <td>{esc(item.window_width_cm) or '-'}×{esc(item.window_height_cm) or '-'}</td>
+                <td>{esc(item.fabric_meters) or '-'}</td>
                 <td>{money(item.fabric_cost)}</td>
                 <td>{money(item.sewing_cost)}</td>
                 <td>{money(item.installation_price)}</td>
@@ -497,7 +502,7 @@ class QuoteService:
             </tr>
             """
 
-        order_row = f'<tr><td class="k">Заказ:</td><td>{quote.order.order_number}</td></tr>' if quote.order else ''
+        order_row = f'<tr><td class="k">Заказ:</td><td>{esc(quote.order.order_number)}</td></tr>' if quote.order else ''
         discount_row = f'<p>Скидка: -{money(quote.discount_amount)} ₸</p>' if quote.discount_amount else ''
         delivery_row = f'<p>Доставка: +{money(quote.delivery_cost)} ₸</p>' if quote.delivery_cost else ''
         install_row = f'<p>Монтаж: +{money(quote.installation_cost)} ₸</p>' if quote.installation_cost else ''
@@ -533,8 +538,8 @@ class QuoteService:
             <p class="subtitle">№ {quote.quote_number}</p>
 
             <table class="info">
-                <tr><td class="k">Клиент:</td><td><b>{quote.customer.full_name}</b></td></tr>
-                <tr><td class="k">Телефон:</td><td>{quote.customer.phone or '-'}</td></tr>
+                <tr><td class="k">Клиент:</td><td><b>{esc(quote.customer.full_name)}</b></td></tr>
+                <tr><td class="k">Телефон:</td><td>{esc(quote.customer.phone) or '-'}</td></tr>
                 {order_row}
                 <tr><td class="k">Дата:</td><td>{timezone.now().strftime('%d.%m.%Y')}</td></tr>
             </table>
@@ -570,7 +575,14 @@ class QuoteService:
         from django.core.files.storage import default_storage
 
         def _link_callback(uri, rel):
-            return uri
+            # Только локальные файлы шрифтов из fonts_dir — никаких внешних
+            # http(s)-адресов. Пользовательский текст (имя клиента, комната)
+            # не экранировался экранированием тегов от xhtml2pdf-парсера, поэтому
+            # запрет на remote-фетч закрывает потенциальный SSRF-вектор.
+            normalized = uri.replace('\\', '/')
+            if normalized.startswith(fonts_dir.replace('\\', '/')):
+                return uri
+            raise QuoteServiceError(f"Недопустимый ресурс в PDF: {uri}")
 
         buffer = io.BytesIO()
         result = pisa.CreatePDF(html_content, dest=buffer, encoding='utf-8', link_callback=_link_callback)

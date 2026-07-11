@@ -1726,7 +1726,7 @@ class OwnerWorkQueueView(BaseWorkQueueView):
         })
 
 
-class FinanceWorkQueueView(BaseWorkQueueView):
+class FinanceWorkQueueView(TenantViaOrderMixin, BaseWorkQueueView):
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
     def get(self, request):
@@ -1740,6 +1740,12 @@ class FinanceWorkQueueView(BaseWorkQueueView):
         waiting_payment = [_base_order(o) for o in orders.filter(remaining__gt=0)[:limit]]
         paid_needs_completion = [_base_order(o) for o in orders.filter(remaining__lte=0)[:limit]]
 
+        # Payment не имеет прямого tenant FK — scope_to_tenant() здесь ЕДИНСТВЕННАЯ
+        # линия защиты (см. TenantViaOrderMixin). Раньше запрос шёл через
+        # Payment.objects напрямую и утекал платежи всех тенантов.
+        payments_qs = self.scope_to_tenant(
+            Payment.objects.select_related('order', 'order__customer').order_by('-received_at')
+        )
         recent_payments = [
             {
                 'id': str(payment.id),
@@ -1751,7 +1757,7 @@ class FinanceWorkQueueView(BaseWorkQueueView):
                 'payment_method': payment.payment_method,
                 'received_at': payment.received_at.isoformat() if payment.received_at else None,
             }
-            for payment in Payment.objects.select_related('order', 'order__customer').order_by('-received_at')[:20]
+            for payment in payments_qs[:20]
         ]
 
         return Response({
