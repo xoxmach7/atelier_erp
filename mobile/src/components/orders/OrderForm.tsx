@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Modal, FlatList, Platform, StatusBar, KeyboardAvoidingView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Icon, IconButton } from '../Icon';
 import { fetchCustomers } from '../../api/customers';
 import { fetchStaff, type StaffUser } from '../../api/staff';
@@ -29,6 +30,16 @@ function displayToIso(d: string): string | undefined {
   if (!m) return undefined;
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
+function isoToDate(iso?: string): Date {
+  if (!iso) return new Date();
+  const parsed = new Date(iso.split('T')[0]);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+function dateToDisplay(date: Date): string {
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  return `${dd}.${mm}.${date.getFullYear()}`;
+}
 
 export function OrderForm({
   mode, initial, submitting, onSubmit,
@@ -52,6 +63,8 @@ export function OrderForm({
 
   const [measureDate, setMeasureDate] = useState(isoToDisplay(initial?.measurementDate));
   const [completion, setCompletion] = useState(isoToDisplay(initial?.plannedCompletion));
+  const [showMeasureDatePicker, setShowMeasureDatePicker] = useState(false);
+  const [showCompletionDatePicker, setShowCompletionDatePicker] = useState(false);
   const [city, setCity] = useState(initial?.city ?? '');
   const [street, setStreet] = useState(initial?.street ?? '');
   const [building, setBuilding] = useState(initial?.building ?? '');
@@ -147,21 +160,82 @@ export function OrderForm({
         <View style={s.row2}>
           <View style={s.col}>
             <Text style={[s.label, { marginTop: 22 }]}>3.  Дата замера</Text>
-            <View style={s.dateField}>
+            <TouchableOpacity style={s.dateField} onPress={() => setShowMeasureDatePicker(true)} activeOpacity={0.7}>
               <Icon name="calendar" size={18} color="#94A3B8" />
-              <TextInput style={s.dateInput} placeholder="__.__.____" placeholderTextColor="#94A3B8"
-                value={measureDate} onChangeText={setMeasureDate} keyboardType="numbers-and-punctuation" />
-            </View>
+              <Text style={[s.dateInput, !measureDate && s.selectPlaceholder]}>
+                {measureDate || '__.__.____'}
+              </Text>
+            </TouchableOpacity>
           </View>
           <View style={s.col}>
             <Text style={[s.label, { marginTop: 22 }]}>4.  Завершение</Text>
-            <View style={s.dateField}>
+            <TouchableOpacity style={s.dateField} onPress={() => setShowCompletionDatePicker(true)} activeOpacity={0.7}>
               <Icon name="calendar" size={18} color="#94A3B8" />
-              <TextInput style={s.dateInput} placeholder="__.__.____" placeholderTextColor="#94A3B8"
-                value={completion} onChangeText={setCompletion} keyboardType="numbers-and-punctuation" />
-            </View>
+              <Text style={[s.dateInput, !completion && s.selectPlaceholder]}>
+                {completion || '__.__.____'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
+
+        {showMeasureDatePicker && (
+          Platform.OS === 'ios' ? (
+            <Modal visible transparent animationType="fade" onRequestClose={() => setShowMeasureDatePicker(false)}>
+              <TouchableOpacity style={s.modalBg} activeOpacity={1} onPress={() => setShowMeasureDatePicker(false)}>
+                <View style={s.datePickerCard}>
+                  <DateTimePicker
+                    value={isoToDate(displayToIso(measureDate))}
+                    mode="date"
+                    display="spinner"
+                    onChange={(_event, selected) => { if (selected) setMeasureDate(dateToDisplay(selected)); }}
+                  />
+                  <TouchableOpacity style={s.datePickerDone} onPress={() => setShowMeasureDatePicker(false)}>
+                    <Text style={s.datePickerDoneText}>Готово</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            </Modal>
+          ) : (
+            <DateTimePicker
+              value={isoToDate(displayToIso(measureDate))}
+              mode="date"
+              display="default"
+              onChange={(_event, selected) => {
+                setShowMeasureDatePicker(false);
+                if (selected) setMeasureDate(dateToDisplay(selected));
+              }}
+            />
+          )
+        )}
+        {showCompletionDatePicker && (
+          Platform.OS === 'ios' ? (
+            <Modal visible transparent animationType="fade" onRequestClose={() => setShowCompletionDatePicker(false)}>
+              <TouchableOpacity style={s.modalBg} activeOpacity={1} onPress={() => setShowCompletionDatePicker(false)}>
+                <View style={s.datePickerCard}>
+                  <DateTimePicker
+                    value={isoToDate(displayToIso(completion))}
+                    mode="date"
+                    display="spinner"
+                    onChange={(_event, selected) => { if (selected) setCompletion(dateToDisplay(selected)); }}
+                  />
+                  <TouchableOpacity style={s.datePickerDone} onPress={() => setShowCompletionDatePicker(false)}>
+                    <Text style={s.datePickerDoneText}>Готово</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            </Modal>
+          ) : (
+            <DateTimePicker
+              value={isoToDate(displayToIso(completion))}
+              mode="date"
+              display="default"
+              onChange={(_event, selected) => {
+                setShowCompletionDatePicker(false);
+                if (selected) setCompletion(dateToDisplay(selected));
+              }}
+            />
+          )
+        )}
 
         {/* 5. Address */}
         <Text style={[s.label, { marginTop: 22 }]}>5.  Адрес установки</Text>
@@ -237,6 +311,9 @@ const s = StyleSheet.create({
 
   dateField: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#E9E9E9', borderRadius: 12, height: 50, paddingHorizontal: 14 },
   dateInput: { flex: 1, fontSize: 16, color: '#0F172A', fontFamily: 'TTNormsPro-Regular' },
+  datePickerCard: { backgroundColor: '#FFFFFF', borderRadius: 16, paddingBottom: 8, marginHorizontal: 28 },
+  datePickerDone: { alignItems: 'center', paddingVertical: 14, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  datePickerDoneText: { fontSize: 16, color: '#0369A1', fontFamily: 'TTNormsPro-Bold' },
 
   error: { color: '#EF4444', fontSize: 14, marginTop: 16 },
   btn: { backgroundColor: '#60CCED', borderRadius: 12, height: 52, alignItems: 'center', justifyContent: 'center', marginTop: 28 },

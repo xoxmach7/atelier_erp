@@ -4,7 +4,7 @@ import Svg, { Path, Circle, Line, Rect, Polyline } from 'react-native-svg';
 
 export type IconName =
   | 'plus' | 'search' | 'user' | 'filter' | 'tenge' | 'edit' | 'trash'
-  | 'dots' | 'calendar' | 'userAdd' | 'doc' | 'chevron' | 'minus';
+  | 'dots' | 'calendar' | 'userAdd' | 'doc' | 'chevron' | 'minus' | 'menu';
 
 /**
  * Иконки на react-native-svg — outline-стиль (24×24 viewBox, stroke-based),
@@ -134,6 +134,15 @@ export function Icon({ name, size = 20, color = '#FFFFFF' }: { name: IconName; s
           <Polyline points="14 2 14 8 20 8" />
           <Line x1="9" y1="13" x2="15" y2="13" />
           <Line x1="9" y1="17" x2="15" y2="17" />
+        </Svg>
+      );
+
+    case 'menu':
+      return (
+        <Svg {...common}>
+          <Line x1="3" y1="6" x2="21" y2="6" />
+          <Line x1="3" y1="12" x2="21" y2="12" />
+          <Line x1="3" y1="18" x2="21" y2="18" />
         </Svg>
       );
 

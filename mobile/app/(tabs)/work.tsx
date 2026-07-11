@@ -4,20 +4,13 @@ import { useRouter } from 'expo-router';
 import { Screen } from '../../src/components/Screen';
 import { WorkTaskRow, type TaskIconType } from '../../src/components/WorkTaskRow';
 import { EmptyState } from '../../src/components/EmptyState';
+import { IconButton } from '../../src/components/Icon';
 import { useWorkQueue } from '../../src/hooks/useWorkQueues';
 import { useAuthContext } from '../../src/context/AuthContext';
 import type { RoleKey, WorkQueueItem } from '../../src/types/work';
 import { colors } from '../../src/theme/colors';
 import { spacing, radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
-
-function IconButton({ icon, onPress }: { icon: string; onPress?: () => void }) {
-  return (
-    <TouchableOpacity style={styles.iconBtn} onPress={onPress} activeOpacity={0.7}>
-      <Text style={styles.iconText}>{icon}</Text>
-    </TouchableOpacity>
-  );
-}
 
 function formatTaskTitle(orderNumber: string, clientName: string): string {
   const numMatch = orderNumber?.match(/\d+$/);
@@ -95,8 +88,8 @@ export default function WorkScreen() {
         </TouchableOpacity>
         <Text style={styles.centerTitle}>Заказы</Text>
         <View style={styles.rightActions}>
-          <IconButton icon="⌕" />
-          <IconButton icon="≡" />
+          <IconButton name="search" size={32} bg={colors.neutral[100]} color={colors.textMuted} />
+          <IconButton name="menu" size={32} bg={colors.neutral[100]} color={colors.textMuted} />
         </View>
       </View>
 
@@ -167,19 +160,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     alignItems: 'center',
     gap: spacing.sm,
-  },
-  iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.md,
-    backgroundColor: colors.neutral[100],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconText: {
-    fontSize: typography.sizes.sm,
-    color: colors.textMuted,
-    lineHeight: 18,
   },
   errorBox: {
     backgroundColor: colors.danger.light,

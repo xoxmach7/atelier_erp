@@ -21,7 +21,8 @@
     },
     "plugins": [
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "apiBaseUrl": "${EXPO_PUBLIC_API_BASE_URL}",
