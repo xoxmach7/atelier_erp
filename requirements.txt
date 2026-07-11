@@ -21,7 +21,7 @@ djangorestframework-simplejwt>=5.3.0,<6.0  # JWT authentication
 # Validation
 
 # Utilities
-Pillow>=10.0.0,<12.0  # Image handling
+Pillow>=12.2.0,<13.0  # Image handling; >=12.2.0 fixes CVE-2026-25990/40192/42309/42310/42311 (PSD/FITS memory corruption, DoS)
 python-dateutil>=2.8.0,<3.0
 xhtml2pdf>=0.2.17,<0.3  # PDF generation for quotes (pure-Python, no system deps); >=0.2.17 fixes CVE-2024-25885 (ReDoS)
 
@@ -34,5 +34,5 @@ gunicorn>=21.0.0,<24.0
 whitenoise>=6.5.0,<7.0  # Static files
 
 # Development (optional)
-pytest>=8.0.0,<9.0
+pytest>=9.0.3,<10.0  # >=9.0.3 fixes PYSEC-2026-1845 (predictable /tmp dir)
 pytest-django>=4.8.0,<5.0
