@@ -27,6 +27,10 @@ COPY . /app/
 # Собрать статику (для админки за whitenoise). collectstatic не трогает БД.
 RUN DJANGO_SECRET_KEY=build DEBUG=False python manage.py collectstatic --noinput || (echo "WARNING: collectstatic failed — check storages config" && exit 1)
 
+# Непривилегированный пользователь для рантайма — контейнер не должен работать от root.
+RUN groupadd -r app && useradd -r -g app -d /app app && chown -R app:app /app
+USER app
+
 # Expose port
 EXPOSE 8000
 
