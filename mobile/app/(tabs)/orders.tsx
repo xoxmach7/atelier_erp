@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity,
+  View, Text, FlatList, ScrollView, TouchableOpacity,
   ActivityIndicator, TextInput, StyleSheet, Platform, StatusBar,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -162,22 +162,28 @@ export default function OrdersScreen() {
 
       {/* Filters */}
       {showFilters && (
-        <FlatList
-          horizontal
-          data={STATUS_FILTERS}
-          keyExtractor={item => item.label}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.filtersContent}
-          style={s.filtersList}
-          renderItem={({ item }) => {
-            const active = statusFilter === item.key;
-            return (
-              <TouchableOpacity onPress={() => setStatusFilter(item.key)} style={[s.chip, active && s.chipActive]} activeOpacity={0.7}>
-                <Text style={[s.chipText, active && s.chipTextActive]}>{item.label}</Text>
-              </TouchableOpacity>
-            );
-          }}
-        />
+        <View style={s.filtersList}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.filtersContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {STATUS_FILTERS.map(item => {
+              const active = statusFilter === item.key;
+              return (
+                <TouchableOpacity
+                  key={item.label}
+                  onPress={() => setStatusFilter(item.key)}
+                  style={[s.chip, active && s.chipActive]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.chipText, active && s.chipTextActive]}>{item.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
       )}
 
       {/* List */}
@@ -240,7 +246,7 @@ const s = StyleSheet.create({
   },
 
   filtersList: { flexGrow: 0 },
-  filtersContent: { paddingLeft: 20, paddingRight: 20, paddingBottom: 12, gap: 8, flexDirection: 'row' },
+  filtersContent: { paddingLeft: 20, paddingRight: 20, paddingBottom: 12, gap: 8, alignItems: 'center' },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#EEF1F4' },
   chipActive: { backgroundColor: '#60CCED' },
   chipText: { fontSize: 14, color: '#475569', fontFamily: 'TTNormsPro-Medium' },

@@ -25,11 +25,16 @@ function fmtMoney(v: string | number | null | undefined): string {
   return Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ');
 }
 
-function addressText(customer: OrderExecution['customer']): string {
-  const a = customer?.address;
-  if (!a) return 'город, улица, дом, квартира, примечание';
-  if (typeof a === 'string') return a || 'город, улица, дом, квартира, примечание';
-  return [a.city, a.street, a.building, a.apartment].filter(Boolean).join(', ') || 'город, улица, дом, квартира, примечание';
+const ADDRESS_PLACEHOLDER = 'город, улица, дом, квартира, примечание';
+
+function addressText(data: OrderExecution): string {
+  // Адрес заказа отдаётся сервером на верхнем уровне (installation_address);
+  // customer.address — это адрес клиента, который мобилка не заполняет.
+  if (data.installation_address) return data.installation_address;
+  const a = data.customer?.address;
+  if (!a) return ADDRESS_PLACEHOLDER;
+  if (typeof a === 'string') return a || ADDRESS_PLACEHOLDER;
+  return [a.city, a.street, a.building, a.apartment].filter(Boolean).join(', ') || ADDRESS_PLACEHOLDER;
 }
 
 export default function OrderDetailScreen() {
@@ -106,7 +111,7 @@ export default function OrderDetailScreen() {
 
         {/* Address card */}
         <View style={s.addrCard}>
-          <Text style={s.addrLine}><Text style={s.addrLabel}>Адрес: </Text>{addressText(data.customer)}</Text>
+          <Text style={s.addrLine}><Text style={s.addrLabel}>Адрес: </Text>{addressText(data)}</Text>
           <Text style={[s.addrLine, { marginTop: 14 }]}><Text style={s.addrLabel}>Дата замера: </Text>{fmtDate(data.measurement_date)}</Text>
         </View>
 

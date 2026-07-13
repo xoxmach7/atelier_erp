@@ -77,6 +77,17 @@ class OrderExecutionService:
             'payment_state_label': payment_info['payment_state_label'],
         })
         
+        # Даты и адрес/замеры — верхний уровень, который читает мобильный
+        # экран деталей заказа ([id].tsx). Раньше измерения жили только внутри
+        # role_sections.designer, поэтому список замеров на экране был пустым,
+        # а адрес брался из customer.address (куда мобилка адрес не пишет —
+        # она кладёт его в order.installation_address_*). Отдаём явно.
+        summary['measurement_date'] = order.measurement_date.isoformat() if order.measurement_date else None
+        summary['installation_date'] = order.installation_date.isoformat() if order.installation_date else None
+        summary['planned_completion'] = order.planned_completion.isoformat() if order.planned_completion else None
+        summary['installation_address'] = self._format_installation_address(order)
+        summary['measurements'] = self._get_designer_section(order)['measurements']
+
         # Computed fields
         summary['is_overdue'] = self._is_overdue(order)
         summary['next_step'] = self._get_next_step(order)
@@ -106,6 +117,17 @@ class OrderExecutionService:
             } if any([customer.address_city, customer.address_street]) else None
         }
     
+    def _format_installation_address(self, order: Order) -> str:
+        """Адрес монтажа из полей заказа (в упрощённом мобильном режиме весь
+        адрес лежит в installation_address_street). Пусто → ''."""
+        parts = [
+            order.installation_address_city,
+            order.installation_address_street,
+            order.installation_address_building,
+            order.installation_address_apartment,
+        ]
+        return ', '.join(p for p in parts if p) or ''
+
     def _is_overdue(self, order: Order) -> bool:
         """Check if order is overdue based on planned_completion"""
         if not order.planned_completion:

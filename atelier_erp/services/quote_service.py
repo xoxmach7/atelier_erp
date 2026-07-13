@@ -398,58 +398,63 @@ class QuoteService:
         """
         Update existing quote and recalculate totals.
         If items provided, replaces all existing items.
+
+        select_for_update() требует активной транзакции — оборачиваем всё в
+        atomic, иначе Django бросает "select_for_update cannot be used outside
+        of a transaction" (вызывается из ViewSet без внешнего UnitOfWork).
         """
-        quote = self._get_quote_for_update(quote_id)
+        with transaction.atomic():
+            quote = self._get_quote_for_update(quote_id)
 
-        if quote.status not in (Quote.Status.DRAFT, Quote.Status.SENT):
-            raise QuoteServiceError(f"Cannot update quote in status {quote.status}")
+            if quote.status not in (Quote.Status.DRAFT, Quote.Status.SENT):
+                raise QuoteServiceError(f"Cannot update quote in status {quote.status}")
 
-        if items is not None:
-            quote.items.all().delete()
-            for item_data in items:
-                QuoteItem.objects.create(
-                    quote=quote,
-                    room_name=item_data.get('room_name', ''),
-                    window_name=item_data.get('window_name', ''),
-                    window_width_cm=item_data.get('window_width_cm', 0),
-                    window_height_cm=item_data.get('window_height_cm', 0),
-                    fabric_id=item_data.get('fabric_id'),
-                    fabric_meters=item_data.get('fabric_meters', Decimal('0')),
-                    fabric_cost=item_data.get('fabric_cost', Decimal('0')),
-                    tulle_fabric_id=item_data.get('tulle_fabric_id'),
-                    tulle_meters=item_data.get('tulle_meters', Decimal('0')),
-                    tulle_cost=item_data.get('tulle_cost', Decimal('0')),
-                    sewing_type=item_data.get('sewing_type', ''),
-                    sewing_cost=item_data.get('sewing_cost', Decimal('0')),
-                    installation_price=item_data.get('installation_price', Decimal('0')),
-                    accessories_cost=item_data.get('accessories_cost', Decimal('0')),
-                    line_total=item_data.get('line_total', Decimal('0'))
-                )
+            if items is not None:
+                quote.items.all().delete()
+                for item_data in items:
+                    QuoteItem.objects.create(
+                        quote=quote,
+                        room_name=item_data.get('room_name', ''),
+                        window_name=item_data.get('window_name', ''),
+                        window_width_cm=item_data.get('window_width_cm', 0),
+                        window_height_cm=item_data.get('window_height_cm', 0),
+                        fabric_id=item_data.get('fabric_id'),
+                        fabric_meters=item_data.get('fabric_meters', Decimal('0')),
+                        fabric_cost=item_data.get('fabric_cost', Decimal('0')),
+                        tulle_fabric_id=item_data.get('tulle_fabric_id'),
+                        tulle_meters=item_data.get('tulle_meters', Decimal('0')),
+                        tulle_cost=item_data.get('tulle_cost', Decimal('0')),
+                        sewing_type=item_data.get('sewing_type', ''),
+                        sewing_cost=item_data.get('sewing_cost', Decimal('0')),
+                        installation_price=item_data.get('installation_price', Decimal('0')),
+                        accessories_cost=item_data.get('accessories_cost', Decimal('0')),
+                        line_total=item_data.get('line_total', Decimal('0'))
+                    )
 
-        if installation_cost is not None:
-            quote.installation_cost = installation_cost
-        if delivery_cost is not None:
-            quote.delivery_cost = delivery_cost
-        if discount_amount is not None:
-            quote.discount_amount = discount_amount
-        if prepayment_percent is not None:
-            quote.prepayment_percent = prepayment_percent
-        if valid_until is not None:
-            quote.valid_until = valid_until
+            if installation_cost is not None:
+                quote.installation_cost = installation_cost
+            if delivery_cost is not None:
+                quote.delivery_cost = delivery_cost
+            if discount_amount is not None:
+                quote.discount_amount = discount_amount
+            if prepayment_percent is not None:
+                quote.prepayment_percent = prepayment_percent
+            if valid_until is not None:
+                quote.valid_until = valid_until
 
-        # Recalculate totals
-        subtotal = sum(item.line_total for item in quote.items.all())
-        quote.subtotal = subtotal
+            # Recalculate totals
+            subtotal = sum(item.line_total for item in quote.items.all())
+            quote.subtotal = subtotal
 
-        if quote.discount_amount > subtotal:
-            raise QuoteServiceError("Discount cannot exceed subtotal")
+            if quote.discount_amount > subtotal:
+                raise QuoteServiceError("Discount cannot exceed subtotal")
 
-        quote.total = subtotal + quote.installation_cost + quote.delivery_cost - quote.discount_amount
-        quote.save(update_fields=[
-            'subtotal', 'total', 'installation_cost', 'delivery_cost',
-            'discount_amount', 'prepayment_percent', 'valid_until',
-            'updated_at'
-        ])
+            quote.total = subtotal + quote.installation_cost + quote.delivery_cost - quote.discount_amount
+            quote.save(update_fields=[
+                'subtotal', 'total', 'installation_cost', 'delivery_cost',
+                'discount_amount', 'prepayment_percent', 'valid_until',
+                'updated_at'
+            ])
 
         return quote
 

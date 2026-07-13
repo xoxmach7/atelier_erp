@@ -309,6 +309,7 @@ export interface OrderExecution {
   planned_completion?: string;
   measurement_date?: string;
   installation_date?: string;
+  installation_address?: string;
   blockers: string[];
   warnings: string[];
   actions: {
