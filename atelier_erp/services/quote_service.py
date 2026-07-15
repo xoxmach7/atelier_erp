@@ -198,14 +198,15 @@ class QuoteService:
         """
         Mark quote as sent to customer.
         """
-        quote = self._get_quote_for_update(quote_id)
-        
-        if quote.status != Quote.Status.DRAFT:
-            raise QuoteServiceError(f"Cannot send quote in status {quote.status}")
-        
-        quote.status = Quote.Status.SENT
-        quote.save(update_fields=['status', 'updated_at'])
-        
+        with transaction.atomic():
+            quote = self._get_quote_for_update(quote_id)
+
+            if quote.status != Quote.Status.DRAFT:
+                raise QuoteServiceError(f"Cannot send quote in status {quote.status}")
+
+            quote.status = Quote.Status.SENT
+            quote.save(update_fields=['status', 'updated_at'])
+
         return quote
     
     def approve_quote(
@@ -219,21 +220,22 @@ class QuoteService:
         INVARIANT: Quote must be in SENT status.
         INVARIANT: Quote must not be expired.
         """
-        quote = self._get_quote_for_update(quote_id)
-        
-        # Check status
-        if quote.status not in (Quote.Status.SENT, Quote.Status.DRAFT):
-            raise QuoteNotApprovedError(f"Quote must be sent before approval, current status: {quote.status}")
-        
-        # Check expiration
-        if quote.valid_until and quote.valid_until < timezone.localtime(timezone.now()).date():
-            quote.status = Quote.Status.EXPIRED
+        with transaction.atomic():
+            quote = self._get_quote_for_update(quote_id)
+
+            # Check status
+            if quote.status not in (Quote.Status.SENT, Quote.Status.DRAFT):
+                raise QuoteNotApprovedError(f"Quote must be sent before approval, current status: {quote.status}")
+
+            # Check expiration
+            if quote.valid_until and quote.valid_until < timezone.localtime(timezone.now()).date():
+                quote.status = Quote.Status.EXPIRED
+                quote.save(update_fields=['status', 'updated_at'])
+                raise QuoteExpiredError(f"Quote expired on {quote.valid_until}")
+
+            quote.status = Quote.Status.APPROVED
             quote.save(update_fields=['status', 'updated_at'])
-            raise QuoteExpiredError(f"Quote expired on {quote.valid_until}")
-        
-        quote.status = Quote.Status.APPROVED
-        quote.save(update_fields=['status', 'updated_at'])
-        
+
         return quote
     
     def reject_quote(
@@ -244,14 +246,15 @@ class QuoteService:
         """
         Mark quote as rejected by customer.
         """
-        quote = self._get_quote_for_update(quote_id)
-        
-        if quote.status not in (Quote.Status.SENT, Quote.Status.DRAFT):
-            raise QuoteServiceError(f"Cannot reject quote in status {quote.status}")
-        
-        quote.status = Quote.Status.REJECTED
-        quote.save(update_fields=['status', 'updated_at'])
-        
+        with transaction.atomic():
+            quote = self._get_quote_for_update(quote_id)
+
+            if quote.status not in (Quote.Status.SENT, Quote.Status.DRAFT):
+                raise QuoteServiceError(f"Cannot reject quote in status {quote.status}")
+
+            quote.status = Quote.Status.REJECTED
+            quote.save(update_fields=['status', 'updated_at'])
+
         return quote
     
     def revise_quote(
@@ -267,29 +270,30 @@ class QuoteService:
         Create revised version of quote.
         Original quote marked as rejected, new quote created.
         """
-        old_quote = self._get_quote_for_update(quote_id)
-        
-        # Mark old as rejected
-        old_quote.status = Quote.Status.REJECTED
-        old_quote.save(update_fields=['status', 'updated_at'])
-        
-        # Generate new quote number
-        new_number = self._generate_quote_number()
-        
-        # Create new quote with updated values
-        new_quote = self.create_quote(
-            task_id=old_quote.task_id,
-            customer_id=old_quote.customer_id,
-            items=items,
-            quote_number=new_number,
-            installation_cost=installation_cost if installation_cost is not None else old_quote.installation_cost,
-            delivery_cost=delivery_cost if delivery_cost is not None else old_quote.delivery_cost,
-            discount_amount=discount_amount if discount_amount is not None else old_quote.discount_amount,
-            prepayment_percent=old_quote.prepayment_percent,
-            valid_days=7,
-            created_by=revised_by
-        )
-        
+        with transaction.atomic():
+            old_quote = self._get_quote_for_update(quote_id)
+
+            # Mark old as rejected
+            old_quote.status = Quote.Status.REJECTED
+            old_quote.save(update_fields=['status', 'updated_at'])
+
+            # Generate new quote number
+            new_number = self._generate_quote_number()
+
+            # Create new quote with updated values
+            new_quote = self.create_quote(
+                task_id=old_quote.task_id,
+                customer_id=old_quote.customer_id,
+                items=items,
+                quote_number=new_number,
+                installation_cost=installation_cost if installation_cost is not None else old_quote.installation_cost,
+                delivery_cost=delivery_cost if delivery_cost is not None else old_quote.delivery_cost,
+                discount_amount=discount_amount if discount_amount is not None else old_quote.discount_amount,
+                prepayment_percent=old_quote.prepayment_percent,
+                valid_days=7,
+                created_by=revised_by
+            )
+
         return new_quote
     
     def check_expired_quotes(self) -> int:
