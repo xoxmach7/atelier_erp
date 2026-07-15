@@ -92,7 +92,7 @@ const s = StyleSheet.create({
   inner: {
     flex: 1,
     paddingHorizontal: 24,
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     paddingTop: 80,
     paddingBottom: 40,
   },
@@ -121,8 +121,7 @@ const s = StyleSheet.create({
   },
   form: {
     gap: 12,
-    flex: 1,
-    justifyContent: 'center',
+    marginTop: 32,
     maxWidth: 360,
     alignSelf: 'center',
     width: '100%',
@@ -149,5 +148,6 @@ const s = StyleSheet.create({
     fontSize: 12,
     color: '#94A3B8',
     fontFamily: 'TTNormsPro-Regular',
+    marginTop: 'auto',
   },
 });
