@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import {
-  View, Text, FlatList, ScrollView, TouchableOpacity,
+  View, Text, FlatList, ScrollView, TouchableOpacity, Alert,
   ActivityIndicator, TextInput, StyleSheet, Platform, StatusBar,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -10,7 +10,8 @@ import { EmptyState } from '../../src/components/EmptyState';
 import { IconButton, Icon } from '../../src/components/Icon';
 import { useOrders } from '../../src/hooks/useOrder';
 import { useAuthContext } from '../../src/context/AuthContext';
-import { getStatusDotColor } from '../../src/utils/orderLabels';
+import { getStatusDotColor, getOrderIndicator, type IndicatorVariant } from '../../src/utils/orderLabels';
+import { deleteOrder } from '../../src/api/orders';
 import type { Order } from '../../src/types/order';
 
 const STATUS_FILTERS = [
@@ -32,6 +33,14 @@ function dotColor(order: Order): string {
   return getStatusDotColor(order.status);
 }
 
+const INDICATOR_COLOR: Record<IndicatorVariant, string> = {
+  danger: '#EF4444',
+  warning: '#EAB308',
+  success: '#22C55E',
+  primary: '#22C55E',
+  neutral: '#94A3B8',
+};
+
 function orderNum(order: Order): string {
   const m = order.order_number?.match(/\d+$/);
   return m ? m[0] : (order.order_number ?? '—');
@@ -51,6 +60,11 @@ function OrderCard({ order, showMenu, onPress, onMenu }: {
   order: Order; showMenu: boolean; onPress: () => void; onMenu?: () => void;
 }) {
   const designer = order.designer_name?.split(' ')[0] ?? '—';
+  const indicator = getOrderIndicator(order.status, order.material_readiness, isOverdue(order));
+  const indColor = order.ui_badge?.color && BADGE_HEX[order.ui_badge.color]
+    ? BADGE_HEX[order.ui_badge.color]
+    : INDICATOR_COLOR[indicator.variant];
+  const label = order.ui_badge?.label ?? indicator.label;
   return (
     <TouchableOpacity style={card.wrap} onPress={onPress} activeOpacity={0.6}>
       <View style={card.content}>
@@ -58,7 +72,10 @@ function OrderCard({ order, showMenu, onPress, onMenu }: {
         <Text style={card.line}><Text style={card.lineLabel}>Создан: </Text>{fmtDate(order.created_at)}</Text>
         <Text style={card.line}><Text style={card.lineLabel}>Дизайнер: </Text>{designer}</Text>
       </View>
-      <View style={[card.dot, { backgroundColor: dotColor(order) }]} />
+      <View style={card.status}>
+        <View style={[card.dot, { backgroundColor: indColor }]} />
+        <Text style={[card.statusText, { color: indColor }]} numberOfLines={1}>{label}</Text>
+      </View>
       {showMenu && (
         <TouchableOpacity onPress={onMenu} style={card.menuBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Icon name="dots" size={20} color="#94A3B8" />
@@ -84,7 +101,9 @@ const card = StyleSheet.create({
   title: { fontSize: 18, fontFamily: 'TTNormsPro-Regular', color: '#0F172A', marginBottom: 4 },
   line: { fontSize: 16, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', marginTop: 2 },
   lineLabel: { fontFamily: 'TTNormsPro-Bold' },
-  dot: { width: 28, height: 28, borderRadius: 14, flexShrink: 0 },
+  status: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
+  dot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
+  statusText: { fontSize: 16, fontFamily: 'TTNormsPro-Bold' },
   menuBtn: { width: 22, alignItems: 'center', justifyContent: 'center' },
 });
 
@@ -129,6 +148,31 @@ export default function OrdersScreen() {
   const visible = statusFilter === 'overdue' ? filtered.filter(isOverdue) : filtered;
 
   const isOwner = primaryRole === 'owner';
+
+  const openOrderMenu = (order: Order) => {
+    const num = orderNum(order);
+    Alert.alert(`Заказ №${num}`, order.customer_name ?? '', [
+      { text: 'Редактировать', onPress: () => router.push(`/orders/${order.id}/edit`) },
+      {
+        text: 'Удалить',
+        style: 'destructive',
+        onPress: () => {
+          Alert.alert('Удалить заказ?', `Заказ №${num} — ${order.customer_name ?? ''}`, [
+            { text: 'Отмена', style: 'cancel' },
+            {
+              text: 'Удалить',
+              style: 'destructive',
+              onPress: async () => {
+                try { await deleteOrder(String(order.id)); refetch(); }
+                catch (e: any) { Alert.alert('Ошибка', e?.message ?? 'Не удалось удалить'); }
+              },
+            },
+          ]);
+        },
+      },
+      { text: 'Отмена', style: 'cancel' },
+    ]);
+  };
 
   return (
     <View style={s.screen}>
@@ -212,7 +256,7 @@ export default function OrdersScreen() {
               order={item}
               showMenu={isOwner}
               onPress={() => router.push(`/orders/${item.id}`)}
-              onMenu={() => router.push(`/orders/${item.id}`)}
+              onMenu={() => openOrderMenu(item)}
             />
           )}
         />

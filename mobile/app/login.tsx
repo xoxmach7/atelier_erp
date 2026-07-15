@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity, Image } from 'react-native';
+import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AppTextInput } from '../src/components/AppTextInput';
+import { Icon } from '../src/components/Icon';
 import { useAuthContext } from '../src/context/AuthContext';
 
 export default function LoginScreen() {
@@ -10,6 +11,7 @@ export default function LoginScreen() {
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
@@ -42,9 +44,7 @@ export default function LoginScreen() {
               style={s.logo}
               resizeMode="contain"
             />
-            <Text style={s.appName}>
-              <Text style={s.appNameBold}>Sheber</Text> Atelier
-            </Text>
+            <Text style={s.appName}>Sheber Atelier</Text>
             <Text style={s.orgPlaceholder}>Название организации</Text>
           </View>
 
@@ -57,12 +57,26 @@ export default function LoginScreen() {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            <AppTextInput
-              placeholder="Пароль"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
+            <View style={s.passwordRow}>
+              <TextInput
+                style={s.passwordInput}
+                placeholder="Пароль"
+                placeholderTextColor="#94A3B8"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(v => !v)}
+                style={s.eyeBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                activeOpacity={0.7}
+              >
+                <Icon name={showPassword ? 'eyeOff' : 'eye'} size={22} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity
               style={[s.btn, loading && s.btnDisabled]}
               onPress={handleLogin}
@@ -107,11 +121,8 @@ const s = StyleSheet.create({
   appName: {
     fontSize: 28,
     color: '#0F172A',
-    fontFamily: 'TTNormsPro-Regular',
-    marginTop: 16,
-  },
-  appNameBold: {
     fontFamily: 'TTNormsPro-Bold',
+    marginTop: 16,
   },
   orgPlaceholder: {
     fontSize: 20,
@@ -121,10 +132,33 @@ const s = StyleSheet.create({
   },
   form: {
     gap: 12,
-    marginTop: 32,
+    marginTop: 72,
     maxWidth: 360,
     alignSelf: 'center',
     width: '100%',
+  },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E9E9E9',
+    borderRadius: 10,
+    height: 44,
+    paddingHorizontal: 16,
+    width: '100%',
+    maxWidth: 326,
+    alignSelf: 'center',
+  },
+  passwordInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#0F172A',
+    fontFamily: 'TTNormsPro-Regular',
+    height: '100%',
+  },
+  eyeBtn: {
+    paddingLeft: 12,
+    height: '100%',
+    justifyContent: 'center',
   },
   btn: {
     height: 52,

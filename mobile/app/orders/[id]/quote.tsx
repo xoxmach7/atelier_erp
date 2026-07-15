@@ -31,7 +31,6 @@ export default function QuoteScreen() {
   const [orderNum, setOrderNum] = useState('');
   const [lines, setLines] = useState<Line[]>([]);
   const [fabricNames, setFabricNames] = useState<Record<string, string>>({});
-  const [deposit, setDeposit] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,8 +58,6 @@ export default function QuoteScreen() {
     () => lines.reduce((sum, l) => sum + (parseFloat(l.price) || 0) * l.qty, 0),
     [lines],
   );
-
-  const prepayAmount = Math.round(total * 0.5);
 
   const setQty = (i: number, delta: number) =>
     setLines(ls => ls.map((l, idx) => idx === i ? { ...l, qty: Math.max(1, l.qty + delta) } : l));
@@ -143,28 +140,10 @@ export default function QuoteScreen() {
           );
         })}
 
-        {/* Totals */}
+        {/* Totals — только итог; предоплата/оплата задаются на след. экране КП */}
         <View style={s.totalsBox}>
           <Text style={s.totalLabel}>Итоговая стоимость:</Text>
           <Text style={s.totalValue}>{money(total)} ₸</Text>
-
-          <View style={s.prepayRow}>
-            <Text style={s.prepayLabel}>Размер предоплаты:</Text>
-            <Text style={s.prepayAmount}>{money(prepayAmount)} ₸</Text>
-          </View>
-
-          <View style={s.prepayRow}>
-            <Text style={s.prepayLabel}>Внесено:</Text>
-            <TextInput
-              style={s.depositInput}
-              value={deposit}
-              onChangeText={setDeposit}
-              keyboardType="numeric"
-              placeholder="0"
-              placeholderTextColor="#94A3B8"
-            />
-            <Text style={s.prepayUnit}>₸</Text>
-          </View>
         </View>
 
         <TouchableOpacity style={[s.btn, lines.length === 0 && s.btnDisabled]} onPress={onSave} disabled={lines.length === 0 || saving} activeOpacity={0.85}>
