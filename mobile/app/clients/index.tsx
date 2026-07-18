@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Alert, Platform, StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconButton } from '../../src/components/Icon';
 import { EmptyState } from '../../src/components/EmptyState';
 import { fetchCustomers, deleteCustomer } from '../../src/api/customers';
@@ -11,6 +12,7 @@ import type { Customer } from '../../src/types/customer';
 
 export default function ClientsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [data, setData] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export default function ClientsScreen() {
 
   return (
     <View style={s.screen}>
-      <View style={s.header}>
+      <View style={[s.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.6}>
           <Text style={s.back}>Назад</Text>
         </TouchableOpacity>
@@ -81,7 +83,7 @@ export default function ClientsScreen() {
         <FlatList
           data={filtered}
           keyExtractor={c => c.id}
-          contentContainerStyle={s.listContent}
+          contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 24 }]}
           showsVerticalScrollIndicator={false}
           onRefresh={load}
           refreshing={loading}

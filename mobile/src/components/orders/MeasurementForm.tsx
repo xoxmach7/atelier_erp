@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Modal, FlatList, Platform, StatusBar, KeyboardAvoidingView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fetchFabricsList, type FabricLite } from '../../api/fabrics';
 import type { MeasurementPayload } from '../../api/orders';
 
@@ -68,6 +69,7 @@ export function MeasurementForm({
   onSubmit: (payload: MeasurementPayload) => void;
 }) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [room, setRoom] = useState(initial?.room ?? '');
   const [windowName, setWindowName] = useState(initial?.window ?? '');
   const [width, setWidth] = useState(initial?.width ?? '');
@@ -107,7 +109,11 @@ export function MeasurementForm({
 
   return (
     <KeyboardAvoidingView style={s.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[s.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.6}>
           <Text style={s.back}>Назад</Text>
         </TouchableOpacity>

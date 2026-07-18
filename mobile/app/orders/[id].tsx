@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthContext } from '../../src/context/AuthContext';
 import {
   fetchOrderExecution, fetchQuotes, deleteOrder,
@@ -41,6 +42,7 @@ export default function OrderDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const idStr = String(id);
+  const insets = useSafeAreaInsets();
   const { primaryRole } = useAuthContext();
   const [data, setData] = useState<OrderExecution | null>(null);
   const [quote, setQuote] = useState<QuoteDTO | null>(null);
@@ -98,7 +100,10 @@ export default function OrderDetailScreen() {
 
   return (
     <View style={s.screen}>
-      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[s.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
+        showsVerticalScrollIndicator={false}
+      >
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.6}>
           <Text style={s.back}>Назад</Text>
         </TouchableOpacity>

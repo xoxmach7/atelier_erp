@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Alert, Platform, StatusBar,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import {
@@ -26,6 +27,7 @@ export default function QuoteSummaryScreen() {
   const { id, quoteId } = useLocalSearchParams<{ id: string; quoteId: string }>();
   const idStr = String(id);
   const quoteIdStr = String(quoteId);
+  const insets = useSafeAreaInsets();
 
   const [quote, setQuote] = useState<QuoteDTO | null>(null);
   const [installation, setInstallation] = useState('0');
@@ -124,7 +126,11 @@ export default function QuoteSummaryScreen() {
 
   return (
     <View style={s.screen}>
-      <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[s.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.6}>
           <Text style={s.back}>Назад</Text>
         </TouchableOpacity>

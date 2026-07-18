@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Modal, FlatList, Platform, StatusBar, KeyboardAvoidingView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Icon, IconButton } from '../Icon';
 import { fetchCustomers } from '../../api/customers';
@@ -50,6 +51,7 @@ export function OrderForm({
   onSubmit: (payload: CreateOrderPayload) => void;
 }) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [customerId, setCustomerId] = useState(initial?.customerId ?? '');
   const [customerName, setCustomerName] = useState(initial?.customerName ?? '');
   const [search, setSearch] = useState('');
@@ -105,7 +107,11 @@ export function OrderForm({
 
   return (
     <KeyboardAvoidingView style={s.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[s.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.6}>
           <Text style={s.back}>Назад</Text>
         </TouchableOpacity>

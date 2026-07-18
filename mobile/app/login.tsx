@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppTextInput } from '../src/components/AppTextInput';
 import { Icon } from '../src/components/Icon';
 import { useAuthContext } from '../src/context/AuthContext';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { login } = useAuthContext();
 
   const [username, setUsername] = useState('');
@@ -36,7 +38,7 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={s.kav}
       >
-        <View style={s.inner}>
+        <View style={[s.inner, { paddingTop: insets.top + 36, paddingBottom: insets.bottom + 24 }]}>
           {/* Logo */}
           <View style={s.logoBlock}>
             <Image
