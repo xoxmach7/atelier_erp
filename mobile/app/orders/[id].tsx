@@ -205,21 +205,29 @@ export default function OrderDetailScreen() {
             const dims = m.width_cm && m.height_cm ? ` (${m.width_cm}x${m.height_cm})` : '';
             const price = priceFor(m.room_name, m.window_name);
             return (
-              <TouchableOpacity key={m.id} style={s.mRow} activeOpacity={0.6}
-                onPress={() => setSelected(m)}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.mRoom}>{m.room_name}</Text>
-                  <Text style={s.mWindow}>{m.window_name}{dims}</Text>
-                </View>
-                {price != null && <Text style={s.mPrice}>{fmtMoney(price)} ₸</Text>}
+              // ⋮ — отдельный Touchable рядом со строкой, НЕ внутри неё:
+              // вложенные Touchable в RN конфликтуют, нажатие перехватывает внешний.
+              <View key={m.id} style={s.mRow}>
+                <TouchableOpacity
+                  style={s.mRowMain}
+                  activeOpacity={0.6}
+                  onPress={() => setSelected(m)}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.mRoom}>{m.room_name}</Text>
+                    <Text style={s.mWindow}>{m.window_name}{dims}</Text>
+                  </View>
+                  {price != null && <Text style={s.mPrice}>{fmtMoney(price)} ₸</Text>}
+                </TouchableOpacity>
                 <TouchableOpacity
                   style={s.mMenu}
                   onPress={() => openMeasurementMenu(m)}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  activeOpacity={0.6}
+                  hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
                 >
                   <Icon name="dots" size={20} color="#94A3B8" />
                 </TouchableOpacity>
-              </TouchableOpacity>
+              </View>
             );
           })
         )}
@@ -345,13 +353,17 @@ const s = StyleSheet.create({
 
   empty: { fontSize: 15, color: '#94A3B8', fontFamily: 'TTNormsPro-Regular', textAlign: 'center', marginTop: 24 },
   mRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#EEF1F4',
+    flexDirection: 'row', alignItems: 'center',
+    borderBottomWidth: 1, borderBottomColor: '#EEF1F4',
+  },
+  mRowMain: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 16,
   },
   mRoom: { fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Regular' },
   mWindow: { fontSize: 16, color: '#475569', fontFamily: 'TTNormsPro-Regular', marginTop: 2 },
   mPrice: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Bold' },
-  mMenu: { width: 22, alignItems: 'center', justifyContent: 'center' },
+  mMenu: { width: 40, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
 
   // ─── Модалки ───────────────────────────────────────────────────────────────
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 },

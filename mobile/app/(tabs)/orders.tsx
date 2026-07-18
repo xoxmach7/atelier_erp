@@ -65,37 +65,51 @@ function OrderCard({ order, showMenu, onPress, onMenu }: {
     ? BADGE_HEX[order.ui_badge.color]
     : INDICATOR_COLOR[indicator.variant];
   const label = order.ui_badge?.label ?? indicator.label;
+  // ⋮ вынесен из карточки в соседний Touchable: вложенные Touchable в RN
+  // конфликтуют — нажатие на ⋮ перехватывала карточка и открывала заказ.
   return (
-    <TouchableOpacity style={card.wrap} onPress={onPress} activeOpacity={0.6}>
-      <View style={card.content}>
-        <Text style={card.title}>№{orderNum(order)} | {order.customer_name}</Text>
-        <Text style={card.line}><Text style={card.lineLabel}>Создан: </Text>{fmtDate(order.created_at)}</Text>
-        <Text style={card.line}><Text style={card.lineLabel}>Дизайнер: </Text>{designer}</Text>
-      </View>
-      <View style={card.status}>
-        <View style={[card.dot, { backgroundColor: indColor }]} />
-        <Text style={[card.statusText, { color: indColor }]} numberOfLines={1}>{label}</Text>
-      </View>
+    <View style={card.wrap}>
+      <TouchableOpacity style={card.main} onPress={onPress} activeOpacity={0.6}>
+        <View style={card.content}>
+          <Text style={card.title}>№{orderNum(order)} | {order.customer_name}</Text>
+          <Text style={card.line}><Text style={card.lineLabel}>Создан: </Text>{fmtDate(order.created_at)}</Text>
+          <Text style={card.line}><Text style={card.lineLabel}>Дизайнер: </Text>{designer}</Text>
+        </View>
+        <View style={card.status}>
+          <View style={[card.dot, { backgroundColor: indColor }]} />
+          <Text style={[card.statusText, { color: indColor }]} numberOfLines={1}>{label}</Text>
+        </View>
+      </TouchableOpacity>
       {showMenu && (
-        <TouchableOpacity onPress={onMenu} style={card.menuBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity
+          onPress={onMenu}
+          style={card.menuBtn}
+          activeOpacity={0.6}
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+        >
           <Icon name="dots" size={20} color="#94A3B8" />
         </TouchableOpacity>
       )}
-    </TouchableOpacity>
+    </View>
   );
 }
 
 const card = StyleSheet.create({
   wrap: {
     backgroundColor: '#FAFBFC',
-    paddingVertical: 18,
     paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#EEF1F4',
     minHeight: 98,
+  },
+  main: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 18,
   },
   content: { flex: 1 },
   title: { fontSize: 18, fontFamily: 'TTNormsPro-Regular', color: '#0F172A', marginBottom: 4 },
@@ -104,7 +118,7 @@ const card = StyleSheet.create({
   status: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
   dot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
   statusText: { fontSize: 16, fontFamily: 'TTNormsPro-Bold' },
-  menuBtn: { width: 22, alignItems: 'center', justifyContent: 'center' },
+  menuBtn: { width: 40, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },
 });
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
