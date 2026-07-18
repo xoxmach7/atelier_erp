@@ -4,6 +4,7 @@ Minimal ViewSets with service layer integration
 All state changes go through services
 """
 
+import logging
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -28,6 +29,23 @@ from atelier_erp.models import (
     Measurement, Quote, Payment, Customer, OrderMaterial, InventoryItem
 )
 from atelier_erp.services import OrderService, TaskService, UnitOfWork, QuoteService
+
+
+logger = logging.getLogger(__name__)
+
+# Текст необработанной ошибки наружу не отдаём: в него попадают имена
+# ограничений БД, пути файлов и прочие внутренности. Настоящая ошибка уходит
+# в лог со стеком, клиент получает обобщённую формулировку. Машиночитаемый
+# `code` в ответах сохранён — фронтенд ориентируется на него, а не на текст.
+UNEXPECTED_ERROR_MESSAGE = (
+    'Не удалось выполнить операцию. Попробуйте ещё раз или обратитесь к администратору.'
+)
+
+
+def _safe_error(exc, context='request'):
+    """Залогировать настоящую ошибку, вернуть безопасный текст для клиента."""
+    logger.exception('Необработанная ошибка (%s): %s', context, exc)
+    return UNEXPECTED_ERROR_MESSAGE
 from atelier_erp.services.exceptions import (
     OrderNotFoundError, InvalidOrderStatusTransition,
     TaskNotFoundError, InvalidTaskStatusTransition
@@ -233,7 +251,7 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
                 response_serializer = OrderDetailSerializer(order)
                 return Response(response_serializer.data, status=status.HTTP_201_CREATED)
             except Exception as e:
-                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': _safe_error(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     def update(self, request, *args, **kwargs):
         """Update order via OrderUpdateSerializer - customer, address, deadline, notes"""
@@ -715,7 +733,7 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
             except OrderNotFoundError as e:
                 return Response({'error': str(e)}, status=status.HTTP_404_NOT_FOUND)
             except Exception as e:
-                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': _safe_error(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     # ============================================
     # ЯВНЫЕ ДЕЙСТВИЯ (MVP Workflow)
@@ -783,7 +801,7 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
                 return Response(resp, status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
                 return Response(
-                    {'detail': str(e), 'code': 'status_change_error'},
+                    {'detail': _safe_error(e), 'code': 'status_change_error'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
     
@@ -817,7 +835,7 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
             })
         except Exception as e:
             return Response(
-                {'detail': str(e), 'code': 'material_readiness_error'},
+                {'detail': _safe_error(e), 'code': 'material_readiness_error'},
                 status=status.HTTP_400_BAD_REQUEST
             )
     
@@ -847,7 +865,7 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
             return Response({'order': response_serializer.data})
         except Exception as e:
             return Response(
-                {'detail': str(e), 'code': 'production_stage_error'},
+                {'detail': _safe_error(e), 'code': 'production_stage_error'},
                 status=status.HTTP_400_BAD_REQUEST
             )
     
@@ -880,7 +898,7 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
             })
         except Exception as e:
             return Response(
-                {'detail': str(e), 'code': 'handover_stage_error'},
+                {'detail': _safe_error(e), 'code': 'handover_stage_error'},
                 status=status.HTTP_400_BAD_REQUEST
             )
     
@@ -931,7 +949,7 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
             )
         except Exception as e:
             return Response(
-                {'detail': str(e), 'code': 'cancel_error'},
+                {'detail': _safe_error(e), 'code': 'cancel_error'},
                 status=status.HTTP_400_BAD_REQUEST
             )
     
@@ -997,7 +1015,7 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
             )
         except Exception as e:
             return Response(
-                {'detail': str(e), 'code': 'generation_error'},
+                {'detail': _safe_error(e), 'code': 'generation_error'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
@@ -1124,7 +1142,7 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
                     status=status.HTTP_409_CONFLICT
                 )
             except Exception as e:
-                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': _safe_error(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
     @action(
@@ -1989,7 +2007,7 @@ class TaskViewSet(TenantModelMixin, viewsets.ModelViewSet):
                 response_serializer = TaskDetailSerializer(task)
                 return Response(response_serializer.data, status=status.HTTP_201_CREATED)
             except Exception as e:
-                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': _safe_error(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     def update(self, request, *args, **kwargs):
         """Update task via service layer"""
@@ -2012,7 +2030,7 @@ class TaskViewSet(TenantModelMixin, viewsets.ModelViewSet):
                 response_serializer = TaskDetailSerializer(updated_task)
                 return Response(response_serializer.data)
             except Exception as e:
-                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': _safe_error(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=True, methods=['post'])
     def change_status(self, request, pk=None):
@@ -2049,7 +2067,7 @@ class TaskViewSet(TenantModelMixin, viewsets.ModelViewSet):
             except TaskNotFoundError as e:
                 return Response({'error': str(e)}, status=status.HTTP_404_NOT_FOUND)
             except Exception as e:
-                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': _safe_error(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=True, methods=['post'])
     def convert_to_order(self, request, pk=None):
@@ -2072,7 +2090,7 @@ class TaskViewSet(TenantModelMixin, viewsets.ModelViewSet):
                 response_serializer = OrderDetailSerializer(order)
                 return Response(response_serializer.data, status=status.HTTP_201_CREATED)
             except Exception as e:
-                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': _safe_error(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class InventoryAvailabilityViewSet(TenantModelMixin, viewsets.ReadOnlyModelViewSet):
@@ -2207,7 +2225,7 @@ class QuoteViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
             response_serializer = QuoteSerializer(quote)
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': _safe_error(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     def update(self, request, *args, **kwargs):
         """Update existing quote (partial)"""
@@ -2233,7 +2251,7 @@ class QuoteViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
             response_serializer = QuoteSerializer(updated)
             return Response(response_serializer.data)
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': _safe_error(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
     @action(detail=True, methods=['post'], url_path='convert_to_order')
@@ -2255,7 +2273,7 @@ class QuoteViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
                 uow.commit()
                 return Response(OrderDetailSerializer(order).data, status=status.HTTP_201_CREATED)
             except Exception as e:
-                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': _safe_error(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'], url_path='generate-pdf', url_name='generate-pdf')
     def generate_pdf(self, request, pk=None):
@@ -2282,7 +2300,7 @@ class QuoteViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': _safe_error(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 # ---------------------------------------------------------------------------
