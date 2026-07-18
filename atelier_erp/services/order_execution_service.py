@@ -82,6 +82,8 @@ class OrderExecutionService:
         # role_sections.designer, поэтому список замеров на экране был пустым,
         # а адрес брался из customer.address (куда мобилка адрес не пишет —
         # она кладёт его в order.installation_address_*). Отдаём явно.
+        summary['created_at'] = order.created_at.isoformat() if getattr(order, 'created_at', None) else None
+        summary['designer_name'] = self._responsible_name(order)
         summary['measurement_date'] = order.measurement_date.isoformat() if order.measurement_date else None
         summary['installation_date'] = order.installation_date.isoformat() if order.installation_date else None
         summary['planned_completion'] = order.planned_completion.isoformat() if order.planned_completion else None
@@ -117,6 +119,14 @@ class OrderExecutionService:
             } if any([customer.address_city, customer.address_street]) else None
         }
     
+    def _responsible_name(self, order: Order) -> str:
+        """Дизайнер/ответственный по заказу — для карточки заказа в мобилке."""
+        user = getattr(order, 'responsible_user', None)
+        if not user:
+            return ''
+        full = user.get_full_name() if hasattr(user, 'get_full_name') else ''
+        return (full or getattr(user, 'username', '') or '').strip()
+
     def _format_installation_address(self, order: Order) -> str:
         """Адрес монтажа из полей заказа (в упрощённом мобильном режиме весь
         адрес лежит в installation_address_street). Пусто → ''."""

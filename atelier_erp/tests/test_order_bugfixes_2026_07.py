@@ -75,3 +75,12 @@ class TestExecutionSummaryTopLevel(TestCase):
         m = summary['measurements'][0]
         assert m['room_name'] == 'Гостиная'
         assert m['width_cm'] == 300
+
+    def test_summary_exposes_card_fields(self):
+        """Карточка заказа в мобилке: клиент/создан/дизайнер/статус/завершение."""
+        summary = OrderExecutionService().get_order_execution_summary(self.order)
+        assert summary['customer']['full_name'] == 'C2'
+        assert summary['created_at'] is not None
+        assert 'designer_name' in summary          # пусто, если ответственный не назначен
+        assert summary['status_label']
+        assert 'planned_completion' in summary

@@ -178,10 +178,15 @@ export default function OrderDetailScreen() {
           <IconButton name="trash" size={40} onPress={onDelete} />
         </View>
 
-        {/* Address card */}
+        {/* Карточка заказа */}
         <View style={s.addrCard}>
-          <Text style={s.addrLine}><Text style={s.addrLabel}>Адрес: </Text>{addressText(data)}</Text>
-          <Text style={[s.addrLine, { marginTop: 14 }]}><Text style={s.addrLabel}>Дата замера: </Text>{fmtDate(data.measurement_date)}</Text>
+          <Text style={s.addrLine}><Text style={s.addrLabel}>Клиент: </Text>{data.customer?.full_name || '—'}</Text>
+          <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Создан: </Text>{fmtDate(data.created_at)}</Text>
+          <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Дизайнер: </Text>{data.designer_name || '—'}</Text>
+          <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Статус: </Text>{data.status_label || '—'}</Text>
+          <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Завершение: </Text>{fmtDate(data.planned_completion)}</Text>
+          <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Дата замера: </Text>{fmtDate(data.measurement_date)}</Text>
+          <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Адрес: </Text>{addressText(data)}</Text>
         </View>
 
         {/* Measurements section */}
@@ -343,6 +348,7 @@ const s = StyleSheet.create({
 
   addrCard: { backgroundColor: '#F1F3F5', borderRadius: 16, padding: 20, marginTop: 18 },
   addrLine: { fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', lineHeight: 24 },
+  addrGap: { marginTop: 14 },
   addrLabel: { fontFamily: 'TTNormsPro-Bold' },
 
   sectionTitle: { fontSize: 28, fontFamily: 'TTNormsPro-Bold', color: '#0F172A', marginTop: 26 },

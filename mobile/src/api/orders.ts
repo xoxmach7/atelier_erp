@@ -358,6 +358,8 @@ export interface OrderExecution {
   measurement_date?: string;
   installation_date?: string;
   installation_address?: string;
+  created_at?: string;
+  designer_name?: string;
   blockers: string[];
   warnings: string[];
   actions: {

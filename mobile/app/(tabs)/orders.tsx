@@ -1,17 +1,16 @@
 import { useState, useCallback } from 'react';
 import {
-  View, Text, FlatList, ScrollView, TouchableOpacity, Alert,
+  View, Text, FlatList, ScrollView, TouchableOpacity,
   ActivityIndicator, TextInput, StyleSheet, Platform, StatusBar,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../../src/components/EmptyState';
-import { IconButton, Icon } from '../../src/components/Icon';
+import { IconButton } from '../../src/components/Icon';
 import { useOrders } from '../../src/hooks/useOrder';
 import { useAuthContext } from '../../src/context/AuthContext';
 import { getStatusDotColor, getOrderIndicator, type IndicatorVariant } from '../../src/utils/orderLabels';
-import { deleteOrder } from '../../src/api/orders';
 import type { Order } from '../../src/types/order';
 
 const STATUS_FILTERS = [
@@ -56,8 +55,8 @@ function fmtDate(dateStr: string | null | undefined): string {
 
 // ─── Order Card ───────────────────────────────────────────────────────────────
 
-function OrderCard({ order, showMenu, onPress, onMenu }: {
-  order: Order; showMenu: boolean; onPress: () => void; onMenu?: () => void;
+function OrderCard({ order, onPress }: {
+  order: Order; onPress: () => void;
 }) {
   const designer = order.designer_name?.split(' ')[0] ?? '—';
   const indicator = getOrderIndicator(order.status, order.material_readiness, isOverdue(order));
@@ -65,32 +64,18 @@ function OrderCard({ order, showMenu, onPress, onMenu }: {
     ? BADGE_HEX[order.ui_badge.color]
     : INDICATOR_COLOR[indicator.variant];
   const label = order.ui_badge?.label ?? indicator.label;
-  // ⋮ вынесен из карточки в соседний Touchable: вложенные Touchable в RN
-  // конфликтуют — нажатие на ⋮ перехватывала карточка и открывала заказ.
   return (
-    <View style={card.wrap}>
-      <TouchableOpacity style={card.main} onPress={onPress} activeOpacity={0.6}>
-        <View style={card.content}>
-          <Text style={card.title}>№{orderNum(order)} | {order.customer_name}</Text>
-          <Text style={card.line}><Text style={card.lineLabel}>Создан: </Text>{fmtDate(order.created_at)}</Text>
-          <Text style={card.line}><Text style={card.lineLabel}>Дизайнер: </Text>{designer}</Text>
-        </View>
-        <View style={card.status}>
-          <View style={[card.dot, { backgroundColor: indColor }]} />
-          <Text style={[card.statusText, { color: indColor }]} numberOfLines={1}>{label}</Text>
-        </View>
-      </TouchableOpacity>
-      {showMenu && (
-        <TouchableOpacity
-          onPress={onMenu}
-          style={card.menuBtn}
-          activeOpacity={0.6}
-          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-        >
-          <Icon name="dots" size={20} color="#94A3B8" />
-        </TouchableOpacity>
-      )}
-    </View>
+    <TouchableOpacity style={card.wrap} onPress={onPress} activeOpacity={0.6}>
+      <View style={card.content}>
+        <Text style={card.title}>№{orderNum(order)} | {order.customer_name}</Text>
+        <Text style={card.line}><Text style={card.lineLabel}>Создан: </Text>{fmtDate(order.created_at)}</Text>
+        <Text style={card.line}><Text style={card.lineLabel}>Дизайнер: </Text>{designer}</Text>
+      </View>
+      <View style={card.status}>
+        <View style={[card.dot, { backgroundColor: indColor }]} />
+        <Text style={[card.statusText, { color: indColor }]} numberOfLines={1}>{label}</Text>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -98,18 +83,13 @@ const card = StyleSheet.create({
   wrap: {
     backgroundColor: '#FAFBFC',
     paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEF1F4',
-    minHeight: 98,
-  },
-  main: {
-    flex: 1,
+    paddingVertical: 18,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF1F4',
+    minHeight: 98,
   },
   content: { flex: 1 },
   title: { fontSize: 18, fontFamily: 'TTNormsPro-Regular', color: '#0F172A', marginBottom: 4 },
@@ -118,7 +98,6 @@ const card = StyleSheet.create({
   status: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
   dot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
   statusText: { fontSize: 16, fontFamily: 'TTNormsPro-Bold' },
-  menuBtn: { width: 40, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },
 });
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
@@ -162,31 +141,6 @@ export default function OrdersScreen() {
   const visible = statusFilter === 'overdue' ? filtered.filter(isOverdue) : filtered;
 
   const isOwner = primaryRole === 'owner';
-
-  const openOrderMenu = (order: Order) => {
-    const num = orderNum(order);
-    Alert.alert(`Заказ №${num}`, order.customer_name ?? '', [
-      { text: 'Редактировать', onPress: () => router.push(`/orders/${order.id}/edit`) },
-      {
-        text: 'Удалить',
-        style: 'destructive',
-        onPress: () => {
-          Alert.alert('Удалить заказ?', `Заказ №${num} — ${order.customer_name ?? ''}`, [
-            { text: 'Отмена', style: 'cancel' },
-            {
-              text: 'Удалить',
-              style: 'destructive',
-              onPress: async () => {
-                try { await deleteOrder(String(order.id)); refetch(); }
-                catch (e: any) { Alert.alert('Ошибка', e?.message ?? 'Не удалось удалить'); }
-              },
-            },
-          ]);
-        },
-      },
-      { text: 'Отмена', style: 'cancel' },
-    ]);
-  };
 
   return (
     <View style={s.screen}>
@@ -268,9 +222,7 @@ export default function OrdersScreen() {
           renderItem={({ item }) => (
             <OrderCard
               order={item}
-              showMenu={isOwner}
               onPress={() => router.push(`/orders/${item.id}`)}
-              onMenu={() => openOrderMenu(item)}
             />
           )}
         />
