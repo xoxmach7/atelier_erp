@@ -124,8 +124,8 @@ class TestItemsGeneratedStartsWork(TestCase):
             order=order, customer=customer, quote_number="КП-2024-927",
             status=Quote.Status.APPROVED, total=Decimal('1000'),
         )
-        # Ткань обязательна: _create_order_item_from_quote_item жёстко ставит
-        # item_type='fabric', и без ткани падает constraint orderitem_valid_reference.
+        # Обычная тканевая строка КП. Строки без ткани (чистые услуги) тоже
+        # поддерживаются — см. test_order_item_generation_types.py.
         fabric = Fabric.objects.create(
             name="Хлопок", hanger_number="H-927",
             price_per_meter=Decimal('900'), width_cm=280,

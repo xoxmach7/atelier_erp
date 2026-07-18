@@ -177,14 +177,15 @@ class OrderItemGenerationService:
         # Only use fields that exist in the OrderItem model
         from decimal import Decimal
         from atelier_erp.models import OrderItem
-        
+
         # Calculate pricing from line_total or use defaults
         line_total = getattr(quote_item, 'line_total', None) or getattr(quote_item, 'total_price', None) or Decimal("0.00")
-        
+
+        item_type, reference = self._resolve_item_reference(quote_item, description)
+
         order_item = OrderItem.objects.create(
             order=order,
-            item_type='fabric',  # Default to fabric type
-            fabric=getattr(quote_item, 'fabric', None),
+            item_type=item_type,
             quantity=1,
             unit_price=line_total,
             total_price=line_total,
@@ -192,9 +193,56 @@ class OrderItemGenerationService:
             window_width_cm=getattr(quote_item, 'window_width_cm', None),
             window_height_cm=getattr(quote_item, 'window_height_cm', None),
             notes=description,  # Store description in notes field
+            **reference,
         )
-        
+
         return order_item
+
+    def _resolve_item_reference(self, quote_item: QuoteItem, description: str) -> tuple:
+        """
+        Определить тип позиции заказа и ссылку под него.
+
+        Раньше тип был захардкожен как 'fabric' с `fabric=quote_item.fabric`.
+        Для строки КП без ткани (чистая услуга — установка электрокарниза,
+        демонтаж, доставка) это роняло генерацию позиций на constraint
+        `orderitem_valid_reference`, который требует ровно одну ссылку,
+        соответствующую item_type.
+
+        Приоритет: ткань → карниз → услуга. Строка с тканью и карнизом
+        одновременно остаётся тканевой, как и было.
+        """
+        fabric = getattr(quote_item, 'fabric', None)
+        if fabric:
+            return 'fabric', {'fabric': fabric}
+
+        cornice = getattr(quote_item, 'cornice', None)
+        if cornice:
+            return 'cornice', {'cornice': cornice}
+
+        return 'service', {'service': self._resolve_service(quote_item, description)}
+
+    def _resolve_service(self, quote_item: QuoteItem, description: str):
+        """
+        Подобрать запись справочника услуг для сервисной позиции.
+
+        У QuoteItem нет ссылки на Service (только цены `installation_price` /
+        `additional_services_total`), поэтому опираемся на `sewing_type` как на
+        название услуги. Справочная запись здесь — это ярлык: реальная цена
+        лежит на самой позиции заказа (unit_price/total_price), поэтому
+        `price_per_unit` у автосозданной записи нулевой и не искажает прайс.
+        """
+        from atelier_erp.models import Service
+
+        name = (getattr(quote_item, 'sewing_type', None) or '').strip() or 'Услуга по КП'
+        service, _ = Service.objects.get_or_create(
+            name=name,
+            defaults={
+                'unit': 'window',
+                'price_per_unit': Decimal('0.00'),
+                'description': description,
+            },
+        )
+        return service
     
     def can_auto_generate(self, order: Order) -> bool:
         """
