@@ -546,16 +546,26 @@ class OrderCreateSerializer(serializers.ModelSerializer):
     installation_address_notes = serializers.CharField(required=False, allow_blank=True)
     # Dates
     measurement_date = serializers.DateField(required=False, allow_null=True)
+    # Свой номер заказа: ателье ведёт нумерацию по-своему. Пусто — номер
+    # выдаёт атомарный нумератор (О-ГГГГ-NNN).
+    order_number = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = Order
         fields = [
             'customer_id', 'client_name', 'client_phone', 'address', 'deadline', 'comment',
-            'notes', 'planned_completion',
+            'notes', 'planned_completion', 'order_number',
             'installation_address_city', 'installation_address_street',
             'installation_address_building', 'installation_address_apartment',
             'installation_address_notes', 'measurement_date', 'responsible_user_id'
         ]
+
+    def validate_order_number(self, value):
+        """Свой номер не должен конфликтовать с уже существующим."""
+        value = (value or '').strip()
+        if value and Order.objects.filter(order_number=value).exists():
+            raise serializers.ValidationError('Заказ с таким номером уже есть.')
+        return value
 
     def validate(self, data):
         """Ensure either customer_id OR (client_name + client_phone) is provided."""

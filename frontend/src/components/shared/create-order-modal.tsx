@@ -174,6 +174,8 @@ export function CreateOrderModal({ isOpen, onClose, onSuccess, prefillCustomer }
   const createOrder = useCreateOrder();
   const { data: designers = [] } = useStaff("designer");
 
+  // Свой номер заказа. Пусто — присвоит сервер (О-ГГГГ-NNN).
+  const [orderNumber, setOrderNumber] = useState("");
   const [customerId, setCustomerId] = useState(prefillCustomer || "");
   const [customerName, setCustomerName] = useState("");
   const [showNewCustomer, setShowNewCustomer] = useState(false);
@@ -198,6 +200,7 @@ export function CreateOrderModal({ isOpen, onClose, onSuccess, prefillCustomer }
     try {
       const result = await createOrder.mutateAsync({
         customer_id: customerId,
+        order_number: orderNumber.trim() || undefined,
         responsible_user_id: responsibleUserId ? parseInt(responsibleUserId) : undefined,
         measurement_date: measurementDate || null,
         planned_completion: completionDate || null,
@@ -234,10 +237,23 @@ export function CreateOrderModal({ isOpen, onClose, onSuccess, prefillCustomer }
             <DialogTitle className="text-[28px] font-semibold text-[#0F172A]">Создание заказа</DialogTitle>
           </DialogHeader>
 
-          {/* 1. Клиент */}
+          {/* 1. Номер заказа — ателье может вести нумерацию по-своему.
+              Пусто — номер выдаст сервер (О-ГГГГ-NNN). */}
+          <div className="mb-6">
+            <label className="block text-[15px] text-[#0F172A] mb-2">1. Номер заказа</label>
+            <input
+              type="text"
+              className={inputClass}
+              value={orderNumber}
+              onChange={(e) => setOrderNumber(e.target.value)}
+              placeholder="Оставьте пустым — присвоим автоматически"
+            />
+          </div>
+
+          {/* 2. Клиент */}
           <div className="mb-6">
             <label className="block text-[15px] text-[#0F172A] mb-2">
-              1. Клиент <span className="text-[#DC2626]">*</span>
+              2. Клиент <span className="text-[#DC2626]">*</span>
             </label>
             {showNewCustomer ? (
               <InlineNewCustomer onCreated={handleCustomerCreated} onCancel={() => setShowNewCustomer(false)} />
@@ -256,9 +272,9 @@ export function CreateOrderModal({ isOpen, onClose, onSuccess, prefillCustomer }
             )}
           </div>
 
-          {/* 2. Дизайнер */}
+          {/* 3. Дизайнер */}
           <div className="mb-6">
-            <label className="block text-[15px] text-[#0F172A] mb-2">2. Дизайнер</label>
+            <label className="block text-[15px] text-[#0F172A] mb-2">3. Дизайнер</label>
             <div className="relative">
               <select
                 className={`${inputClass} appearance-none pr-10`}
@@ -285,18 +301,18 @@ export function CreateOrderModal({ isOpen, onClose, onSuccess, prefillCustomer }
           {/* 3-4. Даты */}
           <div className="grid grid-cols-2 gap-[18px] mb-6">
             <div>
-              <label className="block text-[15px] text-[#0F172A] mb-2">3. Дата замера</label>
+              <label className="block text-[15px] text-[#0F172A] mb-2">4. Дата замера</label>
               <input type="date" value={measurementDate} onChange={(e) => setMeasurementDate(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className="block text-[15px] text-[#0F172A] mb-2">4. Завершение</label>
+              <label className="block text-[15px] text-[#0F172A] mb-2">5. Завершение</label>
               <input type="date" value={completionDate} onChange={(e) => setCompletionDate(e.target.value)} className={inputClass} />
             </div>
           </div>
 
-          {/* 5. Адрес установки */}
+          {/* 6. Адрес установки */}
           <div className="mb-8">
-            <label className="block text-[15px] text-[#0F172A] mb-2">5. Адрес установки</label>
+            <label className="block text-[15px] text-[#0F172A] mb-2">6. Адрес установки</label>
             <div className="grid grid-cols-2 gap-[18px] mb-[18px]">
               <input type="text" placeholder="Город" value={city} onChange={(e) => setCity(e.target.value)} className={inputClass} />
               <input type="text" placeholder="Улица" value={street} onChange={(e) => setStreet(e.target.value)} className={inputClass} />

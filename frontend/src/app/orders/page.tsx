@@ -9,6 +9,7 @@ import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/auth-context";
 import Link from "next/link";
 import { getListStatus, getCoarseStatus } from "@/lib/list-status";
+import { shortOrderNumber } from "@/lib/order-number";
 import { CreateOrderModal } from "@/components/shared/create-order-modal";
 
 const LIST_STATUS_PILLS = [
@@ -283,7 +284,7 @@ function OrdersContent() {
                       className="border-b border-dashed border-[#CBD5E1] cursor-pointer hover:bg-[#F8FAFC] transition-colors"
                     >
                       <td className="px-[52px] py-4 font-medium text-[#0F172A] whitespace-nowrap">
-                        {order.order_number || order.id}
+                        {shortOrderNumber(order.order_number) || order.id}
                       </td>
                       <td className="px-6 py-4 text-[#0F172A]">
                         <div>{order.customer_name || "—"}</div>
@@ -291,7 +292,7 @@ function OrdersContent() {
                       <td className="px-6 py-4 text-[#0F172A] whitespace-nowrap">
                         {order.created_at
                           ? new Date(order.created_at).toLocaleDateString("ru-RU", {
-                              day: "2-digit", month: "2-digit", year: "2-digit",
+                              day: "2-digit", month: "2-digit", year: "numeric",
                             })
                           : "—"}
                       </td>

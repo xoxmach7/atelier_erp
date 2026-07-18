@@ -784,6 +784,24 @@ class OrderService:
     
     @staticmethod
     def _validate_order_number(order_number: str) -> bool:
-        """Validate order number format О-YYYY-NNN"""
-        import re
-        return bool(re.match(r'^О-\d{4}-\d{3}$', order_number))
+        """
+        Проверка номера заказа.
+
+        Раньше здесь было жёсткое `^О-\\d{4}-\\d{3}$`, и это ломало сразу две вещи:
+
+        1. Собственную нумерацию ателье — номер вида «ЗАКАЗ-А1» отвергался,
+           хотя владелец вправе вести учёт по-своему.
+        2. Свой же генератор на тысячном заказе: `next_number` форматирует
+           значение как `{:03d}`, то есть после 999 выдаёт «О-2026-1000» —
+           четыре цифры, которые под `\\d{3}` не подходят. Создание заказов
+           встало бы намертво (в проде на момент правки уже 933).
+
+        Поэтому проверяем только осмысленность: непустая строка без переводов
+        строк, влезающая в поле (max_length=50). Уникальность проверяется
+        отдельно, вызывающим кодом.
+        """
+        if not order_number or not order_number.strip():
+            return False
+        if len(order_number) > 50:
+            return False
+        return "\n" not in order_number and "\r" not in order_number

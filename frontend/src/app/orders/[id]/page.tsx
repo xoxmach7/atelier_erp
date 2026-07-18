@@ -49,6 +49,7 @@ import {
 } from "@/hooks/useOrders";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRole } from "@/hooks/useRole";
+import { useQuote } from "@/hooks/useQuotes";
 import { useCreatePayment, useDeletePayment } from "@/hooks/usePayments";
 import type {
   OrderDetailDTO,
@@ -735,6 +736,11 @@ export default function OrderDetailPage() {
     refetch: refetchExecution,
   } = useOrderExecution(hasValidOrderId ? orderId : "");
 
+  // КП нужно, чтобы показать цену по каждому окну в блоке «Позиции», пока
+  // позиции заказа ещё не сформированы (они появляются только после КП).
+  const quoteId = order?.related_quotes?.[0]?.id ?? order?.source_quote?.id ?? null;
+  const { data: quoteDetail } = useQuote(quoteId);
+
   /* ---- mutations ---- */
   const changeStatusMutation      = useChangeOrderStatus();
   const changeMaterialMutation    = useChangeMaterialReadiness();
@@ -889,6 +895,26 @@ export default function OrderDetailPage() {
   }
 
   const items = order.items ?? [];
+
+  /**
+   * Окна из замеров для блока «Позиции».
+   * Нужны, пока позиции заказа не сформированы: они генерируются из
+   * утверждённого КП, поэтому у свежего заказа их нет, и блок выглядел пустым,
+   * хотя замеры уже внесены. Цена подтягивается из КП по паре комната+окно.
+   */
+  const measurementLines = (order.measurements ?? []).map((m) => {
+    const quoteItem = quoteDetail?.items?.find(
+      (qi) => qi.room_name === m.room_name && qi.window_name === m.window_name
+    );
+    const dims = m.width_cm && m.height_cm ? ` (${m.width_cm}x${m.height_cm})` : "";
+    return {
+      id: m.id,
+      room: m.room_name || "Комната",
+      window: (m.window_name || "Окно") + dims,
+      price: quoteItem ? Number(quoteItem.line_total ?? 0) : null,
+    };
+  });
+
   const total = parseFloat(order.total_amount || "0");
   const paid = parseFloat(order.paid_amount || "0");
   const prepayPercent = total > 0 ? Math.round((paid / total) * 100) : 0;
@@ -1043,7 +1069,34 @@ export default function OrderDetailPage() {
                   </div>
                 )}
 
-                {items.length === 0 ? (
+                {items.length === 0 && measurementLines.length > 0 ? (
+                  /* Позиции заказа генерируются ИЗ утверждённого КП, поэтому до
+                     него их нет — а замеры уже есть, и блок выглядел пустым.
+                     Показываем окна из замеров: цена берётся из КП, если оно
+                     уже создано, иначе прочерк. */
+                  <>
+                    {measurementLines.map((line) => (
+                      <div
+                        key={line.id}
+                        className="flex items-center justify-between border-b border-[#E2E8F0] py-3 pl-1 pr-[32px]"
+                      >
+                        <div className="text-[14px] text-[#0F172A]">
+                          <div>{line.room}</div>
+                          <div className="text-[#475569]">{line.window}</div>
+                        </div>
+                        <span className="text-[14px] text-[#0F172A] whitespace-nowrap">
+                          {line.price != null ? fmtCurrency(line.price) : "—"}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between pt-4 mt-2 pl-1 pr-[32px]">
+                      <span className="text-[16px] font-bold text-[#0F172A]">ИТОГО</span>
+                      <span className="text-[16px] font-bold text-[#0F172A]">
+                        {fmtCurrency(order.total_amount)}
+                      </span>
+                    </div>
+                  </>
+                ) : items.length === 0 ? (
                   <p className="text-[14px] text-[#94A3B8] italic py-4">
                     Нет позиций. Добавьте через КП или замеры.
                   </p>

@@ -220,6 +220,8 @@ export interface OrderDetailDTO {
  */
 export interface OrderCreateDTO {
   customer_id: string;
+  /** Свой номер заказа. Пусто/не передан — присвоит сервер (О-ГГГГ-NNN). */
+  order_number?: string;
   items?: Array<{
     item_type?: string;
     description?: string;

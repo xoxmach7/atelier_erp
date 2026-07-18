@@ -151,11 +151,14 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Generate order number: О-YYYY-NNN (атомарно, без гонки)
-        year = timezone.now().year
-        order_number = next_number('order', year)
-
         validated = serializer.validated_data
+
+        # Номер заказа: свой, если ателье ведёт нумерацию по-своему, иначе
+        # атомарный нумератор О-YYYY-NNN (без гонки).
+        year = timezone.now().year
+        order_number = (validated.pop('order_number', '') or '').strip()
+        if not order_number:
+            order_number = next_number('order', year)
 
         # --- Resolve customer ---
         customer_id = validated.get('customer_id')
