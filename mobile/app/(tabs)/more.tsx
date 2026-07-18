@@ -7,7 +7,11 @@ import { spacing } from '../../src/theme/spacing';
 import { radius } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 
-const MENU_ITEMS: { label: string; route?: string; action?: 'logout' | 'placeholder' }[] = [
+// `ready: true` — раздел реализован, переходим; иначе показываем заглушку.
+const MENU_ITEMS: {
+  label: string; route?: string; ready?: boolean; action?: 'logout' | 'placeholder';
+}[] = [
+  { label: 'Материалы', route: '/inventory', ready: true },
   { label: 'Платежи', route: 'payments' },
   { label: 'Настройки', route: 'settings' },
   { label: 'Выйти', action: 'logout' },
@@ -19,6 +23,10 @@ export default function MoreScreen() {
   const handlePress = (item: typeof MENU_ITEMS[0]) => {
     if (item.action === 'logout') {
       router.replace('/login');
+      return;
+    }
+    if (item.route && item.ready) {
+      router.push(item.route as never);
       return;
     }
     if (item.route) {
