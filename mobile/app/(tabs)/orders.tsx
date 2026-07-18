@@ -148,6 +148,8 @@ export default function OrdersScreen() {
   );
 
   const isWarehouse = primaryRole === 'warehouse';
+  // 'production' — швейный цех (группа Seamstress, см. groupsToRole).
+  const isSeamstress = primaryRole === 'production';
   const filters = isWarehouse ? WAREHOUSE_FILTERS : STATUS_FILTERS;
 
   // Склад фильтрует по material_readiness на клиенте (шкала не статусная),
@@ -178,10 +180,16 @@ export default function OrdersScreen() {
         <TouchableOpacity onPress={() => (isOwner ? router.back() : logout())} activeOpacity={0.6}>
           <Text style={s.exit}>{isOwner ? 'Назад' : 'Выйти'}</Text>
         </TouchableOpacity>
-        <Text style={s.title}>{isWarehouse ? 'Заказы' : 'Управление заказами'}</Text>
+        <Text style={s.title}>{isWarehouse || isSeamstress ? 'Заказы' : 'Управление заказами'}</Text>
         <View style={s.iconRow}>
-          <IconButton name="plus" onPress={() => router.push('/orders/new')} />
-          <IconButton name="user" onPress={() => router.push('/clients')} />
+          {/* Создание заказа и клиенты — только у ролей, которые их ведут.
+              Склад и швея работают по уже созданным заказам. */}
+          {!isWarehouse && !isSeamstress && (
+            <>
+              <IconButton name="plus" onPress={() => router.push('/orders/new')} />
+              <IconButton name="user" onPress={() => router.push('/clients')} />
+            </>
+          )}
           <IconButton name="search" onPress={() => setShowSearch(v => !v)} />
           <IconButton name="filter" onPress={() => setShowFilters(v => !v)} />
         </View>

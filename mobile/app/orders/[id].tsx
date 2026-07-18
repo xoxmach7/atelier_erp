@@ -119,10 +119,15 @@ export default function OrderDetailScreen() {
     } finally { setSavingPayment(false); }
   };
 
-  // Склад отмечает по каждому окну, что материалы собраны.
-  const toggleMaterialsReady = async (m: MeasurementRow) => {
+  // Галочка по окну: у склада — сборка материалов, у швеи — пошив.
+  // Поле выбирается по роли, бэкенд дополнительно режет набор полей
+  // (MeasurementWarehouseFlagSerializer / MeasurementSewingFlagSerializer).
+  const toggleWindowFlag = async (m: MeasurementRow) => {
+    const patch = primaryRole === 'production'
+      ? { sewing_done: !m.sewing_done }
+      : { materials_ready: !m.materials_ready };
     try {
-      await updateMeasurement(String(m.id), { materials_ready: !m.materials_ready });
+      await updateMeasurement(String(m.id), patch);
       await load();
     } catch (e: any) {
       Alert.alert('Ошибка', e?.message ?? 'Не удалось обновить отметку');
@@ -219,6 +224,16 @@ export default function OrderDetailScreen() {
   const measurements = data.measurements ?? [];
   // Склад вместо цены отмечает готовность материалов по каждому окну.
   const isWarehouse = primaryRole === 'warehouse';
+  // 'production' — швейный цех (группа Seamstress, см. groupsToRole).
+  // Швея отмечает по окну, что изделие сшито.
+  const isSeamstress = primaryRole === 'production';
+  // Обе роли работают по чужому заказу: ни править сам заказ и замеры, ни
+  // создавать КП или принимать оплату им не положено (бэкенд это и не пустит).
+  const isExecutor = isWarehouse || isSeamstress;
+
+  /** Отмечено ли окно текущей ролью: склад смотрит на сборку, швея — на пошив. */
+  const windowDone = (m: MeasurementRow): boolean =>
+    Boolean(isSeamstress ? m.sewing_done : m.materials_ready);
 
   // price per window from quote items (match by room+window)
   const priceFor = (room?: string, window?: string): string | null => {
@@ -237,29 +252,33 @@ export default function OrderDetailScreen() {
         </TouchableOpacity>
         <Text style={s.title}>Заказ №{num}</Text>
 
-        <View style={s.actionsRow}>
-          <IconButton name="edit" size={40} onPress={() => router.push(`/orders/${idStr}/edit`)} />
-          <IconButton name="trash" size={40} onPress={onDelete} />
-        </View>
+        {!isExecutor && (
+          <View style={s.actionsRow}>
+            <IconButton name="edit" size={40} onPress={() => router.push(`/orders/${idStr}/edit`)} />
+            <IconButton name="trash" size={40} onPress={onDelete} />
+          </View>
+        )}
 
         {/* Карточка заказа */}
         <View style={s.addrCard}>
           <Text style={s.addrLine}><Text style={s.addrLabel}>Клиент: </Text>{data.customer?.full_name || '—'}</Text>
           <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Создан: </Text>{fmtDate(data.created_at)}</Text>
           <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Дизайнер: </Text>{data.designer_name || '—'}</Text>
-          {/* Статус — кликабельный: тап открывает список разрешённых переходов. */}
+          {/* Статус — кликабельный: тап открывает список разрешённых переходов.
+              Смену статуса бэкенд разрешает только владельцу и дизайнеру
+              (IsOwnerOrDesigner на change-status), поэтому у исполнителей это
+              просто строка, без ложной кнопки. */}
           <TouchableOpacity
             style={[s.addrGap, s.statusRow]}
             onPress={openStatusMenu}
             activeOpacity={0.6}
-            disabled={changingStatus}
+            disabled={changingStatus || isExecutor}
           >
             <Text style={s.addrLine}>
               <Text style={s.addrLabel}>Статус: </Text>{data.status_label || '—'}
             </Text>
-            {changingStatus
-              ? <ActivityIndicator size="small" color="#60CCED" />
-              : <Text style={s.statusChange}>изменить</Text>}
+            {changingStatus && <ActivityIndicator size="small" color="#60CCED" />}
+            {!changingStatus && !isExecutor && <Text style={s.statusChange}>изменить</Text>}
           </TouchableOpacity>
           <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Завершение: </Text>{fmtDate(data.planned_completion)}</Text>
           <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Дата замера: </Text>{fmtDate(data.measurement_date)}</Text>
@@ -268,17 +287,21 @@ export default function OrderDetailScreen() {
 
         {/* Measurements section */}
         <Text style={s.sectionTitle}>Замеры</Text>
-        <View style={s.toolRow}>
-          <TouchableOpacity style={s.kpBtn} onPress={() => router.push(`/orders/${idStr}/quote`)} activeOpacity={0.85}>
-            <Icon name="doc" size={18} color="#fff" />
-            <Text style={s.kpBtnText}>Создать КП</Text>
-          </TouchableOpacity>
-          <View style={s.toolIcons}>
-            <IconButton name="plus" size={38} onPress={() => router.push(`/orders/measurement-new?orderId=${idStr}`)} />
-            <IconButton name="tenge" size={38} onPress={openPrepay} />
-            <IconButton name="search" size={38} onPress={() => {}} />
+        {/* КП, добавление замера и предоплата — не для склада и швеи:
+            они работают по готовому заказу, а бэкенд эти действия им и не даст. */}
+        {!isExecutor && (
+          <View style={s.toolRow}>
+            <TouchableOpacity style={s.kpBtn} onPress={() => router.push(`/orders/${idStr}/quote`)} activeOpacity={0.85}>
+              <Icon name="doc" size={18} color="#fff" />
+              <Text style={s.kpBtnText}>Создать КП</Text>
+            </TouchableOpacity>
+            <View style={s.toolIcons}>
+              <IconButton name="plus" size={38} onPress={() => router.push(`/orders/measurement-new?orderId=${idStr}`)} />
+              <IconButton name="tenge" size={38} onPress={openPrepay} />
+              <IconButton name="search" size={38} onPress={() => {}} />
+            </View>
           </View>
-        </View>
+        )}
 
         {measurements.length === 0 ? (
           <Text style={s.empty}>Замеры ещё не добавлены</Text>
@@ -301,16 +324,17 @@ export default function OrderDetailScreen() {
                   </View>
                   {!isWarehouse && price != null && <Text style={s.mPrice}>{fmtMoney(price)} ₸</Text>}
                 </TouchableOpacity>
-                {isWarehouse && (
+                {isExecutor && (
                   <TouchableOpacity
-                    style={[s.checkBox, m.materials_ready && s.checkBoxOn]}
-                    onPress={() => toggleMaterialsReady(m)}
+                    style={[s.checkBox, windowDone(m) && s.checkBoxOn]}
+                    onPress={() => toggleWindowFlag(m)}
                     activeOpacity={0.7}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
-                    <Icon name="check" size={20} color={m.materials_ready ? '#FFFFFF' : '#CBD5E1'} />
+                    <Icon name="check" size={20} color={windowDone(m) ? '#FFFFFF' : '#CBD5E1'} />
                   </TouchableOpacity>
                 )}
+                {!isExecutor && (
                 <TouchableOpacity
                   style={s.mMenu}
                   onPress={() => openMeasurementMenu(m)}
@@ -319,6 +343,7 @@ export default function OrderDetailScreen() {
                 >
                   <Icon name="dots" size={20} color="#94A3B8" />
                 </TouchableOpacity>
+                )}
               </View>
             );
           })
@@ -374,16 +399,16 @@ export default function OrderDetailScreen() {
                   {selected.window_name}
                   {selected.width_cm && selected.height_cm ? ` (${selected.width_cm}x${selected.height_cm})` : ''}
                 </Text>
-                {Boolean(selected.curtain_fabric) && (
+                {Boolean(selected.curtain_fabric_name) && (
                   <Text style={s.mdLine}>
-                    <Text style={s.mdLabel}>Шторы: </Text>{selected.curtain_fabric}
-                    {selected.curtain_fabric_meters ? ` (${selected.curtain_fabric_meters} м)` : ''}
+                    <Text style={s.mdLabel}>Шторы: </Text>{selected.curtain_fabric_name}
+                    {selected.curtain_meters ? ` (${selected.curtain_meters} м)` : ''}
                   </Text>
                 )}
-                {Boolean(selected.tulle_fabric) && (
+                {Boolean(selected.tulle_fabric_name) && (
                   <Text style={s.mdLine}>
-                    <Text style={s.mdLabel}>Тюль: </Text>{selected.tulle_fabric}
-                    {selected.tulle_fabric_meters ? ` (${selected.tulle_fabric_meters} м)` : ''}
+                    <Text style={s.mdLabel}>Тюль: </Text>{selected.tulle_fabric_name}
+                    {selected.tulle_meters ? ` (${selected.tulle_meters} м)` : ''}
                   </Text>
                 )}
                 <Text style={s.mdLine}><Text style={s.mdLabel}>Тип крепления: </Text>{selected.mounting_type || '—'}</Text>

@@ -36,6 +36,35 @@ class IsOwnerOrDesigner(permissions.BasePermission):
         return user_in(request.user, Roles.OWNER, Roles.DESIGNER)
 
 
+class CanAccessMeasurement(permissions.BasePermission):
+    """
+    Доступ к замерам.
+
+    Owner/Designer — полный CRUD (они ведут замеры).
+    Warehouse/Seamstress — чтение и частичное обновление: им нужно отмечать
+    галочки по окну (`materials_ready` / `sewing_done`) на своих экранах заказа.
+    Набор полей, который им реально разрешено писать, ограничивается отдельно —
+    сериализатором в MeasurementViewSet.get_serializer_class, чтобы склад не мог
+    переписать размеры окна или ткань.
+
+    Раньше здесь стоял IsOwnerOrDesigner, из-за чего складская галочка
+    возвращала 403.
+    """
+
+    FULL_ACCESS = (Roles.OWNER, Roles.DESIGNER)
+    CHECKBOX_ONLY = (Roles.WAREHOUSE, Roles.SEAMSTRESS)
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if user_in(request.user, *self.FULL_ACCESS):
+            return True
+        if user_in(request.user, *self.CHECKBOX_ONLY):
+            # Ни создания, ни удаления замеров — только чтение и отметка.
+            return request.method in permissions.SAFE_METHODS or request.method == 'PATCH'
+        return False
+
+
 class IsWarehouseOrOwner(permissions.BasePermission):
     """Только склад и владелец/админ."""
 

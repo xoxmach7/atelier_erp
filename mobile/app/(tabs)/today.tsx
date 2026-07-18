@@ -327,9 +327,14 @@ function NonOwnerView() {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
+// Роли, работающие «от заказа»: их рабочий экран — список заказов, а не
+// сводка. NonOwnerView (очередь работ) рендерит строки без onPress, поэтому
+// склад и швея упирались в тупик и не могли открыть ни один заказ.
+const ORDER_LIST_ROLES = ['designer', 'warehouse', 'production'];
+
 export default function TodayScreen() {
   const { primaryRole } = useAuthContext();
-  if (primaryRole === 'designer') return <Redirect href="/(tabs)/orders" />;
+  if (ORDER_LIST_ROLES.includes(primaryRole)) return <Redirect href="/(tabs)/orders" />;
   return primaryRole === 'owner' ? <OwnerDashboard /> : <NonOwnerView />;
 }
 

@@ -126,6 +126,8 @@ export interface MeasurementUpdatePayload {
   notes?: string;
   /** Склад: материалы по этому окну собраны. */
   materials_ready?: boolean;
+  /** Швея: изделие по этому окну сшито. */
+  sewing_done?: boolean;
 }
 
 export interface MeasurementDetail {
@@ -389,19 +391,30 @@ export interface OrderExecution {
     next_action?: string;
     next_action_label?: string;
   };
+  // Поля должны совпадать с _get_designer_section в
+  // atelier_erp/services/order_execution_service.py. Раньше тип объявлял
+  // curtain_fabric/curtain_fabric_meters, тогда как сервер шлёт UUID в
+  // curtain_fabric, название в curtain_fabric_name и метраж в curtain_meters —
+  // из-за чего карточка окна печатала UUID вместо названия ткани и теряла метры.
   measurements?: Array<{
     id: string;
     room_name: string;
     window_name: string;
-    curtain_fabric?: string;
-    tulle_fabric?: string;
     width_cm?: number;
     height_cm?: number;
-    curtain_fabric_meters?: number;
-    tulle_fabric_meters?: number;
+    /** UUID ткани, не название. */
+    curtain_fabric?: string | null;
+    curtain_fabric_name?: string | null;
+    curtain_meters?: number;
+    tulle_fabric?: string | null;
+    tulle_fabric_name?: string | null;
+    tulle_meters?: number;
     mounting_type?: string;
     notes?: string;
+    /** Склад: материалы по окну собраны. */
     materials_ready?: boolean;
+    /** Швея: изделие по окну сшито. */
+    sewing_done?: boolean;
   }>;
   items_to_sew?: Array<{
     id: string;

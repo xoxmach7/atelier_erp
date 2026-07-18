@@ -15,7 +15,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 
-from atelier_erp.api.permissions import IsManagerOrAdmin, IsOwnerOrDesigner, IsWarehouseOrOwner, IsInstallationOrOwner, IsInstallationOrOwnerOrReadOnly, IsSeamstressOrOwner
+from atelier_erp.api.permissions import IsManagerOrAdmin, IsOwnerOrDesigner, IsWarehouseOrOwner, IsInstallationOrOwner, IsInstallationOrOwnerOrReadOnly, IsSeamstressOrOwner, CanAccessMeasurement
 from atelier_erp.tenant_utils import TenantModelMixin, TenantViaOrderMixin
 from atelier_erp.roles import Roles, user_in
 from atelier_erp.services.numbering import next_number
@@ -35,6 +35,7 @@ from atelier_erp.services.exceptions import (
 from .serializers import (
     OrderListSerializer, OrderDetailSerializer, OrderCreateSerializer, OrderUpdateSerializer, OrderStatusUpdateSerializer,
     MeasurementSerializer, MeasurementCreateSerializer, MeasurementWriteSerializer,
+    MeasurementWarehouseFlagSerializer, MeasurementSewingFlagSerializer,
     PaymentSerializer,
     CustomerSerializer,
     QuoteSerializer, QuoteCreateSerializer,
@@ -2308,12 +2309,21 @@ class MeasurementViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
     filterset_fields = ['order', 'room_name', 'mounting_type']
     ordering_fields = ['room_name', 'window_name']
     ordering = ['room_name', 'window_name']
-    permission_classes = [IsAuthenticated, IsOwnerOrDesigner]
+    permission_classes = [IsAuthenticated, CanAccessMeasurement]
 
     def get_serializer_class(self):
         # Запись (создание/редактирование) — write-серилайзер с полями модели,
         # сохраняет обе ткани. Чтение — detail-серилайзер.
         if self.action in ('create', 'update', 'partial_update'):
+            # Склад и швея правят только свою галочку по окну. Узкие
+            # сериализаторы — вторая линия после CanAccessMeasurement:
+            # разрешение пускает PATCH, а набор полей ограничивается здесь.
+            if user_in(self.request.user, Roles.OWNER, Roles.DESIGNER):
+                return MeasurementWriteSerializer
+            if user_in(self.request.user, Roles.WAREHOUSE):
+                return MeasurementWarehouseFlagSerializer
+            if user_in(self.request.user, Roles.SEAMSTRESS):
+                return MeasurementSewingFlagSerializer
             return MeasurementWriteSerializer
         return MeasurementSerializer
 

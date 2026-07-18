@@ -995,6 +995,10 @@ class Measurement(UUIDModel):
     # Склад отмечает по каждому окну, что материалы под него собраны
     # (галочка в складской версии экрана заказа).
     materials_ready = models.BooleanField(default=False, db_index=True)
+    # Швея отмечает по каждому окну, что изделие сшито (галочка в её версии
+    # экрана заказа). Отдельный флаг от materials_ready: разные роли, разные
+    # стадии — материалы может собрать склад задолго до пошива.
+    sewing_done = models.BooleanField(default=False, db_index=True)
     measured_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     measured_at = models.DateTimeField(auto_now_add=True, db_index=True)
     

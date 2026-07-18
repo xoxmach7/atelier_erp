@@ -238,6 +238,8 @@ class OrderExecutionService:
                 'notes': m.notes,
                 # Склад отмечает по каждому окну, что материалы собраны
                 'materials_ready': m.materials_ready,
+                # Швея отмечает по каждому окну, что изделие сшито
+                'sewing_done': m.sewing_done,
             })
 
         # Selected materials from quote items if available
