@@ -126,8 +126,19 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
     if (quoteDetail.prepayment_percent) {
       setPrepayPct(String(Math.round(Number(quoteDetail.prepayment_percent) * 100)));
     }
+    // Цены по окнам тоже подставляем в поля ввода, а не только в расчёт:
+    // без этого «Предытог» показывал сумму из КП, а строки стояли пустыми.
+    const seeded: Record<string, string> = {};
+    for (const m of order?.measurements ?? []) {
+      const qi = quoteDetail.items?.find(
+        (q) => q.room_name === m.room_name && q.window_name === m.window_name
+      );
+      const val = Number(qi?.line_total ?? 0);
+      if (val > 0) seeded[m.id] = String(Math.round(val));
+    }
+    if (Object.keys(seeded).length > 0) setPrices(seeded);
     setPrefilled(true);
-  }, [isOpen, prefilled, quoteDetail]);
+  }, [isOpen, prefilled, quoteDetail, order?.measurements]);
 
   const customerId = typeof order?.customer === "object" ? order.customer.id : order?.customer ?? "";
 

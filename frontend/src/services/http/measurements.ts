@@ -33,7 +33,7 @@ export async function fetchMeasurements(
 export async function fetchMeasurementById(
   measurementId: string
 ): Promise<MeasurementDTO> {
-  return get<MeasurementDTO>(`${BASE_ENDPOINT}/${measurementId}/`);
+  return get<MeasurementDTO>(`${BASE_ENDPOINT}${measurementId}/`);
 }
 
 /**
@@ -52,12 +52,12 @@ export async function updateMeasurement(
   measurementId: string,
   data: Partial<Omit<MeasurementDTO, "id" | "measured_at" | "measured_by" | "measured_by_name">>
 ): Promise<MeasurementDTO> {
-  return patch<MeasurementDTO>(`${BASE_ENDPOINT}/${measurementId}/`, data);
+  return patch<MeasurementDTO>(`${BASE_ENDPOINT}${measurementId}/`, data);
 }
 
 /**
  * Delete measurement
  */
 export async function deleteMeasurement(measurementId: string): Promise<void> {
-  return del<void>(`${BASE_ENDPOINT}/${measurementId}/`);
+  return del<void>(`${BASE_ENDPOINT}${measurementId}/`);
 }

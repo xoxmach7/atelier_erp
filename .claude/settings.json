@@ -22,7 +22,17 @@
       "PowerShell(git branch -a --format='%\\(refname:short\\) %\\(upstream:short\\) %\\(upstream:track\\)')",
       "PowerShell(foreach \\($b in @\\('cascade/mcp-5d71ff','cascade/mcp-74577c','cascade/mcp-75e806','cascade/mcp-7e4552','cascade/mcp-ef3c80','featu','feature/visual-reference-alignment'\\)\\) { $n = \\(git rev-list --count \"main..$b\"\\); $last = \\(git log -1 --format='%ad %s' --date=short $b\\); Write-Output \"$b | +$n | $last\" })",
       "PowerShell(git add .claude/settings.json)",
-      "PowerShell(git push origin main)"
+      "PowerShell(git push origin main)",
+      "PowerShell(git ls-remote origin main)",
+      "PowerShell(git branch --format='%\\(objectname\\) %\\(refname:short\\)' | Where-Object { $_ -notmatch ' main$' } | Out-File -Encoding utf8 \"$env:TEMP\\\\claude\\\\c--Users-XoXmach-Desktop-Projects-atelie-erp\\\\6d47d580-42d3-4ea4-8b33-4fc7c156835e\\\\scratchpad\\\\deleted-branches.txt\"; Get-Content \"$env:TEMP\\\\claude\\\\c--Users-XoXmach-Desktop-Projects-atelie-erp\\\\6d47d580-42d3-4ea4-8b33-4fc7c156835e\\\\scratchpad\\\\deleted-branches.txt\")",
+      "PowerShell(git branch --format='%\\(refname:short\\)' | Where-Object { $_ -ne 'main' } | ForEach-Object { git branch -D $_ } ; Write-Output \"=== prune ===\"; git remote prune origin; Write-Output \"=== remaining ===\"; git branch -a)",
+      "PowerShell(git worktree list; Write-Output \"=== exists? ===\"; foreach \\($p in @\\('C:/Users/XoXmach/.windsurf/worktrees/atelie erp/atelie erp-74577c17','C:/Users/XoXmach/.windsurf/worktrees/atelie erp/atelie erp-75e8060d','C:/Users/XoXmach/.windsurf/worktrees/atelie erp/atelie erp-7e4552ea'\\)\\) { \"$p -> $\\(Test-Path -LiteralPath $p\\)\" })",
+      "PowerShell(foreach \\($p in @\\('C:/Users/XoXmach/.windsurf/worktrees/atelie erp/atelie erp-74577c17','C:/Users/XoXmach/.windsurf/worktrees/atelie erp/atelie erp-75e8060d','C:/Users/XoXmach/.windsurf/worktrees/atelie erp/atelie erp-7e4552ea'\\)\\) { $s = git -C \"$p\" status --porcelain; Write-Output \"--- $p : $\\(\\($s | Measure-Object -Line\\).Lines\\) изменений\"; $s | Select-Object -First 5 })",
+      "PowerShell(foreach \\($p in @\\('C:/Users/XoXmach/.windsurf/worktrees/atelie erp/atelie erp-74577c17','C:/Users/XoXmach/.windsurf/worktrees/atelie erp/atelie erp-75e8060d','C:/Users/XoXmach/.windsurf/worktrees/atelie erp/atelie erp-7e4552ea'\\)\\) { git worktree remove --force \"$p\" }; git worktree prune; git branch -D cascade/mcp-74577c cascade/mcp-75e806 cascade/mcp-7e4552; Write-Output \"=== итог ===\"; git worktree list; git branch -a)",
+      "PowerShell(git status --short; Write-Output \"=== untracked/ignored cruft ===\"; git clean -nxd | Where-Object { $_ -notmatch 'node_modules|\\\\.next|__pycache__|\\\\.venv|venv/' } | Select-Object -First 30; Write-Output \"=== gc ===\"; git count-objects -vH | Select-String 'size-pack|count')",
+      "Bash(grep -rn 'ENDPOINT}/\\\\|_ENDPOINT}/' src/services/http/)",
+      "Bash(echo \"--- exit $? ---\")",
+      "PowerShell(git add -A)"
     ]
   }
 }

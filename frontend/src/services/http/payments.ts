@@ -44,7 +44,7 @@ export async function fetchPayments(filters?: PaymentsFilter): Promise<PaymentsL
  * Fetch single payment by ID
  */
 export async function fetchPaymentById(id: string): Promise<PaymentDTO> {
-  return get<PaymentDTO>(`${PAYMENTS_ENDPOINT}/${id}/`);
+  return get<PaymentDTO>(`${PAYMENTS_ENDPOINT}${id}/`);
 }
 
 /**

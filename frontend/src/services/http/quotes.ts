@@ -95,7 +95,7 @@ export async function addQuoteItem(
   quoteId: string,
   data: QuoteItemCreateData
 ): Promise<QuoteItemDTO> {
-  return post<QuoteItemDTO>(`${QUOTES_ENDPOINT}/${quoteId}/add_item/`, data);
+  return post<QuoteItemDTO>(`${QUOTES_ENDPOINT}${quoteId}/add_item/`, data);
 }
 
 /**
