@@ -186,7 +186,7 @@ class MeasurementSerializer(serializers.ModelSerializer):
             # Phase 3: Curtain and tulle fabrics
             'curtain_fabric', 'curtain_fabric_details', 'curtain_meters', 'curtain_gathering',
             'tulle_fabric', 'tulle_fabric_details', 'tulle_meters', 'tulle_gathering',
-            'notes', 'materials_ready', 'sewing_done',
+            'notes', 'materials_ready', 'sewing_done', 'installation_done',
         ]
 
 
@@ -208,6 +208,14 @@ class MeasurementSewingFlagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Measurement
         fields = ['id', 'sewing_done']
+
+
+class MeasurementInstallerFlagSerializer(serializers.ModelSerializer):
+    """Установщику — ровно одно поле: отметку установки по окну."""
+
+    class Meta:
+        model = Measurement
+        fields = ['id', 'installation_done']
 
 
 class MeasurementCreateSerializer(serializers.Serializer):
@@ -253,7 +261,7 @@ class MeasurementWriteSerializer(serializers.ModelSerializer):
             'width_cm', 'height_cm', 'mounting_type',
             'curtain_fabric', 'curtain_meters', 'curtain_gathering',
             'tulle_fabric', 'tulle_meters', 'tulle_gathering', 'notes',
-            'materials_ready', 'sewing_done',
+            'materials_ready', 'sewing_done', 'installation_done',
         ]
         read_only_fields = ['curtain_meters', 'tulle_meters']
 
@@ -840,7 +848,10 @@ class PhotoReportUploadSerializer(serializers.Serializer):
             with Image.open(value) as img2:
                 if img2.format not in ('JPEG', 'PNG', 'WEBP'):
                     raise serializers.ValidationError('Файл не является изображением поддерживаемого формата.')
-        except (UnidentifiedImageError, OSError):
+        # SyntaxError — то, чем Pillow отвечает на битую структуру файла
+        # (например, PNG с неверной CRC чанка). Без него повреждённая
+        # картинка улетала в 500 вместо честного 400.
+        except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
             raise serializers.ValidationError('Файл повреждён или не является реальным изображением.')
         finally:
             value.seek(0)
@@ -937,7 +948,10 @@ class OrderCompletionActUploadSerializer(serializers.Serializer):
                 with Image.open(value) as img2:
                     if img2.format not in ('JPEG', 'PNG', 'WEBP'):
                         raise serializers.ValidationError('Файл не является изображением поддерживаемого формата.')
-            except (UnidentifiedImageError, OSError):
+            # SyntaxError — то, чем Pillow отвечает на битую структуру файла
+            # (например, PNG с неверной CRC чанка). Без него повреждённая
+            # картинка улетала в 500 вместо честного 400.
+            except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
                 raise serializers.ValidationError('Файл повреждён или не является реальным изображением.')
             finally:
                 value.seek(0)

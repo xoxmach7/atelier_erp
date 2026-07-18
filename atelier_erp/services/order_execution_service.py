@@ -220,7 +220,9 @@ class OrderExecutionService:
     def _get_designer_section(self, order: Order) -> Dict[str, Any]:
         """Designer/Measurer section - measurements and materials"""
         measurements = []
-        for m in order.measurements.all():
+        # prefetch фото: без него каждый замер делал бы свой запрос за
+        # photo_reports (N+1 на заказе с десятком окон).
+        for m in order.measurements.prefetch_related('photo_reports').all():
             measurements.append({
                 'id': str(m.id),
                 'room_name': m.room_name,
@@ -240,6 +242,16 @@ class OrderExecutionService:
                 'materials_ready': m.materials_ready,
                 # Швея отмечает по каждому окну, что изделие сшито
                 'sewing_done': m.sewing_done,
+                # Установщик отмечает по каждому окну, что изделие повешено
+                'installation_done': m.installation_done,
+                'photos': [
+                    {
+                        'id': str(p.id),
+                        'url': p.file.url if p.file else None,
+                        'caption': p.caption,
+                    }
+                    for p in m.photo_reports.filter(is_active=True)
+                ],
             })
 
         # Selected materials from quote items if available

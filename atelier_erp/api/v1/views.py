@@ -6,6 +6,7 @@ All state changes go through services
 
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
 from django.db.models import Q, F, Exists, OuterRef, ExpressionWrapper, DecimalField
 from dateutil.relativedelta import relativedelta
 from rest_framework import viewsets, status, filters
@@ -36,6 +37,7 @@ from .serializers import (
     OrderListSerializer, OrderDetailSerializer, OrderCreateSerializer, OrderUpdateSerializer, OrderStatusUpdateSerializer,
     MeasurementSerializer, MeasurementCreateSerializer, MeasurementWriteSerializer,
     MeasurementWarehouseFlagSerializer, MeasurementSewingFlagSerializer,
+    MeasurementInstallerFlagSerializer,
     PaymentSerializer,
     CustomerSerializer,
     QuoteSerializer, QuoteCreateSerializer,
@@ -288,8 +290,13 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
         order = self.get_object()
         
         if request.method == 'GET':
-            # List active photo reports
+            # List active photo reports.
+            # ?measurement=<id> — только фото конкретного окна (карточка окна
+            # у установщика показывает свои снимки, а не весь заказ).
             photo_reports = order.photo_reports.filter(is_active=True)
+            measurement_id = request.query_params.get('measurement')
+            if measurement_id:
+                photo_reports = photo_reports.filter(measurement_id=measurement_id)
             serializer = PhotoReportSerializer(
                 photo_reports, 
                 many=True, 
@@ -318,12 +325,19 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
         # Allow upload if:
         # A) handover_stage == done
         # B) handover_stage == not_required AND production_stage == done
+        # C) заказ дошёл до монтажа (ready / on_installation)
+        #
+        # Пункт C добавлен осознанно: установщик снимает окна ПОКА вешает, а
+        # прежние правила пускали фото только после отметки «установка
+        # завершена». Требовать закрыть монтаж, чтобы приложить фото монтажа —
+        # обратный порядок, из-за него экран установщика был неработоспособен.
         can_upload_photo_report = (
             order.handover_stage == 'done'
             or (
                 order.handover_stage == 'not_required'
                 and order.production_stage == 'done'
             )
+            or order.status in (Order.Status.READY, Order.Status.ON_INSTALLATION)
         )
         
         if not can_upload_photo_report:
@@ -359,9 +373,22 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Привязка к окну замера: установщик снимает конкретное окно.
+        measurement = None
+        measurement_id = request.data.get('measurement')
+        if measurement_id:
+            try:
+                measurement = Measurement.objects.get(id=measurement_id, order=order)
+            except (Measurement.DoesNotExist, ValueError, ValidationError):
+                return Response(
+                    {'detail': 'Замер не найден в этом заказе', 'code': 'measurement_not_found'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
         photo_report = PhotoReport.objects.create(
             order=order,
             order_item=order_item,
+            measurement=measurement,
             file=uploaded_file,
             caption=request.data.get('caption', ''),
             uploaded_by=request.user if request.user.is_authenticated else None
@@ -371,6 +398,33 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
             PhotoReportSerializer(photo_report, context={'request': request}).data,
             status=status.HTTP_201_CREATED
         )
+
+    @action(
+        detail=True,
+        methods=['delete'],
+        url_path=r'photo-reports/(?P<photo_id>[^/.]+)',
+        url_name='photo-report-delete',
+        permission_classes=[IsAuthenticated, IsInstallationOrOwner]
+    )
+    def delete_photo_report(self, request, pk=None, photo_id=None):
+        """
+        DELETE /api/v1/orders/{id}/photo-reports/{photo_id}/
+
+        Мягкое удаление (is_active=False), как и везде в проекте: файл-артефакт
+        может понадобиться при разборе, поэтому строку не выкидываем.
+        """
+        order = self.get_object()
+        try:
+            photo = order.photo_reports.get(id=photo_id, is_active=True)
+        except (PhotoReport.DoesNotExist, ValueError, ValidationError):
+            return Response(
+                {'detail': 'Фото не найдено', 'code': 'photo_not_found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        photo.is_active = False
+        photo.save(update_fields=['is_active', 'updated_at'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(
         detail=True,
@@ -2329,6 +2383,8 @@ class MeasurementViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
                 return MeasurementWarehouseFlagSerializer
             if user_in(self.request.user, Roles.SEAMSTRESS):
                 return MeasurementSewingFlagSerializer
+            if user_in(self.request.user, Roles.INSTALLER):
+                return MeasurementInstallerFlagSerializer
             return MeasurementWriteSerializer
         return MeasurementSerializer
 

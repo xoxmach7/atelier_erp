@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator,
-  StyleSheet, Platform, StatusBar, Modal, TextInput,
+  StyleSheet, Platform, StatusBar, Modal, TextInput, Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -9,9 +9,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthContext } from '../../src/context/AuthContext';
 import {
   fetchOrderExecution, fetchQuotes, deleteOrder, deleteMeasurement, updateMeasurement,
-  changeOrderStatus,
+  changeOrderStatus, uploadPhotoReport, deletePhotoReport,
+  fetchCompletionAct, createCompletionAct, uploadSignedAct,
   type OrderExecution, type QuoteDTO,
 } from '../../src/api/orders';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { recordPayment } from '../../src/api/payments';
 import { IconButton, Icon } from '../../src/components/Icon';
 
@@ -29,6 +32,12 @@ function fmtMoney(v: string | number | null | undefined): string {
 }
 
 const ADDRESS_PLACEHOLDER = 'город, улица, дом, квартира, примечание';
+
+/** Имя файла из URL — в карточке АВР показываем «avr.pdf», а не весь путь. */
+function fileNameOf(url: string): string {
+  const clean = url.split('?')[0];
+  return decodeURIComponent(clean.substring(clean.lastIndexOf('/') + 1)) || 'файл';
+}
 
 function addressText(data: OrderExecution): string {
   // Адрес заказа отдаётся сервером на верхнем уровне (installation_address);
@@ -57,6 +66,11 @@ export default function OrderDetailScreen() {
   const [savingPayment, setSavingPayment] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
 
+  // Установщик: имя загруженного файла АВР и индикаторы занятости.
+  const [actFile, setActFile] = useState<string | null>(null);
+  const [uploadingAct, setUploadingAct] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+
   // Модалка одного замера (тап по строке)
   type MeasurementRow = NonNullable<OrderExecution['measurements']>[number];
   const [selected, setSelected] = useState<MeasurementRow | null>(null);
@@ -76,7 +90,17 @@ export default function OrderDetailScreen() {
     } finally { setLoading(false); }
   }, [id]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  // Имя загруженного АВР для карточки установщика. Объявлено до useFocusEffect,
+  // который его дёргает.
+  const loadAct = useCallback(async () => {
+    if (primaryRole !== 'installation') return;
+    try {
+      const res = await fetchCompletionAct(idStr);
+      setActFile(res?.act?.signed_file_url ? fileNameOf(res.act.signed_file_url) : null);
+    } catch { setActFile(null); }
+  }, [idStr, primaryRole]);
+
+  useFocusEffect(useCallback(() => { load(); loadAct(); }, [load, loadAct]));
 
   const onDelete = () => {
     Alert.alert('Удалить заказ?', `Заказ ${data?.order_number ?? ''}`, [
@@ -123,9 +147,10 @@ export default function OrderDetailScreen() {
   // Поле выбирается по роли, бэкенд дополнительно режет набор полей
   // (MeasurementWarehouseFlagSerializer / MeasurementSewingFlagSerializer).
   const toggleWindowFlag = async (m: MeasurementRow) => {
-    const patch = primaryRole === 'production'
-      ? { sewing_done: !m.sewing_done }
-      : { materials_ready: !m.materials_ready };
+    let patch: Record<string, boolean>;
+    if (primaryRole === 'production') patch = { sewing_done: !m.sewing_done };
+    else if (primaryRole === 'installation') patch = { installation_done: !m.installation_done };
+    else patch = { materials_ready: !m.materials_ready };
     try {
       await updateMeasurement(String(m.id), patch);
       await load();
@@ -184,6 +209,92 @@ export default function OrderDetailScreen() {
     );
   };
 
+  // ── Установщик: АВР и фотоотчёт по окну ────────────────────────────────
+
+  const onUploadAct = async () => {
+    const picked = await DocumentPicker.getDocumentAsync({
+      type: ['application/pdf', 'image/*'],
+      copyToCacheDirectory: true,
+    });
+    if (picked.canceled || !picked.assets?.length) return;
+    const file = picked.assets[0];
+
+    setUploadingAct(true);
+    try {
+      // АВР создаётся отдельной ручкой и только после установки/выдачи;
+      // если он уже есть, бэкенд вернёт существующий, а не ошибку.
+      try { await createCompletionAct(idStr); } catch { /* уже создан либо ещё рано */ }
+
+      const form = new FormData();
+      form.append('signed_file', {
+        uri: file.uri,
+        name: file.name ?? 'avr.pdf',
+        type: file.mimeType ?? 'application/pdf',
+      } as any);
+      await uploadSignedAct(idStr, form);
+      await loadAct();
+      Alert.alert('Готово', 'АВР загружен');
+    } catch (e: any) {
+      Alert.alert('Не удалось загрузить АВР', e?.message ?? 'Попробуйте ещё раз');
+    } finally { setUploadingAct(false); }
+  };
+
+  const onAddPhoto = async (m: MeasurementRow) => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Нет доступа', 'Разрешите доступ к фото в настройках');
+      return;
+    }
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.7,
+    });
+    if (picked.canceled || !picked.assets?.length) return;
+    const asset = picked.assets[0];
+
+    setPhotoBusy(true);
+    try {
+      const form = new FormData();
+      form.append('file', {
+        uri: asset.uri,
+        name: asset.fileName ?? 'photo.jpg',
+        type: asset.mimeType ?? 'image/jpeg',
+      } as any);
+      form.append('measurement', String(m.id));
+      await uploadPhotoReport(idStr, form);
+      const fresh = await reloadSelected(m);
+      if (fresh) setSelected(fresh);
+    } catch (e: any) {
+      Alert.alert('Не удалось прикрепить фото', e?.message ?? 'Попробуйте ещё раз');
+    } finally { setPhotoBusy(false); }
+  };
+
+  const onDeletePhoto = (m: MeasurementRow, photoId: string) => {
+    Alert.alert('Удалить фото?', '', [
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: 'Удалить', style: 'destructive',
+        onPress: async () => {
+          setPhotoBusy(true);
+          try {
+            await deletePhotoReport(idStr, photoId);
+            const fresh = await reloadSelected(m);
+            if (fresh) setSelected(fresh);
+          } catch (e: any) {
+            Alert.alert('Ошибка', e?.message ?? 'Не удалось удалить фото');
+          } finally { setPhotoBusy(false); }
+        },
+      },
+    ]);
+  };
+
+  /** Перезагрузить заказ и вернуть то же окно с обновлёнными фото. */
+  const reloadSelected = async (m: MeasurementRow): Promise<MeasurementRow | null> => {
+    const exec = await fetchOrderExecution(idStr);
+    setData(exec);
+    return (exec.measurements ?? []).find(x => String(x.id) === String(m.id)) ?? null;
+  };
+
   const openMeasurementMenu = (m: MeasurementRow) => {
     Alert.alert(m.room_name, m.window_name ?? '', [
       {
@@ -227,13 +338,20 @@ export default function OrderDetailScreen() {
   // 'production' — швейный цех (группа Seamstress, см. groupsToRole).
   // Швея отмечает по окну, что изделие сшито.
   const isSeamstress = primaryRole === 'production';
-  // Обе роли работают по чужому заказу: ни править сам заказ и замеры, ни
+  const isInstaller = primaryRole === 'installation';
+  // Исполнители работают по чужому заказу: ни править сам заказ и замеры, ни
   // создавать КП или принимать оплату им не положено (бэкенд это и не пустит).
-  const isExecutor = isWarehouse || isSeamstress;
+  const isExecutor = isWarehouse || isSeamstress || isInstaller;
 
-  /** Отмечено ли окно текущей ролью: склад смотрит на сборку, швея — на пошив. */
-  const windowDone = (m: MeasurementRow): boolean =>
-    Boolean(isSeamstress ? m.sewing_done : m.materials_ready);
+  /**
+   * Отмечено ли окно текущей ролью. Три независимых флага по одной цепочке:
+   * склад собрал материалы → цех сшил → монтаж повесил.
+   */
+  const windowDone = (m: MeasurementRow): boolean => {
+    if (isSeamstress) return Boolean(m.sewing_done);
+    if (isInstaller) return Boolean(m.installation_done);
+    return Boolean(m.materials_ready);
+  };
 
   // price per window from quote items (match by room+window)
   const priceFor = (room?: string, window?: string): string | null => {
@@ -259,7 +377,15 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
-        {/* Карточка заказа */}
+        {/* Карточка установщика: в поле нужны только адрес и срок. */}
+        {isInstaller ? (
+          <View style={s.addrCard}>
+            <Text style={s.addrLine}><Text style={s.addrLabel}>Адрес: </Text>{addressText(data)}</Text>
+            <Text style={[s.addrLine, { marginTop: 14 }]}>
+              <Text style={s.addrLabel}>Завершение: </Text>{fmtDate(data.planned_completion)}
+            </Text>
+          </View>
+        ) : (
         <View style={s.addrCard}>
           <Text style={s.addrLine}><Text style={s.addrLabel}>Клиент: </Text>{data.customer?.full_name || '—'}</Text>
           <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Создан: </Text>{fmtDate(data.created_at)}</Text>
@@ -284,9 +410,33 @@ export default function OrderDetailScreen() {
           <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Дата замера: </Text>{fmtDate(data.measurement_date)}</Text>
           <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Адрес: </Text>{addressText(data)}</Text>
         </View>
+        )}
 
-        {/* Measurements section */}
-        <Text style={s.sectionTitle}>Замеры</Text>
+        {/* Measurements section. У установщика это «Изделия»: он видит не
+            замеры как таковые, а то, что нужно повесить. */}
+        <Text style={s.sectionTitle}>{isInstaller ? 'Изделия' : 'Замеры'}</Text>
+
+        {isInstaller && (
+          <View style={s.actBlock}>
+            <TouchableOpacity
+              style={[s.actBtn, uploadingAct && s.actBtnDisabled]}
+              onPress={onUploadAct}
+              disabled={uploadingAct}
+              activeOpacity={0.85}
+            >
+              {uploadingAct
+                ? <ActivityIndicator color="#fff" />
+                : <>
+                    <Icon name="doc" size={18} color="#fff" />
+                    <Text style={s.actBtnText}>Загрузить АВР</Text>
+                  </>}
+            </TouchableOpacity>
+            <Text style={s.actFile}>
+              <Text style={s.addrLabel}>Файл: </Text>
+              <Text style={s.actFileName}>{actFile ?? 'не загружен'}</Text>
+            </Text>
+          </View>
+        )}
         {/* КП, добавление замера и предоплата — не для склада и швеи:
             они работают по готовому заказу, а бэкенд эти действия им и не даст. */}
         {!isExecutor && (
@@ -417,6 +567,34 @@ export default function OrderDetailScreen() {
                     поля количества у замера нет и не планируется. */}
                 <Text style={[s.mdLine, { marginTop: 10 }]}><Text style={s.mdLabel}>Количество: </Text>1</Text>
 
+                {/* Фотоотчёт по окну — экран установщика. */}
+                {isInstaller && (
+                  <View style={s.photoBlock}>
+                    <View style={s.photoHead}>
+                      <Text style={s.mdLabel}>Прикреплённые фото:</Text>
+                      <IconButton name="plus" size={34} onPress={() => onAddPhoto(selected)} disabled={photoBusy} />
+                    </View>
+                    {(selected.photos ?? []).length === 0 ? (
+                      <Text style={s.empty}>Фото пока нет</Text>
+                    ) : (
+                      (selected.photos ?? []).map(p => (
+                        <View key={p.id} style={s.photoRow}>
+                          {p.url
+                            ? <Image source={{ uri: p.url }} style={s.photo} resizeMode="cover" />
+                            : <View style={[s.photo, s.photoMissing]} />}
+                          <IconButton
+                            name="trash"
+                            size={34}
+                            bg="#60CCED"
+                            onPress={() => onDeletePhoto(selected, p.id)}
+                            disabled={photoBusy}
+                          />
+                        </View>
+                      ))
+                    )}
+                  </View>
+                )}
+
                 {priceFor(selected.room_name, selected.window_name) != null && (
                   <Text style={[s.mdLine, { marginTop: 10 }]}>
                     <Text style={s.mdLabel}>Стоимость: </Text>
@@ -462,6 +640,25 @@ const s = StyleSheet.create({
   actionsRow: { flexDirection: 'row', gap: 16, justifyContent: 'flex-end', marginTop: 12 },
   statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   statusChange: { fontSize: 13, color: '#60CCED', fontWeight: '600' },
+
+  // Установщик: блок АВР
+  actBlock: { marginTop: 12, marginBottom: 6 },
+  actBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    backgroundColor: '#5B9BF8', borderRadius: 22, paddingVertical: 12,
+    paddingHorizontal: 22, alignSelf: 'flex-start', minWidth: 210,
+  },
+  actBtnDisabled: { opacity: 0.6 },
+  actBtnText: { color: '#FFFFFF', fontSize: 17, fontFamily: 'TTNormsPro-Bold' },
+  actFile: { fontSize: 17, color: '#0F172A', marginTop: 14 },
+  actFileName: { color: '#94A3B8' },
+
+  // Установщик: фото по окну
+  photoBlock: { marginTop: 18 },
+  photoHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  photoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 12 },
+  photo: { flex: 1, height: 180, borderRadius: 8, backgroundColor: '#EEF1F4' },
+  photoMissing: { borderWidth: 1, borderColor: '#E2E8F0' },
 
   addrCard: { backgroundColor: '#F1F3F5', borderRadius: 16, padding: 20, marginTop: 18 },
   addrLine: { fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', lineHeight: 24 },

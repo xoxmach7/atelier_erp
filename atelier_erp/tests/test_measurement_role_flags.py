@@ -103,7 +103,24 @@ class TestMeasurementRoleFlags(TestCase):
         self.measurement.refresh_from_db()
         assert self.measurement.width_cm == 220
 
-    def test_installer_has_no_access(self):
+    def test_installer_can_set_installation_done(self):
+        client = self._client_for(Roles.INSTALLER)
+        resp = client.patch(self._url(), {'installation_done': True}, format='json')
+        assert resp.status_code == 200, resp.content
+        self.measurement.refresh_from_db()
+        assert self.measurement.installation_done is True
+
+    def test_installer_cannot_flip_sewing_flag(self):
+        """Установщик не закрывает пошив за цех."""
         client = self._client_for(Roles.INSTALLER)
         resp = client.patch(self._url(), {'sewing_done': True}, format='json')
-        assert resp.status_code == 403
+        assert resp.status_code == 200, resp.content
+        self.measurement.refresh_from_db()
+        assert self.measurement.sewing_done is False
+
+    def test_seamstress_cannot_flip_installation_flag(self):
+        client = self._client_for(Roles.SEAMSTRESS)
+        resp = client.patch(self._url(), {'installation_done': True}, format='json')
+        assert resp.status_code == 200, resp.content
+        self.measurement.refresh_from_db()
+        assert self.measurement.installation_done is False

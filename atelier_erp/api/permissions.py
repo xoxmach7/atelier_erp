@@ -41,8 +41,9 @@ class CanAccessMeasurement(permissions.BasePermission):
     Доступ к замерам.
 
     Owner/Designer — полный CRUD (они ведут замеры).
-    Warehouse/Seamstress — чтение и частичное обновление: им нужно отмечать
-    галочки по окну (`materials_ready` / `sewing_done`) на своих экранах заказа.
+    Warehouse/Seamstress/Installer — чтение и частичное обновление: им нужно
+    отмечать галочки по окну (`materials_ready` / `sewing_done` /
+    `installation_done`) на своих экранах заказа.
     Набор полей, который им реально разрешено писать, ограничивается отдельно —
     сериализатором в MeasurementViewSet.get_serializer_class, чтобы склад не мог
     переписать размеры окна или ткань.
@@ -52,7 +53,7 @@ class CanAccessMeasurement(permissions.BasePermission):
     """
 
     FULL_ACCESS = (Roles.OWNER, Roles.DESIGNER)
-    CHECKBOX_ONLY = (Roles.WAREHOUSE, Roles.SEAMSTRESS)
+    CHECKBOX_ONLY = (Roles.WAREHOUSE, Roles.SEAMSTRESS, Roles.INSTALLER)
 
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:

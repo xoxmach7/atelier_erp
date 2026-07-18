@@ -128,6 +128,8 @@ export interface MeasurementUpdatePayload {
   materials_ready?: boolean;
   /** Швея: изделие по этому окну сшито. */
   sewing_done?: boolean;
+  /** Установщик: изделие по этому окну повешено. */
+  installation_done?: boolean;
 }
 
 export interface MeasurementDetail {
@@ -289,12 +291,19 @@ export interface PhotoReportsList {
   photo_reports: PhotoReportDTO[];
 }
 
-export async function fetchPhotoReports(orderId: string): Promise<PhotoReportsList> {
-  return apiClient.get<PhotoReportsList>(`/api/v1/orders/${orderId}/photo-reports/`);
+/** `measurementId` — фото конкретного окна, без него весь заказ. */
+export async function fetchPhotoReports(orderId: string, measurementId?: string): Promise<PhotoReportsList> {
+  const q = measurementId ? `?measurement=${measurementId}` : '';
+  return apiClient.get<PhotoReportsList>(`/api/v1/orders/${orderId}/photo-reports/${q}`);
 }
 
 export async function uploadPhotoReport(orderId: string, formData: FormData): Promise<PhotoReportDTO> {
   return apiClient.postMultipart<PhotoReportDTO>(`/api/v1/orders/${orderId}/photo-reports/`, formData);
+}
+
+/** Мягкое удаление фото (бэкенд ставит is_active=False). */
+export async function deletePhotoReport(orderId: string, photoId: string): Promise<unknown> {
+  return apiClient.del(`/api/v1/orders/${orderId}/photo-reports/${photoId}/`);
 }
 
 export interface CompletionActResponse {
@@ -415,6 +424,10 @@ export interface OrderExecution {
     materials_ready?: boolean;
     /** Швея: изделие по окну сшито. */
     sewing_done?: boolean;
+    /** Установщик: изделие по окну повешено. */
+    installation_done?: boolean;
+    /** Фотоотчёт по этому окну. */
+    photos?: Array<{ id: string; url: string | null; caption?: string }>;
   }>;
   items_to_sew?: Array<{
     id: string;

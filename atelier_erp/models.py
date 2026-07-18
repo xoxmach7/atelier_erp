@@ -721,7 +721,19 @@ class PhotoReport(UUIDModel, TimestampedModel):
         related_name='photo_reports',
         db_index=True
     )
-    
+    # Окно, к которому прикреплено фото. Установщик снимает по конкретному
+    # окну, а не по заказу целиком, и в карточке окна показываются только его
+    # фото. order_item для этого не подходит: позиции заказа генерируются из КП
+    # и с окнами замера не связаны один к одному.
+    measurement = models.ForeignKey(
+        'Measurement',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='photo_reports',
+        db_index=True
+    )
+
     # File storage
     file = models.FileField(
         upload_to='photo_reports/%Y/%m/',
@@ -999,6 +1011,9 @@ class Measurement(UUIDModel):
     # экрана заказа). Отдельный флаг от materials_ready: разные роли, разные
     # стадии — материалы может собрать склад задолго до пошива.
     sewing_done = models.BooleanField(default=False, db_index=True)
+    # Установщик отмечает по каждому окну, что изделие установлено.
+    # Третий независимый флаг: склад собрал → цех сшил → монтаж повесил.
+    installation_done = models.BooleanField(default=False, db_index=True)
     measured_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     measured_at = models.DateTimeField(auto_now_add=True, db_index=True)
     
