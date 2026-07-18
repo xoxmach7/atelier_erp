@@ -413,6 +413,9 @@ export default function OrderDetailScreen() {
                 )}
                 <Text style={s.mdLine}><Text style={s.mdLabel}>Тип крепления: </Text>{selected.mounting_type || '—'}</Text>
                 <Text style={s.mdLine}><Text style={s.mdLabel}>Комментарий: </Text>{selected.notes || '—'}</Text>
+                {/* Обозначение единицы: одно окно — одно изделие. Отдельного
+                    поля количества у замера нет и не планируется. */}
+                <Text style={[s.mdLine, { marginTop: 10 }]}><Text style={s.mdLabel}>Количество: </Text>1</Text>
 
                 {priceFor(selected.room_name, selected.window_name) != null && (
                   <Text style={[s.mdLine, { marginTop: 10 }]}>

@@ -12,6 +12,7 @@ import { useOrders } from '../../src/hooks/useOrder';
 import { useAuthContext } from '../../src/context/AuthContext';
 import {
   getStatusDotColor, getOrderIndicator, getWarehouseLabel, getWarehouseColor,
+  EXECUTION_SUBSTATUS_LABEL, EXECUTION_SUBSTATUS_COLOR,
   type IndicatorVariant,
 } from '../../src/utils/orderLabels';
 import type { Order } from '../../src/types/order';
@@ -31,9 +32,17 @@ const STATUS_FILTERS = [
 // а не по стадии заказа.
 const WAREHOUSE_FILTERS = [
   { key: undefined,          label: 'Все' },
-  { key: 'not_ready',        label: 'Закупить' },
-  { key: 'partially_ready',  label: 'Нужно сделать' },
-  { key: 'ready',            label: 'Сделано' },
+  { key: 'not_ready',        label: 'Закуп' },
+  { key: 'partially_ready',  label: 'Сборка' },
+  { key: 'ready',            label: 'Готово' },
+] as const;
+
+// Цех и установщик работают только с активными заказами: завершённые и
+// ожидающие им не нужны, поэтому пилюль всего две.
+const EXECUTOR_FILTERS = [
+  { key: undefined,   label: 'Все' },
+  { key: 'in_work',   label: 'В работе' },
+  { key: 'overdue',   label: 'Просрочен' },
 ] as const;
 
 const BADGE_HEX: Record<string, string> = {
@@ -86,6 +95,11 @@ function OrderCard({ order, warehouse, onPress }: {
   return (
     <TouchableOpacity style={card.wrap} onPress={onPress} activeOpacity={0.6}>
       <View style={card.content}>
+        {/* Подстатус «Исполнение» — только у цеха и установщика, приходит с бэка.
+            Это не замена статусу справа, а пометка «заказ сейчас на мне». */}
+        {order.execution_substatus === 'execution' && (
+          <Text style={card.substatus}>{EXECUTION_SUBSTATUS_LABEL}</Text>
+        )}
         <Text style={card.title}>№{orderNum(order)} | {order.customer_name}</Text>
         <Text style={card.line}><Text style={card.lineLabel}>Создан: </Text>{fmtDate(order.created_at)}</Text>
         <Text style={card.line}><Text style={card.lineLabel}>Дизайнер: </Text>{designer}</Text>
@@ -111,6 +125,12 @@ const card = StyleSheet.create({
     minHeight: 98,
   },
   content: { flex: 1 },
+  substatus: {
+    fontSize: 16,
+    fontFamily: 'TTNormsPro-Bold',
+    color: EXECUTION_SUBSTATUS_COLOR,
+    marginBottom: 4,
+  },
   title: { fontSize: 18, fontFamily: 'TTNormsPro-Regular', color: '#0F172A', marginBottom: 4 },
   line: { fontSize: 16, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', marginTop: 2 },
   lineLabel: { fontFamily: 'TTNormsPro-Bold' },
@@ -150,7 +170,11 @@ export default function OrdersScreen() {
   const isWarehouse = primaryRole === 'warehouse';
   // 'production' — швейный цех (группа Seamstress, см. groupsToRole).
   const isSeamstress = primaryRole === 'production';
-  const filters = isWarehouse ? WAREHOUSE_FILTERS : STATUS_FILTERS;
+  const isInstaller = primaryRole === 'installation';
+  const isExecutorRole = isWarehouse || isSeamstress || isInstaller;
+  const filters = isWarehouse
+    ? WAREHOUSE_FILTERS
+    : (isSeamstress || isInstaller ? EXECUTOR_FILTERS : STATUS_FILTERS);
 
   // Склад фильтрует по material_readiness на клиенте (шкала не статусная),
   // остальные роли — по группе статусов на сервере (?status_group=).
@@ -180,11 +204,11 @@ export default function OrdersScreen() {
         <TouchableOpacity onPress={() => (isOwner ? router.back() : logout())} activeOpacity={0.6}>
           <Text style={s.exit}>{isOwner ? 'Назад' : 'Выйти'}</Text>
         </TouchableOpacity>
-        <Text style={s.title}>{isWarehouse || isSeamstress ? 'Заказы' : 'Управление заказами'}</Text>
+        <Text style={s.title}>{isExecutorRole ? 'Заказы' : 'Управление заказами'}</Text>
         <View style={s.iconRow}>
           {/* Создание заказа и клиенты — только у ролей, которые их ведут.
-              Склад и швея работают по уже созданным заказам. */}
-          {!isWarehouse && !isSeamstress && (
+              Исполнители работают по уже созданным заказам. */}
+          {!isExecutorRole && (
             <>
               <IconButton name="plus" onPress={() => router.push('/orders/new')} />
               <IconButton name="user" onPress={() => router.push('/clients')} />

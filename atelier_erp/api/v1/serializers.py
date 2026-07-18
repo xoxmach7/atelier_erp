@@ -24,6 +24,7 @@ class RelatedQuoteSerializer(serializers.ModelSerializer):
         fields = ['id', 'quote_number', 'status', 'total', 'created_at']
 from atelier_erp.constants import MaterialReadiness
 from atelier_erp.roles import Roles, user_in
+from .substatus import get_execution_substatus
 
 # Финансовые поля заказа, скрываемые от ролей без финансового доступа
 FINANCIAL_ORDER_FIELDS = ('total_amount', 'paid_amount', 'balance_due')
@@ -97,6 +98,8 @@ class OrderListSerializer(serializers.ModelSerializer):
     # Производное состояние: считается из planned_completion и статуса.
     # Фронт группирует по нему пилюлю «Просрочено».
     is_overdue = serializers.BooleanField(read_only=True)
+    # Ролевой подстатус «Исполнение» (швейный цех / установщик), см. substatus.py.
+    execution_substatus = serializers.SerializerMethodField()
     material_readiness_label = serializers.CharField(source='get_material_readiness_display', read_only=True)
     production_stage_label = serializers.CharField(source='get_production_stage_display', read_only=True)
     handover_stage_label = serializers.CharField(source='get_handover_stage_display', read_only=True)
@@ -105,7 +108,7 @@ class OrderListSerializer(serializers.ModelSerializer):
         model = Order
         fields = [
             'id', 'order_number', 'customer', 'customer_name', 'customer_phone',
-            'status', 'status_display', 'ui_badge', 'is_overdue',
+            'status', 'status_display', 'ui_badge', 'is_overdue', 'execution_substatus',
             'total_amount', 'paid_amount', 'balance_due',
             'designer_name', 'created_at', 'planned_completion',
             'material_readiness', 'material_readiness_label',
@@ -123,6 +126,10 @@ class OrderListSerializer(serializers.ModelSerializer):
 
     def get_ui_badge(self, obj) -> dict:
         return compute_ui_badge(obj)
+
+    def get_execution_substatus(self, obj):
+        request = self.context.get('request')
+        return get_execution_substatus(obj, getattr(request, 'user', None))
 
     def to_representation(self, instance):
         """Скрыть денежные поля от ролей без финансового доступа.

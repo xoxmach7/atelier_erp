@@ -25,6 +25,11 @@ export interface Order {
   designer_name?: string;
   material_readiness?: string;
   ui_badge?: { color: 'red' | 'yellow' | 'green' | 'gray'; label: string };
+  /**
+   * Ролевой подстатус с бэка: 'execution' | null. Заполняется только для
+   * швейного цеха и установщика (см. api/v1/substatus.py).
+   */
+  execution_substatus?: string | null;
 }
 
 export interface OrdersPage {

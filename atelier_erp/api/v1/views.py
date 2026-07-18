@@ -49,6 +49,7 @@ from .serializers import (
     OrderCompletionActSerializer, OrderCompletionActUploadSerializer
 )
 from .filters import OrderFilterSet
+from .substatus import execution_substatus_annotations
 from atelier_erp.constants import MaterialReadiness, ProductionStage, HandoverStage
 
 
@@ -88,7 +89,11 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
         появлении второго клиента, если по какой-то причине ORM-уровень
         не сработал (например, ContextVar не был выставлен вне HTTP-запроса).
         """
-        qs = Order.objects.select_related('customer').order_by('-created_at')
+        qs = (
+            Order.objects.select_related('customer')
+            .annotate(**execution_substatus_annotations())
+            .order_by('-created_at')
+        )
         user = self.request.user
 
         if user_in(user, *Roles.FULL_ORDER_ACCESS):
