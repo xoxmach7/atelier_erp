@@ -31,9 +31,15 @@ export async function deleteOrder(id: string): Promise<unknown> {
   return apiClient.del(`/api/v1/orders/${id}/`);
 }
 
-export async function fetchOrders(status?: string, page = 1): Promise<OrdersPage> {
+/**
+ * `status` — точный статус FSM, `statusGroup` — пользовательская группа
+ * (in_work/overdue/completed/waiting), раскладка которой живёт на бэке.
+ * Фильтр-пилюли используют группу; точный статус остался для дашборда и веба.
+ */
+export async function fetchOrders(status?: string, page = 1, statusGroup?: string): Promise<OrdersPage> {
   let endpoint = `/api/v1/orders/?page=${page}&page_size=50`;
   if (status) endpoint += `&status=${status}`;
+  if (statusGroup) endpoint += `&status_group=${statusGroup}`;
   return apiClient.get<OrdersPage>(endpoint);
 }
 

@@ -16,14 +16,15 @@ import {
 } from '../../src/utils/orderLabels';
 import type { Order } from '../../src/types/order';
 
+// Фильтруем по группам статусов, а не по восьми техническим статусам FSM:
+// раскладка группа→статусы задана на бэке (api/v1/filters.py ORDER_STATUS_GROUPS)
+// и уходит туда как ?status_group=.
 const STATUS_FILTERS = [
-  { key: undefined,               label: 'Все' },
-  { key: 'new',                   label: 'Новые' },
-  { key: 'in_work',               label: 'В работе' },
-  { key: 'in_production',         label: 'Пошив' },
-  { key: 'ready',                 label: 'Готовы' },
-  { key: 'on_installation',       label: 'Установка' },
-  { key: 'waiting_final_payment', label: 'Оплата' },
+  { key: undefined,   label: 'Все' },
+  { key: 'in_work',   label: 'В работе' },
+  { key: 'overdue',   label: 'Просрочен' },
+  { key: 'completed', label: 'Завершён' },
+  { key: 'waiting',   label: 'Ожидание' },
 ] as const;
 
 // Склад фильтрует по обеспечению материалами (material_readiness),
@@ -149,8 +150,11 @@ export default function OrdersScreen() {
   const isWarehouse = primaryRole === 'warehouse';
   const filters = isWarehouse ? WAREHOUSE_FILTERS : STATUS_FILTERS;
 
+  // Склад фильтрует по material_readiness на клиенте (шкала не статусная),
+  // остальные роли — по группе статусов на сервере (?status_group=).
   const { data, loading, error, refetch } = useOrders(
-    isWarehouse || statusFilter === 'overdue' ? undefined : statusFilter,
+    undefined,
+    isWarehouse ? undefined : statusFilter,
   );
 
   const filtered = search.trim()
@@ -161,9 +165,9 @@ export default function OrdersScreen() {
       )
     : data;
 
-  const visible = isWarehouse
-    ? (statusFilter ? filtered.filter(o => o.material_readiness === statusFilter) : filtered)
-    : (statusFilter === 'overdue' ? filtered.filter(isOverdue) : filtered);
+  const visible = isWarehouse && statusFilter
+    ? filtered.filter(o => o.material_readiness === statusFilter)
+    : filtered;
 
   const isOwner = primaryRole === 'owner';
 

@@ -233,7 +233,7 @@ function OwnerDashboard() {
       <View style={s.pills}>
         <StatPill label="Все заказы (за период)" value={orders.total} valueColor={CYAN} onPress={() => router.push('/(tabs)/orders')} />
         <StatPill label="В работе" value={orders.in_work} valueColor={CYAN} onPress={() => router.push('/(tabs)/orders?status=in_work')} />
-        <StatPill label="Ожидают оплаты" value={orders.awaiting_payment} valueColor={CYAN} onPress={() => router.push('/(tabs)/orders?status=waiting_final_payment')} />
+        <StatPill label="Ожидают оплаты" value={orders.awaiting_payment} valueColor={CYAN} onPress={() => router.push('/(tabs)/orders?status=waiting')} />
         <StatPill label="Просрочено" value={orders.overdue} valueColor={RED} onPress={() => router.push('/(tabs)/orders?status=overdue')} />
         <StatPill label="Материалы на исходе" value={lowStock} valueColor={ORANGE} onPress={() => {}} />
       </View>

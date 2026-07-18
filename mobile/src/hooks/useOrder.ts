@@ -12,7 +12,7 @@ function getErrorMessage(err: unknown): { message: string } {
   return { message: 'Не удалось загрузить заказы.' };
 }
 
-export function useOrders(statusFilter?: string) {
+export function useOrders(statusFilter?: string, statusGroup?: string) {
   const [data, setData] = useState<Order[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -22,7 +22,7 @@ export function useOrders(statusFilter?: string) {
     setLoading(true);
     setError(null);
     try {
-      const page = await fetchOrders(statusFilter);
+      const page = await fetchOrders(statusFilter, 1, statusGroup);
       setData(page.results);
       setTotal(page.count);
     } catch (err) {
@@ -31,7 +31,7 @@ export function useOrders(statusFilter?: string) {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, statusGroup]);
 
   useEffect(() => {
     fetch();

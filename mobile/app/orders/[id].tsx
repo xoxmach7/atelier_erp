@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthContext } from '../../src/context/AuthContext';
 import {
   fetchOrderExecution, fetchQuotes, deleteOrder, deleteMeasurement, updateMeasurement,
+  changeOrderStatus,
   type OrderExecution, type QuoteDTO,
 } from '../../src/api/orders';
 import { recordPayment } from '../../src/api/payments';
@@ -54,6 +55,7 @@ export default function OrderDetailScreen() {
   const [showPrepay, setShowPrepay] = useState(false);
   const [deposit, setDeposit] = useState('');
   const [savingPayment, setSavingPayment] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
 
   // Модалка одного замера (тап по строке)
   type MeasurementRow = NonNullable<OrderExecution['measurements']>[number];
@@ -127,6 +129,56 @@ export default function OrderDetailScreen() {
     }
   };
 
+  // Смена статуса заказа. Что именно разрешено — решает бэк (FSM в
+  // constants.OrderFSMRules) и отдаёт во флагах data.actions; мобилка только
+  // рисует доступные шаги, своей копии правил перехода не держит.
+  const nextSteps = (): Array<{ label: string; status: string }> => {
+    const a = data?.actions ?? {};
+    const steps: Array<{ label: string; status: string }> = [];
+    if (a.can_take_in_work) steps.push({ label: 'Взять в работу', status: 'in_work' });
+    if (a.can_start_production) steps.push({ label: 'Передать в производство', status: 'in_production' });
+    if (a.can_mark_ready) steps.push({ label: 'Отметить готовым', status: 'ready' });
+    if (a.can_start_installation) steps.push({ label: 'На установку / выдачу', status: 'on_installation' });
+    if (a.can_complete) steps.push({ label: 'Завершить заказ', status: 'completed' });
+    return steps;
+  };
+
+  const applyStatus = async (label: string, status: string) => {
+    setChangingStatus(true);
+    try {
+      await changeOrderStatus(idStr, status);
+      await load();
+      Alert.alert('Готово', `Статус изменён: ${label}`);
+    } catch (e: any) {
+      // Бэк объясняет отказ по-человечески («Сначала примите КП…») — показываем как есть.
+      Alert.alert('Не удалось сменить статус', e?.message ?? 'Переход запрещён');
+    } finally { setChangingStatus(false); }
+  };
+
+  const openStatusMenu = () => {
+    const steps = nextSteps();
+    const canCancel = data?.actions?.can_cancel;
+    if (steps.length === 0 && !canCancel) {
+      Alert.alert('Нет доступных переходов', `Текущий статус: ${data?.status_label ?? '—'}`);
+      return;
+    }
+    Alert.alert(
+      'Сменить статус',
+      `Сейчас: ${data?.status_label ?? '—'}`,
+      [
+        ...steps.map(st => ({ text: st.label, onPress: () => applyStatus(st.label, st.status) })),
+        ...(canCancel
+          ? [{
+              text: 'Отменить заказ',
+              style: 'destructive' as const,
+              onPress: () => applyStatus('Заказ отменён', 'cancelled'),
+            }]
+          : []),
+        { text: 'Закрыть', style: 'cancel' as const },
+      ]
+    );
+  };
+
   const openMeasurementMenu = (m: MeasurementRow) => {
     Alert.alert(m.room_name, m.window_name ?? '', [
       {
@@ -195,7 +247,20 @@ export default function OrderDetailScreen() {
           <Text style={s.addrLine}><Text style={s.addrLabel}>Клиент: </Text>{data.customer?.full_name || '—'}</Text>
           <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Создан: </Text>{fmtDate(data.created_at)}</Text>
           <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Дизайнер: </Text>{data.designer_name || '—'}</Text>
-          <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Статус: </Text>{data.status_label || '—'}</Text>
+          {/* Статус — кликабельный: тап открывает список разрешённых переходов. */}
+          <TouchableOpacity
+            style={[s.addrGap, s.statusRow]}
+            onPress={openStatusMenu}
+            activeOpacity={0.6}
+            disabled={changingStatus}
+          >
+            <Text style={s.addrLine}>
+              <Text style={s.addrLabel}>Статус: </Text>{data.status_label || '—'}
+            </Text>
+            {changingStatus
+              ? <ActivityIndicator size="small" color="#60CCED" />
+              : <Text style={s.statusChange}>изменить</Text>}
+          </TouchableOpacity>
           <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Завершение: </Text>{fmtDate(data.planned_completion)}</Text>
           <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Дата замера: </Text>{fmtDate(data.measurement_date)}</Text>
           <Text style={[s.addrLine, s.addrGap]}><Text style={s.addrLabel}>Адрес: </Text>{addressText(data)}</Text>
@@ -367,6 +432,8 @@ const s = StyleSheet.create({
   back: { fontSize: 16, color: '#94A3B8', fontFamily: 'TTNormsPro-Regular', marginBottom: 10 },
   title: { fontSize: 28, fontFamily: 'TTNormsPro-Bold', color: '#0F172A', textAlign: 'center' },
   actionsRow: { flexDirection: 'row', gap: 16, justifyContent: 'flex-end', marginTop: 12 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  statusChange: { fontSize: 13, color: '#60CCED', fontWeight: '600' },
 
   addrCard: { backgroundColor: '#F1F3F5', borderRadius: 16, padding: 20, marginTop: 18 },
   addrLine: { fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', lineHeight: 24 },

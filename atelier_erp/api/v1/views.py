@@ -47,6 +47,7 @@ from .serializers import (
     PhotoReportSerializer, PhotoReportUploadSerializer,
     OrderCompletionActSerializer, OrderCompletionActUploadSerializer
 )
+from .filters import OrderFilterSet
 from atelier_erp.constants import MaterialReadiness, ProductionStage, HandoverStage
 
 
@@ -111,7 +112,7 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
 
         return self.scope_to_tenant(scoped)
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'customer']
+    filterset_class = OrderFilterSet
     search_fields = ['order_number', 'customer__full_name', 'customer__phone']
     ordering_fields = ['created_at', 'planned_completion', 'total_amount']
     
