@@ -42,21 +42,68 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
   const createQuoteMutation = useCreateQuote();
   const items: OrderItemDTO[] = order?.items ?? [];
 
+  /**
+   * Строки КП: позиции заказа, а если их ещё нет — замеры.
+   *
+   * OrderItem'ы генерируются ИЗ утверждённого КП, поэтому у нового заказа их
+   * не бывает: модалка показывала «Нет позиций — сначала добавьте замер» даже
+   * когда замеры были, и создать КП с веба было невозможно. Цена по окну
+   * вводится вручную (авторасчёт цены запаркован), как и в мобилке.
+   */
+  const [prices, setPrices] = useState<Record<string, string>>({});
+
+  const lines = useMemo(() => {
+    if (items.length > 0) {
+      return items.map((it) => ({
+        key: it.id,
+        room: it.room_name || "Комната",
+        window: it.window_name || "Окно",
+        width: it.window_width_cm ?? 0,
+        height: it.window_height_cm ?? 0,
+        qty: Math.round(Number(it.quantity ?? 1)),
+        price: lineTotalOf(it),
+        editable: false,
+        fabric: it.fabric || null,
+        sewingType: it.sewing_type || "standard",
+        folds: it.folds_count ?? 0,
+      }));
+    }
+    return (order?.measurements ?? []).map((m) => ({
+      key: m.id,
+      room: m.room_name || "Комната",
+      window: m.window_name || "Окно",
+      width: m.width_cm ?? 0,
+      height: m.height_cm ?? 0,
+      qty: 1,
+      price: parseFloat(prices[m.id] || "0") || 0,
+      editable: true,
+      fabric: null as string | null,
+      sewingType: "standard",
+      folds: 0,
+    }));
+  }, [items, order?.measurements, prices]);
+
   const totals = useMemo(() => {
-    const subtotal = items.reduce((s, it) => s + lineTotalOf(it), 0);
-    const discountAmt = discountPercent ? Math.round((subtotal * parseFloat(discountPercent)) / 100) : 0;
+    const subtotal = lines.reduce((s, l) => s + l.price, 0);
     const installAmt = installPrice ? parseInt(installPrice) || 0 : 0;
-    const total = subtotal - discountAmt + installAmt;
+    // Скидка считается от предытога вместе с установкой — так же, как в
+    // мобильном экране КП, иначе веб и телефон дадут разное ИТОГО.
+    const discountAmt = discountPercent
+      ? Math.round(((subtotal + installAmt) * parseFloat(discountPercent)) / 100)
+      : 0;
+    const total = subtotal + installAmt - discountAmt;
     return { subtotal, discountAmt, installAmt, total };
-  }, [items, discountPercent, installPrice]);
+  }, [lines, discountPercent, installPrice]);
 
   const customerId = typeof order?.customer === "object" ? order.customer.id : order?.customer ?? "";
 
-  const reset = () => { setDiscountPercent(""); setInstallPrice(""); setPrepayPct("50"); setErr(null); };
+  const reset = () => {
+    setDiscountPercent(""); setInstallPrice(""); setPrepayPct("50"); setErr(null); setPrices({});
+  };
   const close = () => { reset(); onClose(); };
 
   async function handleDownload() {
-    if (!customerId || items.length === 0 || busy) return;
+    if (!customerId || lines.length === 0 || busy) return;
     setBusy(true); setErr(null);
     try {
       const validUntil = new Date();
@@ -72,20 +119,20 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
         installation_cost: totals.installAmt,
         delivery_cost: 0,
         prepayment_percent: (parseInt(prepayPct) || 50) / 100,
-        items: items.map((item) => ({
-          room_name: item.room_name || "Комната",
-          window_name: item.window_name || "Окно",
-          window_width_cm: item.window_width_cm ?? 0,
-          window_height_cm: item.window_height_cm ?? 0,
-          folds_count: item.folds_count ?? 0,
-          line_total: lineTotalOf(item),
-          fabric: item.fabric || null,
+        items: lines.map((line) => ({
+          room_name: line.room,
+          window_name: line.window,
+          window_width_cm: line.width,
+          window_height_cm: line.height,
+          folds_count: line.folds,
+          line_total: line.price,
+          fabric: line.fabric,
           fabric_meters: 0,
           fabric_cost: 0,
           tulle_fabric: null,
           tulle_meters: 0,
           tulle_cost: 0,
-          sewing_type: item.sewing_type || "standard",
+          sewing_type: line.sewingType,
           complexity: "simple",
           sewing_cost: 0,
           cornice: null,
@@ -128,27 +175,40 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
         </DialogHeader>
 
         <div className="px-8 pt-[72px] pb-8">
-          {items.length === 0 ? (
+          {lines.length === 0 ? (
             <div className="rounded-[10px] bg-[#F1F5F9] px-4 py-6 text-center text-[14px] text-[#94A3B8]">
               Нет позиций — сначала добавьте замер
             </div>
           ) : (
             <>
-              {items.map((item) => {
-                const qty = Math.round(Number(item.quantity ?? 1));
-                const dims =
-                  item.window_width_cm && item.window_height_cm
-                    ? ` (${item.window_width_cm}x${item.window_height_cm})`
-                    : "";
+              {lines.map((line) => {
+                const dims = line.width && line.height ? ` (${line.width}x${line.height})` : "";
                 return (
-                  <div key={item.id} className="flex items-start justify-between border-b border-[#E2E8F0] py-4">
+                  <div key={line.key} className="flex items-start justify-between border-b border-[#E2E8F0] py-4">
                     <div className="text-[15px] text-[#0F172A]">
-                      <div>{item.room_name || "Комната"}</div>
-                      <div>{(item.window_name || "Окно") + dims}</div>
+                      <div>{line.room}</div>
+                      <div>{line.window + dims}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-[16px] font-medium text-[#0F172A] whitespace-nowrap">{fmtNum(lineTotalOf(item))} ₸</div>
-                      {qty > 1 && <div className="text-[13px] text-[#94A3B8]">({qty} шт.)</div>}
+                      {line.editable ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            inputMode="numeric"
+                            value={prices[line.key] ?? ""}
+                            onChange={(e) =>
+                              setPrices((p) => ({ ...p, [line.key]: e.target.value.replace(/\D/g, "") }))
+                            }
+                            placeholder="0"
+                            className={`${fieldCls} w-32 text-right`}
+                          />
+                          <span className="text-[15px] text-[#475569]">₸</span>
+                        </div>
+                      ) : (
+                        <div className="text-[16px] font-medium text-[#0F172A] whitespace-nowrap">
+                          {fmtNum(line.price)} ₸
+                        </div>
+                      )}
+                      {line.qty > 1 && <div className="text-[13px] text-[#94A3B8]">({line.qty} шт.)</div>}
                     </div>
                   </div>
                 );
@@ -191,7 +251,7 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
               <button
                 type="button"
                 onClick={handleDownload}
-                disabled={items.length === 0 || busy}
+                disabled={lines.length === 0 || totals.subtotal <= 0 || busy}
                 className="w-full rounded-[10px] bg-[#60CCED] py-[14px] text-[15px] font-semibold text-white transition-colors hover:bg-[#4DBCE0] disabled:opacity-50"
               >
                 {busy ? "Формирование..." : "Скачать КП"}

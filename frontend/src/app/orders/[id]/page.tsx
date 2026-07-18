@@ -1030,23 +1030,16 @@ export default function OrderDetailPage() {
                       <img src="/icons/tenge.png" width={12} height={12} alt="" className="opacity-90" />
                       Предоплата
                     </button>
-                    {hasQuote ? (
-                      <Link
-                        href={`/orders/${orderId}/quote`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
-                      >
-                        <img src="/icons/kp.png" width={14} height={14} alt="" className="opacity-90" />
-                        Открыть КП
-                      </Link>
-                    ) : (
-                      <button
-                        onClick={() => setKPModalOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
-                      >
-                        <img src="/icons/kp.png" width={14} height={14} alt="" className="opacity-90" />
-                        Создать КП
-                      </button>
-                    )}
+                    {/* И «создать», и «открыть» ведут в одну модалку: раньше
+                        существующее КП открывалось отдельной полноэкранной
+                        страницей, которая выглядела совсем не как макет. */}
+                    <button
+                      onClick={() => setKPModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
+                    >
+                      <img src="/icons/kp.png" width={14} height={14} alt="" className="opacity-90" />
+                      {hasQuote ? "Открыть КП" : "Создать КП"}
+                    </button>
                   </div>
                 )}
 
