@@ -5,7 +5,7 @@ import Svg, { Path, Circle, Line, Rect, Polyline } from 'react-native-svg';
 export type IconName =
   | 'plus' | 'search' | 'user' | 'filter' | 'tenge' | 'edit' | 'trash'
   | 'dots' | 'calendar' | 'userAdd' | 'doc' | 'chevron' | 'minus' | 'menu'
-  | 'eye' | 'eyeOff';
+  | 'eye' | 'eyeOff' | 'check';
 
 /**
  * Иконки на react-native-svg — outline-стиль (24×24 viewBox, stroke-based),
@@ -144,6 +144,13 @@ export function Icon({ name, size = 20, color = '#FFFFFF' }: { name: IconName; s
           <Line x1="3" y1="6" x2="21" y2="6" />
           <Line x1="3" y1="12" x2="21" y2="12" />
           <Line x1="3" y1="18" x2="21" y2="18" />
+        </Svg>
+      );
+
+    case 'check':
+      return (
+        <Svg {...common} strokeWidth={3}>
+          <Polyline points="4 12.5 9.5 18 20 6.5" />
         </Svg>
       );
 

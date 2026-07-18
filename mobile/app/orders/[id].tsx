@@ -8,7 +8,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthContext } from '../../src/context/AuthContext';
 import {
-  fetchOrderExecution, fetchQuotes, deleteOrder, deleteMeasurement,
+  fetchOrderExecution, fetchQuotes, deleteOrder, deleteMeasurement, updateMeasurement,
   type OrderExecution, type QuoteDTO,
 } from '../../src/api/orders';
 import { recordPayment } from '../../src/api/payments';
@@ -117,6 +117,16 @@ export default function OrderDetailScreen() {
     } finally { setSavingPayment(false); }
   };
 
+  // Склад отмечает по каждому окну, что материалы собраны.
+  const toggleMaterialsReady = async (m: MeasurementRow) => {
+    try {
+      await updateMeasurement(String(m.id), { materials_ready: !m.materials_ready });
+      await load();
+    } catch (e: any) {
+      Alert.alert('Ошибка', e?.message ?? 'Не удалось обновить отметку');
+    }
+  };
+
   const openMeasurementMenu = (m: MeasurementRow) => {
     Alert.alert(m.room_name, m.window_name ?? '', [
       {
@@ -155,6 +165,8 @@ export default function OrderDetailScreen() {
 
   const num = data.order_number?.match(/\d+$/)?.[0] ?? data.order_number;
   const measurements = data.measurements ?? [];
+  // Склад вместо цены отмечает готовность материалов по каждому окну.
+  const isWarehouse = primaryRole === 'warehouse';
 
   // price per window from quote items (match by room+window)
   const priceFor = (room?: string, window?: string): string | null => {
@@ -222,8 +234,18 @@ export default function OrderDetailScreen() {
                     <Text style={s.mRoom}>{m.room_name}</Text>
                     <Text style={s.mWindow}>{m.window_name}{dims}</Text>
                   </View>
-                  {price != null && <Text style={s.mPrice}>{fmtMoney(price)} ₸</Text>}
+                  {!isWarehouse && price != null && <Text style={s.mPrice}>{fmtMoney(price)} ₸</Text>}
                 </TouchableOpacity>
+                {isWarehouse && (
+                  <TouchableOpacity
+                    style={[s.checkBox, m.materials_ready && s.checkBoxOn]}
+                    onPress={() => toggleMaterialsReady(m)}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  >
+                    <Icon name="check" size={20} color={m.materials_ready ? '#FFFFFF' : '#CBD5E1'} />
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={s.mMenu}
                   onPress={() => openMeasurementMenu(m)}
@@ -370,6 +392,11 @@ const s = StyleSheet.create({
   mWindow: { fontSize: 16, color: '#475569', fontFamily: 'TTNormsPro-Regular', marginTop: 2 },
   mPrice: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Bold' },
   mMenu: { width: 40, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
+  checkBox: {
+    width: 38, height: 38, borderRadius: 10, marginLeft: 8,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F3F5',
+  },
+  checkBoxOn: { backgroundColor: '#22C55E' },
 
   // ─── Модалки ───────────────────────────────────────────────────────────────
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 },

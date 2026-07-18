@@ -992,6 +992,9 @@ class Measurement(UUIDModel):
     tulle_gathering = models.DecimalField(max_digits=4, decimal_places=2, default=Decimal('2.0'))
 
     notes = models.TextField(blank=True)
+    # Склад отмечает по каждому окну, что материалы под него собраны
+    # (галочка в складской версии экрана заказа).
+    materials_ready = models.BooleanField(default=False, db_index=True)
     measured_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     measured_at = models.DateTimeField(auto_now_add=True, db_index=True)
     

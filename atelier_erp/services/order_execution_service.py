@@ -236,6 +236,8 @@ class OrderExecutionService:
                 'tulle_fabric_name': m.tulle_fabric.name if m.tulle_fabric else None,
                 'tulle_meters': float(m.tulle_meters) if m.tulle_meters else 0,
                 'notes': m.notes,
+                # Склад отмечает по каждому окну, что материалы собраны
+                'materials_ready': m.materials_ready,
             })
 
         # Selected materials from quote items if available

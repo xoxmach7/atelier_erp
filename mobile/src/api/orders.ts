@@ -118,6 +118,8 @@ export interface MeasurementUpdatePayload {
   tulle_fabric?: string | null;
   tulle_gathering?: number | string;
   notes?: string;
+  /** Склад: материалы по этому окну собраны. */
+  materials_ready?: boolean;
 }
 
 export interface MeasurementDetail {
@@ -393,6 +395,7 @@ export interface OrderExecution {
     tulle_fabric_meters?: number;
     mounting_type?: string;
     notes?: string;
+    materials_ready?: boolean;
   }>;
   items_to_sew?: Array<{
     id: string;

@@ -14,6 +14,34 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   cancelled: 'Отменён',
 };
 
+/**
+ * Складская формулировка поля material_readiness (обеспечение материалами).
+ * Это НЕ дубль статусов заказа: другая шкала и другая аудитория —
+ * склад смотрит на обеспечение, а не на стадию заказа.
+ *   not_ready       — материалов нет, нужно закупить
+ *   partially_ready — материалы есть, нужно собрать под заказ
+ *   ready           — всё собрано
+ */
+export const MATERIAL_WAREHOUSE_LABELS: Record<string, string> = {
+  not_ready: 'Закуп',
+  partially_ready: 'Сборка',
+  ready: 'Готово',
+};
+
+export const MATERIAL_WAREHOUSE_COLOR: Record<string, string> = {
+  not_ready: '#EF4444',
+  partially_ready: '#22C55E',
+  ready: '#94A3B8',
+};
+
+export function getWarehouseLabel(readiness?: string | null): string {
+  return MATERIAL_WAREHOUSE_LABELS[readiness ?? ''] ?? 'Закуп';
+}
+
+export function getWarehouseColor(readiness?: string | null): string {
+  return MATERIAL_WAREHOUSE_COLOR[readiness ?? ''] ?? '#EF4444';
+}
+
 export const NEXT_STEP_LABELS: Record<OrderStatus, string> = {
   new: 'Взять в работу',
   in_work: 'Передать в производство',

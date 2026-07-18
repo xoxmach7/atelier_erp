@@ -10,7 +10,10 @@ import { EmptyState } from '../../src/components/EmptyState';
 import { IconButton } from '../../src/components/Icon';
 import { useOrders } from '../../src/hooks/useOrder';
 import { useAuthContext } from '../../src/context/AuthContext';
-import { getStatusDotColor, getOrderIndicator, type IndicatorVariant } from '../../src/utils/orderLabels';
+import {
+  getStatusDotColor, getOrderIndicator, getWarehouseLabel, getWarehouseColor,
+  type IndicatorVariant,
+} from '../../src/utils/orderLabels';
 import type { Order } from '../../src/types/order';
 
 const STATUS_FILTERS = [
@@ -21,6 +24,15 @@ const STATUS_FILTERS = [
   { key: 'ready',                 label: 'Готовы' },
   { key: 'on_installation',       label: 'Установка' },
   { key: 'waiting_final_payment', label: 'Оплата' },
+] as const;
+
+// Склад фильтрует по обеспечению материалами (material_readiness),
+// а не по стадии заказа.
+const WAREHOUSE_FILTERS = [
+  { key: undefined,          label: 'Все' },
+  { key: 'not_ready',        label: 'Закупить' },
+  { key: 'partially_ready',  label: 'Нужно сделать' },
+  { key: 'ready',            label: 'Сделано' },
 ] as const;
 
 const BADGE_HEX: Record<string, string> = {
@@ -55,15 +67,21 @@ function fmtDate(dateStr: string | null | undefined): string {
 
 // ─── Order Card ───────────────────────────────────────────────────────────────
 
-function OrderCard({ order, onPress }: {
-  order: Order; onPress: () => void;
+function OrderCard({ order, warehouse, onPress }: {
+  order: Order; warehouse: boolean; onPress: () => void;
 }) {
   const designer = order.designer_name?.split(' ')[0] ?? '—';
   const indicator = getOrderIndicator(order.status, order.material_readiness, isOverdue(order));
-  const indColor = order.ui_badge?.color && BADGE_HEX[order.ui_badge.color]
-    ? BADGE_HEX[order.ui_badge.color]
-    : INDICATOR_COLOR[indicator.variant];
-  const label = order.ui_badge?.label ?? indicator.label;
+  // Склад видит обеспечение материалами (Закуп/Сборка/Готово),
+  // остальные роли — статус заказа.
+  const indColor = warehouse
+    ? getWarehouseColor(order.material_readiness)
+    : (order.ui_badge?.color && BADGE_HEX[order.ui_badge.color]
+        ? BADGE_HEX[order.ui_badge.color]
+        : INDICATOR_COLOR[indicator.variant]);
+  const label = warehouse
+    ? getWarehouseLabel(order.material_readiness)
+    : (order.ui_badge?.label ?? indicator.label);
   return (
     <TouchableOpacity style={card.wrap} onPress={onPress} activeOpacity={0.6}>
       <View style={card.content}>
@@ -128,7 +146,12 @@ export default function OrdersScreen() {
     }, [params.status])
   );
 
-  const { data, loading, error, refetch } = useOrders(statusFilter === 'overdue' ? undefined : statusFilter);
+  const isWarehouse = primaryRole === 'warehouse';
+  const filters = isWarehouse ? WAREHOUSE_FILTERS : STATUS_FILTERS;
+
+  const { data, loading, error, refetch } = useOrders(
+    isWarehouse || statusFilter === 'overdue' ? undefined : statusFilter,
+  );
 
   const filtered = search.trim()
     ? data.filter(o =>
@@ -138,7 +161,9 @@ export default function OrdersScreen() {
       )
     : data;
 
-  const visible = statusFilter === 'overdue' ? filtered.filter(isOverdue) : filtered;
+  const visible = isWarehouse
+    ? (statusFilter ? filtered.filter(o => o.material_readiness === statusFilter) : filtered)
+    : (statusFilter === 'overdue' ? filtered.filter(isOverdue) : filtered);
 
   const isOwner = primaryRole === 'owner';
 
@@ -149,7 +174,7 @@ export default function OrdersScreen() {
         <TouchableOpacity onPress={() => (isOwner ? router.back() : logout())} activeOpacity={0.6}>
           <Text style={s.exit}>{isOwner ? 'Назад' : 'Выйти'}</Text>
         </TouchableOpacity>
-        <Text style={s.title}>Управление заказами</Text>
+        <Text style={s.title}>{isWarehouse ? 'Заказы' : 'Управление заказами'}</Text>
         <View style={s.iconRow}>
           <IconButton name="plus" onPress={() => router.push('/orders/new')} />
           <IconButton name="user" onPress={() => router.push('/clients')} />
@@ -181,7 +206,7 @@ export default function OrdersScreen() {
             contentContainerStyle={s.filtersContent}
             keyboardShouldPersistTaps="handled"
           >
-            {STATUS_FILTERS.map(item => {
+            {filters.map(item => {
               const active = statusFilter === item.key;
               return (
                 <TouchableOpacity
@@ -222,6 +247,7 @@ export default function OrdersScreen() {
           renderItem={({ item }) => (
             <OrderCard
               order={item}
+              warehouse={isWarehouse}
               onPress={() => router.push(`/orders/${item.id}`)}
             />
           )}

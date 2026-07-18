@@ -76,6 +76,20 @@ class TestExecutionSummaryTopLevel(TestCase):
         assert m['room_name'] == 'Гостиная'
         assert m['width_cm'] == 300
 
+    def test_measurement_materials_ready_flag(self):
+        """Склад отмечает готовность материалов по каждому окну."""
+        m = Measurement.objects.get(order=self.order)
+        assert m.materials_ready is False
+
+        summary = OrderExecutionService().get_order_execution_summary(self.order)
+        assert summary['measurements'][0]['materials_ready'] is False
+
+        m.materials_ready = True
+        m.save(update_fields=['materials_ready'])
+
+        summary = OrderExecutionService().get_order_execution_summary(self.order)
+        assert summary['measurements'][0]['materials_ready'] is True
+
     def test_summary_exposes_card_fields(self):
         """Карточка заказа в мобилке: клиент/создан/дизайнер/статус/завершение."""
         summary = OrderExecutionService().get_order_execution_summary(self.order)
