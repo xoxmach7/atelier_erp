@@ -1,7 +1,28 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python -)"
+      "Bash(python -)",
+      "Bash(curl -s \"http://127.0.0.1:8081/status\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://127.0.0.1:8081/index.bundle?platform=ios&dev=true\")",
+      "Bash(python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_status_automation)",
+      "Bash(python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_order_item_generation_types)",
+      "Bash(python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_measurement_role_flags)",
+      "Bash(python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_execution_substatus)",
+      "Bash(command -v railway)",
+      "Bash(python -c ' *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" --max-time 25 \"https://ateliererp-production.up.railway.app/api/v1/orders/\")",
+      "Bash(python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_photo_reports_per_window atelier_erp.tests.test_measurement_role_flags)",
+      "Bash(python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_photo_reports_per_window.TestPhotoReportsPerWindow.test_upload_allowed_during_installation)",
+      "Bash(timeout 90 git ls-remote origin main)",
+      "Bash(git log *)",
+      "Bash(python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_seed_demo)",
+      "Bash(grep -n \"^\\\\s*{/\\\\* [0-9]\\\\.\\\\|>[0-9]\\\\. \" frontend/src/components/shared/create-order-modal.tsx)",
+      "Bash(python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_custom_order_number)",
+      "PowerShell(git fetch origin 2>&1)",
+      "PowerShell(git branch -a --format='%\\(refname:short\\) %\\(upstream:short\\) %\\(upstream:track\\)')",
+      "PowerShell(foreach \\($b in @\\('cascade/mcp-5d71ff','cascade/mcp-74577c','cascade/mcp-75e806','cascade/mcp-7e4552','cascade/mcp-ef3c80','featu','feature/visual-reference-alignment'\\)\\) { $n = \\(git rev-list --count \"main..$b\"\\); $last = \\(git log -1 --format='%ad %s' --date=short $b\\); Write-Output \"$b | +$n | $last\" })",
+      "PowerShell(git add .claude/settings.json)",
+      "PowerShell(git push origin main)"
     ]
   }
 }
