@@ -23,7 +23,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from atelier_erp.models import (
-    Customer, Order, Measurement, Quote, QuoteItem, Fabric,
+    Customer, Order, Measurement, Quote, QuoteItem, Fabric, Tenant,
 )
 from atelier_erp.constants import MaterialReadiness, ProductionStage, HandoverStage
 from atelier_erp.services.numbering import next_number
@@ -62,6 +62,24 @@ class Command(BaseCommand):
             action="store_true",
             help="Удалить прежние демо-данные ([DEMO]) перед созданием новых",
         )
+        parser.add_argument(
+            "--tenant-slug",
+            type=str,
+            default="",
+            help=(
+                "Slug ателье, которому принадлежат демо-данные. Если не указан "
+                "и тенант в базе ровно один — берётся он."
+            ),
+        )
+        parser.add_argument(
+            "--no-tenant",
+            action="store_true",
+            help=(
+                "Создать данные с tenant=NULL. Нужно, когда сотрудники ещё не "
+                "привязаны к тенанту (нет TenantMembership): их контекст тенанта "
+                "равен None, и они видят ровно записи без тенанта."
+            ),
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -75,6 +93,17 @@ class Command(BaseCommand):
             )
             return
 
+        if options["no_tenant"]:
+            tenant = None
+            self.stdout.write(self.style.WARNING(
+                "Режим --no-tenant: данные создаются с tenant=NULL "
+                "(видны сотрудникам без TenantMembership)."
+            ))
+        else:
+            tenant = self._resolve_tenant(options["tenant_slug"])
+            if tenant is False:  # явная ошибка, сообщение уже выведено
+                return
+
         if options["reset"]:
             # Порядок важен: Quote.customer стоит на PROTECT, поэтому клиента
             # нельзя удалить, пока на него ссылается хоть одно КП. Сначала КП,
@@ -82,15 +111,28 @@ class Command(BaseCommand):
             demo_orders = Order.objects.filter(notes__startswith=DEMO_TAG)
             d_quotes = Quote.objects.filter(order__in=demo_orders).delete()
             d_orders = demo_orders.delete()
-            d_cust = Customer.objects.filter(full_name__startswith=DEMO_TAG).delete()
+
+            # Демо-клиента могли переиспользовать в заказе, созданном руками
+            # через приложение — такой заказ не помечен [DEMO] и удалять его
+            # нельзя. Поэтому чистим только клиентов, на которых уже никто не
+            # ссылается: иначе PROTECT роняет всю команду (и так и было).
+            kept = 0
+            removed = 0
+            for customer in Customer.objects.filter(full_name__startswith=DEMO_TAG):
+                if customer.orders.exists() or Quote.objects.filter(customer=customer).exists():
+                    kept += 1
+                    continue
+                customer.delete()
+                removed += 1
+
             d_fab = Fabric.objects.filter(name__startswith=DEMO_TAG).delete()
             self.stdout.write(
                 f"Удалено демо: КП {d_quotes[0]}, заказы {d_orders[0]}, "
-                f"клиенты {d_cust[0]}, ткани {d_fab[0]}"
+                f"клиенты {removed} (оставлено занятых: {kept}), ткани {d_fab[0]}"
             )
 
-        fabrics = self._ensure_fabrics()
-        customers = self._create_customers()
+        fabrics = self._ensure_fabrics(tenant)
+        customers = self._create_customers(tenant)
         today = timezone.localdate()
         year = today.year
 
@@ -129,6 +171,7 @@ class Command(BaseCommand):
                 installation_address_building=building,
                 installation_address_apartment=apartment,
                 notes=f"{DEMO_TAG} demo order",
+                tenant=tenant,
                 **self._stage_fields(status),
             )
 
@@ -153,7 +196,44 @@ class Command(BaseCommand):
 
     # ── helpers ──────────────────────────────────────────────────────────
 
-    def _ensure_fabrics(self) -> list:
+    def _resolve_tenant(self, slug: str):
+        """
+        Тенант, которому принадлежат демо-данные.
+
+        Без него изоляция не работает так, как ожидается: TenantManager
+        фильтрует `filter(tenant_id=<текущий>)`, поэтому записи с tenant=NULL
+        не видны ни одному сотруднику ателье — демо просто «пропадёт».
+        Возвращает None, если тенантов в базе нет вообще (одиночная установка),
+        и False при явной ошибке.
+        """
+        tenants = list(Tenant.objects.all())
+        if slug:
+            match = next((t for t in tenants if t.slug == slug), None)
+            if not match:
+                self.stderr.write(self.style.ERROR(
+                    f"Тенант со slug '{slug}' не найден. Есть: "
+                    + (", ".join(t.slug for t in tenants) or "ни одного")
+                ))
+                return False
+            self.stdout.write(f"Тенант: {match.name} ({match.slug})")
+            return match
+
+        if not tenants:
+            self.stdout.write(self.style.WARNING(
+                "Тенантов в базе нет — данные создаются без привязки (tenant=NULL)."
+            ))
+            return None
+        if len(tenants) == 1:
+            self.stdout.write(f"Тенант определён автоматически: {tenants[0].name} ({tenants[0].slug})")
+            return tenants[0]
+
+        self.stderr.write(self.style.ERROR(
+            "Тенантов несколько — укажите --tenant-slug=<slug>. Есть: "
+            + ", ".join(t.slug for t in tenants)
+        ))
+        return False
+
+    def _ensure_fabrics(self, tenant) -> list:
         fabrics = []
         for name, hanger, price, width in FABRICS:
             fabric, _ = Fabric.objects.get_or_create(
@@ -162,23 +242,36 @@ class Command(BaseCommand):
                     "name": f"{DEMO_TAG} {name}",
                     "price_per_meter": price,
                     "width_cm": width,
+                    "tenant": tenant,
                 },
             )
             fabrics.append(fabric)
         return fabrics
 
-    def _create_customers(self) -> list:
+    def _create_customers(self, tenant) -> list:
         cust_data = [
             ("Ерлан Нурбаев", "+77011234567"),
             ("Айгерим Сапарова", "+77019876543"),
             ("Данияр Ахметов", "+77001112233"),
         ]
-        return [
-            Customer.objects.create(
-                full_name=f"{DEMO_TAG} {name}", phone=phone, address_city="Алматы"
+        # get_or_create по телефону: он уникален, а часть демо-клиентов могла
+        # уцелеть при --reset (на них ссылаются заказы, созданные вручную).
+        # Раньше здесь был create() и команда падала на duplicate key.
+        customers = []
+        for name, phone in cust_data:
+            customer, created = Customer.objects.get_or_create(
+                phone=phone,
+                defaults={
+                    "full_name": f"{DEMO_TAG} {name}",
+                    "address_city": "Алматы",
+                    "tenant": tenant,
+                },
             )
-            for name, phone in cust_data
-        ]
+            if not created and customer.tenant_id != (tenant.id if tenant else None):
+                customer.tenant = tenant
+                customer.save(update_fields=["tenant"])
+            customers.append(customer)
+        return customers
 
     def _stage_fields(self, status) -> dict:
         """

@@ -44,6 +44,43 @@ class TestSeedDemo(TestCase):
         assert Measurement.objects.filter(installation_done=True).exists()
         assert Measurement.objects.filter(sewing_done=False).exists()
 
+    def test_data_is_bound_to_tenant(self):
+        """
+        Без tenant демо-данные не видны никому: TenantManager фильтрует
+        filter(tenant_id=<текущий>), а записи с NULL под это не подпадают.
+        """
+        from atelier_erp.models import Tenant, Fabric
+
+        tenant = Tenant.objects.create(name="Ателье", slug="atelier-1")
+        # Тенантов в базе больше одного (миграция создаёт «sheber»),
+        # поэтому slug указываем явно — автоопределение здесь и не должно
+        # срабатывать, иначе данные уехали бы не тому ателье.
+        call_command("seed_demo", "--tenant-slug", "atelier-1", stdout=StringIO())
+
+        assert Order.objects.filter(tenant=tenant).count() == 12
+        assert Order.objects.filter(tenant__isnull=True).count() == 0
+        assert Customer.objects.filter(tenant=tenant).count() == 3
+        assert Fabric.objects.filter(tenant=tenant).exists()
+
+    def test_no_tenant_mode_creates_null_tenant_rows(self):
+        """
+        Пилотные аккаунты пока без TenantMembership — их контекст тенанта None,
+        и видны им только записи с tenant IS NULL.
+        """
+        from atelier_erp.models import Tenant
+
+        Tenant.objects.create(name="Ателье", slug="atelier-1")
+        call_command("seed_demo", "--no-tenant", stdout=StringIO())
+
+        assert Order.objects.filter(tenant__isnull=True).count() == 12
+        assert Customer.objects.filter(tenant__isnull=True).count() == 3
+
+    def test_unknown_tenant_slug_aborts_without_writing(self):
+        err = StringIO()
+        call_command("seed_demo", "--tenant-slug", "нет-такого", stdout=StringIO(), stderr=err)
+        assert "не найден" in err.getvalue()
+        assert Order.objects.count() == 0
+
     def test_reset_is_idempotent(self):
         call_command("seed_demo", stdout=StringIO())
         call_command("seed_demo", "--reset", stdout=StringIO())
