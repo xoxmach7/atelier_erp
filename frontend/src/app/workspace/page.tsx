@@ -7,6 +7,7 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { LoadingState } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { useRole } from "@/hooks/useRole";
+import { shortOrderNumber } from "@/lib/order-number";
 import {
   useOwnerQueue,
   useDesignerQueue,
@@ -137,7 +138,7 @@ function WorkCard({
       {/* Header row */}
       <div className="flex items-center justify-between gap-2">
         <span className="text-[15px] font-semibold text-[#0F172A]">
-          {task.order_number}
+          {shortOrderNumber(task.order_number)}
         </span>
         <StatusChip status={task.status} label={task.status_label} />
       </div>
@@ -646,7 +647,7 @@ function OwnerWorkspace() {
                       >
                         <div>
                           <span className="text-[13px] font-medium text-[#0F172A]">
-                            {task.order_number}
+                            {shortOrderNumber(task.order_number)}
                           </span>
                           <span className="text-[12px] text-[#94A3B8] ml-2">
                             {task.customer_name}

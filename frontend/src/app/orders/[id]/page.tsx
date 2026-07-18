@@ -4,7 +4,7 @@ import React from "react";
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, ChevronUp, ArrowLeft, Minus, Plus, FileText, Package, Scissors, Camera, MapPin, Check } from "lucide-react";
+import { ChevronDown, ChevronUp, ArrowLeft, Minus, Plus, FileText, Package, Scissors, Camera, MapPin, Check, Pencil, Trash2 } from "lucide-react";
 import { CreateMeasurementModal } from "@/components/shared/create-measurement-modal";
 import { CreateKPModal } from "@/components/shared/create-kp-modal";
 import { CreatePrepaymentModal } from "@/components/shared/create-prepayment-modal";
@@ -50,6 +50,9 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useRole } from "@/hooks/useRole";
 import { useQuote } from "@/hooks/useQuotes";
+import { useDeleteMeasurement } from "@/hooks/useMeasurements";
+import { shortOrderNumber } from "@/lib/order-number";
+import type { MeasurementDTO } from "@/types/measurement";
 import { useCreatePayment, useDeletePayment } from "@/hooks/usePayments";
 import type {
   OrderDetailDTO,
@@ -265,6 +268,122 @@ function EditItemModal({
 /* ------------------------------------------------------------------ */
 /*  ItemRow (expandable)                                                */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Строка окна из замера в блоке «Позиции».
+ *
+ * Отдельный компонент от ItemRow: позиции заказа генерируются из
+ * утверждённого КП, а до него в заказе есть только замеры. Разворот
+ * повторяет макет — ткани с метражом, тип крепления, количество.
+ */
+function MeasurementRow({
+  measurement,
+  price,
+  editable = false,
+  onEdit,
+  onDelete,
+}: {
+  measurement: MeasurementDTO;
+  price: number | null;
+  editable?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const dims =
+    measurement.width_cm && measurement.height_cm
+      ? ` (${measurement.width_cm}x${measurement.height_cm})`
+      : "";
+  const curtainName =
+    measurement.curtain_fabric_name || measurement.curtain_fabric_details?.name;
+  const tulleName =
+    measurement.tulle_fabric_name || measurement.tulle_fabric_details?.name;
+
+  return (
+    <div className="border-b border-[#E2E8F0] last:border-0">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between py-3 px-1 text-left hover:bg-[#FAFBFC] transition-colors"
+      >
+        <div className="min-w-0">
+          <div className="text-[14px] text-[#0F172A]">{measurement.room_name || "Комната"}</div>
+          <div className="text-[13px] text-[#475569]">
+            {(measurement.window_name || "Окно") + dims}
+          </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-[14px] font-medium text-[#0F172A] whitespace-nowrap">
+            {price != null ? fmtCurrency(price) : "—"}
+          </span>
+          {open ? (
+            <ChevronUp size={16} className="text-[#94A3B8]" />
+          ) : (
+            <ChevronDown size={16} className="text-[#94A3B8]" />
+          )}
+        </div>
+      </button>
+
+      {open && (
+        <div className="px-1 pb-4 text-[13px] text-[#475569]">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-2 min-w-0">
+              <span>
+                <span className="text-[#0F172A] font-medium">Шторы:</span>{" "}
+                {curtainName ? `${curtainName}${measurement.curtain_meters ? ` (${measurement.curtain_meters} м)` : ""}` : "—"}
+              </span>
+              <span>
+                <span className="text-[#0F172A] font-medium">Тюль:</span>{" "}
+                {tulleName ? `${tulleName}${measurement.tulle_meters ? ` (${measurement.tulle_meters} м)` : ""}` : "—"}
+              </span>
+              <span>
+                <span className="text-[#0F172A] font-medium">Тип крепления:</span>{" "}
+                {measurement.mounting_type || "—"}
+              </span>
+            </div>
+            {editable && (
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  title="Редактировать замер"
+                  className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  title="Удалить замер"
+                  className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Количество — одно окно = одно изделие, поле в замере не хранится. */}
+          <div className="mt-3 flex items-center gap-3">
+            <span className="text-[#0F172A] font-medium">Количество:</span>
+            <span className="inline-flex items-center gap-3 rounded-[10px] bg-[#F1F5F9] px-3 py-1">
+              <span className="text-[#94A3B8]">−</span>
+              <span className="text-[14px] text-[#0F172A]">1</span>
+              <span className="text-[#94A3B8]">+</span>
+            </span>
+          </div>
+
+          {measurement.notes && (
+            <div className="mt-3">
+              <span className="text-[#0F172A] font-medium">Комментарий:</span>{" "}
+              {measurement.notes}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ItemRow({
   item,
@@ -740,6 +859,17 @@ export default function OrderDetailPage() {
   // позиции заказа ещё не сформированы (они появляются только после КП).
   const quoteId = order?.related_quotes?.[0]?.id ?? order?.source_quote?.id ?? null;
   const { data: quoteDetail } = useQuote(quoteId);
+  const deleteMeasurementMutation = useDeleteMeasurement();
+
+  async function handleDeleteMeasurement(measurementId: string) {
+    if (!confirm("Удалить замер?")) return;
+    try {
+      await deleteMeasurementMutation.mutateAsync(measurementId);
+      await refetchOrder();
+    } catch (e) {
+      alert((e as Error)?.message ?? "Не удалось удалить замер");
+    }
+  }
 
   /* ---- mutations ---- */
   const changeStatusMutation      = useChangeOrderStatus();
@@ -906,14 +1036,14 @@ export default function OrderDetailPage() {
     const quoteItem = quoteDetail?.items?.find(
       (qi) => qi.room_name === m.room_name && qi.window_name === m.window_name
     );
-    const dims = m.width_cm && m.height_cm ? ` (${m.width_cm}x${m.height_cm})` : "";
     return {
       id: m.id,
-      room: m.room_name || "Комната",
-      window: (m.window_name || "Окно") + dims,
+      measurement: m,
       price: quoteItem ? Number(quoteItem.line_total ?? 0) : null,
     };
   });
+  // Предытог — сумма окон, у которых цена уже проставлена в КП.
+  const measurementsSubtotal = measurementLines.reduce((s, l) => s + (l.price ?? 0), 0);
 
   const total = parseFloat(order.total_amount || "0");
   const paid = parseFloat(order.paid_amount || "0");
@@ -949,7 +1079,9 @@ export default function OrderDetailPage() {
                 <ArrowLeft size={24} />
               </button>
               <h1 className="text-[26px] font-semibold text-[#0F172A]">
-                Заказ №{order.order_number || orderId.slice(0, 6)}
+                {/* «Заказ №933», а не «Заказ №О-2026-933». Свой номер ателье
+                    выводится как есть — shortOrderNumber его не трогает. */}
+                Заказ {shortOrderNumber(order.order_number) || orderId.slice(0, 6)}
               </h1>
             </div>
             {isOwnerOrDesigner && (
@@ -1076,23 +1208,19 @@ export default function OrderDetailPage() {
                      уже создано, иначе прочерк. */
                   <>
                     {measurementLines.map((line) => (
-                      <div
+                      <MeasurementRow
                         key={line.id}
-                        className="flex items-center justify-between border-b border-[#E2E8F0] py-3 pl-1 pr-[32px]"
-                      >
-                        <div className="text-[14px] text-[#0F172A]">
-                          <div>{line.room}</div>
-                          <div className="text-[#475569]">{line.window}</div>
-                        </div>
-                        <span className="text-[14px] text-[#0F172A] whitespace-nowrap">
-                          {line.price != null ? fmtCurrency(line.price) : "—"}
-                        </span>
-                      </div>
+                        measurement={line.measurement}
+                        price={line.price}
+                        editable={isOwnerOrDesigner}
+                        onEdit={() => setKPModalOpen(true)}
+                        onDelete={() => handleDeleteMeasurement(line.id)}
+                      />
                     ))}
                     <div className="flex items-center justify-between pt-4 mt-2 pl-1 pr-[32px]">
-                      <span className="text-[16px] font-bold text-[#0F172A]">ИТОГО</span>
+                      <span className="text-[16px] font-bold text-[#0F172A]">Предытог</span>
                       <span className="text-[16px] font-bold text-[#0F172A]">
-                        {fmtCurrency(order.total_amount)}
+                        {fmtCurrency(measurementsSubtotal)}
                       </span>
                     </div>
                   </>
