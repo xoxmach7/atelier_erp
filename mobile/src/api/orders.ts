@@ -103,6 +103,54 @@ export async function createMeasurement(orderId: string, payload: MeasurementPay
   return apiClient.post(`/api/v1/orders/${orderId}/measurements/`, payload);
 }
 
+/**
+ * Правка замера идёт через MeasurementViewSet (поля модели, ткани по UUID),
+ * а не через action создания (там ткани по имени). Метраж сервер считает сам.
+ */
+export interface MeasurementUpdatePayload {
+  room_name?: string;
+  window_name?: string;
+  width_cm?: number;
+  height_cm?: number;
+  mounting_type?: string;
+  curtain_fabric?: string | null;
+  curtain_gathering?: number | string;
+  tulle_fabric?: string | null;
+  tulle_gathering?: number | string;
+  notes?: string;
+}
+
+export interface MeasurementDetail {
+  id: string;
+  room_name: string;
+  window_name: string;
+  width_cm: number;
+  height_cm: number;
+  mounting_type?: string;
+  curtain_fabric?: string | null;
+  curtain_fabric_details?: { id: string; name: string } | null;
+  curtain_gathering?: string;
+  tulle_fabric?: string | null;
+  tulle_fabric_details?: { id: string; name: string } | null;
+  tulle_gathering?: string;
+  notes?: string;
+}
+
+export async function fetchMeasurement(measurementId: string): Promise<MeasurementDetail> {
+  return apiClient.get<MeasurementDetail>(`/api/v1/measurements/${measurementId}/`);
+}
+
+export async function updateMeasurement(
+  measurementId: string,
+  payload: MeasurementUpdatePayload,
+): Promise<unknown> {
+  return apiClient.patch(`/api/v1/measurements/${measurementId}/`, payload);
+}
+
+export async function deleteMeasurement(measurementId: string): Promise<unknown> {
+  return apiClient.del(`/api/v1/measurements/${measurementId}/`);
+}
+
 export interface QuoteItemPayload {
   room_name: string;
   window_name?: string;

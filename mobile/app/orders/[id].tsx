@@ -1,16 +1,17 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator,
-  StyleSheet, Platform, StatusBar,
+  StyleSheet, Platform, StatusBar, Modal, TextInput,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthContext } from '../../src/context/AuthContext';
 import {
-  fetchOrderExecution, fetchQuotes, deleteOrder,
+  fetchOrderExecution, fetchQuotes, deleteOrder, deleteMeasurement,
   type OrderExecution, type QuoteDTO,
 } from '../../src/api/orders';
+import { recordPayment } from '../../src/api/payments';
 import { IconButton, Icon } from '../../src/components/Icon';
 
 function fmtDate(d?: string | null): string {
@@ -49,6 +50,15 @@ export default function OrderDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Модалка предоплаты (кнопка ₸)
+  const [showPrepay, setShowPrepay] = useState(false);
+  const [deposit, setDeposit] = useState('');
+  const [savingPayment, setSavingPayment] = useState(false);
+
+  // Модалка одного замера (тап по строке)
+  type MeasurementRow = NonNullable<OrderExecution['measurements']>[number];
+  const [selected, setSelected] = useState<MeasurementRow | null>(null);
+
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true); setError(null);
@@ -76,6 +86,60 @@ export default function OrderDetailScreen() {
           catch (e: any) { Alert.alert('Ошибка', e?.message ?? 'Не удалось удалить'); }
         },
       },
+    ]);
+  };
+
+  // ₸ — предоплата по заказу. Размер берём из КП (итог × процент предоплаты).
+  const prepayAmount = quote
+    ? Math.round((parseFloat(quote.total) || 0) * (parseFloat(quote.prepayment_percent) || 0.5))
+    : 0;
+
+  const openPrepay = () => {
+    if (!quote) {
+      Alert.alert('Нет КП', 'Сначала создайте КП — от него считается предоплата');
+      return;
+    }
+    setDeposit('');
+    setShowPrepay(true);
+  };
+
+  const savePrepay = async () => {
+    const amount = parseFloat(deposit);
+    if (!amount || amount <= 0) { Alert.alert('Ошибка', 'Введите сумму больше нуля'); return; }
+    setSavingPayment(true);
+    try {
+      await recordPayment({ orderId: idStr, amount, type: 'prepayment', method: 'cash' });
+      setShowPrepay(false);
+      await load();
+      Alert.alert('Готово', 'Предоплата внесена');
+    } catch (e: any) {
+      Alert.alert('Ошибка', e?.message ?? 'Не удалось сохранить платёж');
+    } finally { setSavingPayment(false); }
+  };
+
+  const openMeasurementMenu = (m: MeasurementRow) => {
+    Alert.alert(m.room_name, m.window_name ?? '', [
+      {
+        text: 'Редактировать',
+        onPress: () => router.push(`/orders/measurement-edit?id=${m.id}&orderId=${idStr}`),
+      },
+      {
+        text: 'Удалить',
+        style: 'destructive',
+        onPress: () => {
+          Alert.alert('Удалить замер?', `${m.room_name} — ${m.window_name ?? ''}`, [
+            { text: 'Отмена', style: 'cancel' },
+            {
+              text: 'Удалить', style: 'destructive',
+              onPress: async () => {
+                try { setSelected(null); await deleteMeasurement(String(m.id)); await load(); }
+                catch (e: any) { Alert.alert('Ошибка', e?.message ?? 'Не удалось удалить замер'); }
+              },
+            },
+          ]);
+        },
+      },
+      { text: 'Отмена', style: 'cancel' },
     ]);
   };
 
@@ -129,7 +193,7 @@ export default function OrderDetailScreen() {
           </TouchableOpacity>
           <View style={s.toolIcons}>
             <IconButton name="plus" size={38} onPress={() => router.push(`/orders/measurement-new?orderId=${idStr}`)} />
-            <IconButton name="tenge" size={38} onPress={() => router.push(`/orders/${idStr}/quote`)} />
+            <IconButton name="tenge" size={38} onPress={openPrepay} />
             <IconButton name="search" size={38} onPress={() => {}} />
           </View>
         </View>
@@ -142,18 +206,113 @@ export default function OrderDetailScreen() {
             const price = priceFor(m.room_name, m.window_name);
             return (
               <TouchableOpacity key={m.id} style={s.mRow} activeOpacity={0.6}
-                onPress={() => router.push(`/orders/${idStr}/measurements`)}>
+                onPress={() => setSelected(m)}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.mRoom}>{m.room_name}</Text>
                   <Text style={s.mWindow}>{m.window_name}{dims}</Text>
                 </View>
                 {price != null && <Text style={s.mPrice}>{fmtMoney(price)} ₸</Text>}
-                <View style={s.mMenu}><Icon name="dots" size={20} color="#94A3B8" /></View>
+                <TouchableOpacity
+                  style={s.mMenu}
+                  onPress={() => openMeasurementMenu(m)}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                  <Icon name="dots" size={20} color="#94A3B8" />
+                </TouchableOpacity>
               </TouchableOpacity>
             );
           })
         )}
       </ScrollView>
+
+      {/* Модалка предоплаты (кнопка ₸) */}
+      <Modal visible={showPrepay} transparent animationType="fade" onRequestClose={() => setShowPrepay(false)}>
+        <TouchableOpacity style={s.modalBg} activeOpacity={1} onPress={() => setShowPrepay(false)}>
+          <TouchableOpacity style={s.modalCard} activeOpacity={1}>
+            <Text style={s.modalTitle}>Заказ №{num}</Text>
+
+            <View style={s.prepayRow}>
+              <Text style={s.prepayLabel}>Размер предоплаты:</Text>
+              <Text style={s.prepayAmount}>{fmtMoney(prepayAmount)} ₸</Text>
+            </View>
+
+            <View style={s.prepayRow}>
+              <Text style={s.prepayLabel}>Внесено:</Text>
+              <TextInput
+                style={s.depositInput}
+                value={deposit}
+                onChangeText={setDeposit}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor="#94A3B8"
+              />
+              <Text style={s.prepayUnit}>₸</Text>
+            </View>
+
+            <TouchableOpacity
+              style={[s.modalBtn, savingPayment && s.modalBtnDisabled]}
+              onPress={savePrepay}
+              disabled={savingPayment}
+              activeOpacity={0.85}
+            >
+              {savingPayment
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={s.modalBtnText}>Сохранить</Text>}
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Модалка одного замера (тап по строке) */}
+      <Modal visible={selected !== null} transparent animationType="fade" onRequestClose={() => setSelected(null)}>
+        <TouchableOpacity style={s.modalBg} activeOpacity={1} onPress={() => setSelected(null)}>
+          <TouchableOpacity style={s.modalCard} activeOpacity={1}>
+            {selected && (
+              <>
+                <Text style={s.mdRoom}>{selected.room_name}</Text>
+                <Text style={s.mdLine}>
+                  {selected.window_name}
+                  {selected.width_cm && selected.height_cm ? ` (${selected.width_cm}x${selected.height_cm})` : ''}
+                </Text>
+                {Boolean(selected.curtain_fabric) && (
+                  <Text style={s.mdLine}>
+                    <Text style={s.mdLabel}>Шторы: </Text>{selected.curtain_fabric}
+                    {selected.curtain_fabric_meters ? ` (${selected.curtain_fabric_meters} м)` : ''}
+                  </Text>
+                )}
+                {Boolean(selected.tulle_fabric) && (
+                  <Text style={s.mdLine}>
+                    <Text style={s.mdLabel}>Тюль: </Text>{selected.tulle_fabric}
+                    {selected.tulle_fabric_meters ? ` (${selected.tulle_fabric_meters} м)` : ''}
+                  </Text>
+                )}
+                <Text style={s.mdLine}><Text style={s.mdLabel}>Тип крепления: </Text>{selected.mounting_type || '—'}</Text>
+                <Text style={s.mdLine}><Text style={s.mdLabel}>Комментарий: </Text>{selected.notes || '—'}</Text>
+
+                {priceFor(selected.room_name, selected.window_name) != null && (
+                  <Text style={[s.mdLine, { marginTop: 10 }]}>
+                    <Text style={s.mdLabel}>Стоимость: </Text>
+                    {fmtMoney(priceFor(selected.room_name, selected.window_name))} ₸
+                  </Text>
+                )}
+
+                <View style={s.mdActions}>
+                  <TouchableOpacity
+                    style={[s.mdBtn, s.mdBtnGhost]}
+                    onPress={() => { const m = selected; setSelected(null); if (m) openMeasurementMenu(m); }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={s.mdBtnGhostText}>Изменить</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.mdBtn} onPress={() => setSelected(null)} activeOpacity={0.85}>
+                    <Text style={s.modalBtnText}>Закрыть</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -192,5 +351,37 @@ const s = StyleSheet.create({
   mRoom: { fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Regular' },
   mWindow: { fontSize: 16, color: '#475569', fontFamily: 'TTNormsPro-Regular', marginTop: 2 },
   mPrice: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Bold' },
-  mMenu: { width: 22, alignItems: 'center' },
+  mMenu: { width: 22, alignItems: 'center', justifyContent: 'center' },
+
+  // ─── Модалки ───────────────────────────────────────────────────────────────
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 },
+  modalCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24 },
+  modalTitle: { fontSize: 22, fontFamily: 'TTNormsPro-Bold', color: '#0F172A', textAlign: 'center', marginBottom: 22 },
+
+  prepayRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
+  prepayLabel: { fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', flex: 1 },
+  prepayAmount: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Bold' },
+  depositInput: {
+    width: 110, backgroundColor: '#E9E9E9', borderRadius: 10, height: 44,
+    paddingHorizontal: 14, fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Regular',
+  },
+  prepayUnit: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', marginLeft: 10 },
+
+  modalBtn: {
+    backgroundColor: '#60CCED', borderRadius: 12, height: 52,
+    alignItems: 'center', justifyContent: 'center', marginTop: 8, flex: 1,
+  },
+  modalBtnDisabled: { opacity: 0.5 },
+  modalBtnText: { color: '#FFFFFF', fontSize: 17, fontFamily: 'TTNormsPro-Regular' },
+
+  mdRoom: { fontSize: 20, color: '#0F172A', fontFamily: 'TTNormsPro-Bold', marginBottom: 6 },
+  mdLine: { fontSize: 16, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', lineHeight: 24 },
+  mdLabel: { fontFamily: 'TTNormsPro-Bold' },
+  mdActions: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  mdBtn: {
+    backgroundColor: '#60CCED', borderRadius: 12, height: 48,
+    alignItems: 'center', justifyContent: 'center', flex: 1,
+  },
+  mdBtnGhost: { backgroundColor: '#F1F3F5' },
+  mdBtnGhostText: { color: '#0F172A', fontSize: 16, fontFamily: 'TTNormsPro-Regular' },
 });

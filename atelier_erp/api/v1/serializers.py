@@ -208,17 +208,53 @@ class MeasurementWriteSerializer(serializers.ModelSerializer):
     """Создание/редактирование замера из веб- и мобайл-формы.
 
     Принимает поля модели напрямую (width_cm/height_cm/window_name/curtain_fabric/
-    tulle_fabric/...), сохраняет ОБЕ ткани с метражом. Лишние ключи в payload
-    игнорируются. Используется MeasurementViewSet для create/update.
+    tulle_fabric/...), сохраняет ОБЕ ткани. Лишние ключи в payload игнорируются.
+    Используется MeasurementViewSet для create/update.
+
+    Метраж НЕ принимается от клиента — вычисляется сервером из ширины окна и
+    коэффициента сборки (та же формула, что в action orders/{id}/measurements/,
+    см. services.measurement_calc). Раньше этот путь принимал метраж вручную и
+    расходился с мобильным авторасчётом.
     """
     class Meta:
         model = Measurement
         fields = [
             'id', 'order', 'room_name', 'window_name',
             'width_cm', 'height_cm', 'mounting_type',
-            'curtain_fabric', 'curtain_meters',
-            'tulle_fabric', 'tulle_meters', 'notes',
+            'curtain_fabric', 'curtain_meters', 'curtain_gathering',
+            'tulle_fabric', 'tulle_meters', 'tulle_gathering', 'notes',
         ]
+        read_only_fields = ['curtain_meters', 'tulle_meters']
+
+    def _apply_meterage(self, validated_data, instance=None):
+        from atelier_erp.services.measurement_calc import compute_meters
+
+        def resolved(field, default):
+            if field in validated_data:
+                return validated_data[field]
+            if instance is not None:
+                return getattr(instance, field)
+            return default
+
+        width = resolved('width_cm', 0)
+        curtain_fabric = resolved('curtain_fabric', None)
+        tulle_fabric = resolved('tulle_fabric', None)
+
+        validated_data['curtain_meters'] = compute_meters(
+            width, resolved('curtain_gathering', Decimal('2.2')),
+            has_fabric=curtain_fabric is not None,
+        )
+        validated_data['tulle_meters'] = compute_meters(
+            width, resolved('tulle_gathering', Decimal('2.0')),
+            has_fabric=tulle_fabric is not None,
+        )
+        return validated_data
+
+    def create(self, validated_data):
+        return super().create(self._apply_meterage(validated_data))
+
+    def update(self, instance, validated_data):
+        return super().update(instance, self._apply_meterage(validated_data, instance=instance))
 
 
 class QuoteItemSerializer(serializers.ModelSerializer):

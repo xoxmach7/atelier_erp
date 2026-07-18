@@ -93,6 +93,27 @@ class TestMeasurementCreateEndpoint(TestCase):
         assert m.curtain_meters == Decimal('4.4')   # 200 × 2.2(default) / 100
         assert m.tulle_meters == Decimal('0')       # тюль не выбран
 
+    def test_patch_recomputes_meters_and_ignores_client_value(self):
+        """PATCH /measurements/{id}/ (веб-путь) тоже считает метраж сам."""
+        resp = self._post({
+            'room_name': 'Зал', 'width': 200, 'height': 220,
+            'curtain_fabric_name': 'Бархат', 'curtain_gathering': '2.0',
+        })
+        assert resp.status_code == 201, resp.content
+        m = Measurement.objects.get(order=self.order)
+        assert m.curtain_meters == Decimal('4.0')
+
+        # Меняем сборку и пытаемся навязать метраж — сервер пересчитает сам.
+        patch = self.client.patch(
+            f'/api/v1/measurements/{m.id}/',
+            {'curtain_gathering': '2.5', 'curtain_meters': '999'},
+            format='json',
+        )
+        assert patch.status_code == 200, patch.content
+        m.refresh_from_db()
+        assert m.curtain_gathering == Decimal('2.5')
+        assert m.curtain_meters == Decimal('5.0')   # 200 × 2.5 / 100, не 999
+
     def test_client_supplied_meters_ignored(self):
         # Клиент пытается навязать метраж — сервер его игнорирует и считает сам.
         resp = self._post({
