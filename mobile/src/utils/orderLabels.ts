@@ -1,12 +1,15 @@
 import type { OrderStatus } from '../types/order';
 
+// Должно совпадать с Order.Status на бэкенде (единый источник истины) и с
+// frontend/src/components/shared/status-badge.tsx. Расхождение подписей =
+// разный текст на вебе и в мобилке для одного и того же заказа.
 export const STATUS_LABELS: Record<OrderStatus, string> = {
   new: 'Новый',
   in_work: 'В работе',
   in_production: 'В производстве',
   ready: 'Готов',
-  on_installation: 'Установка',
-  waiting_final_payment: 'Ожидает оплаты',
+  on_installation: 'На установке / выдаче',
+  waiting_final_payment: 'Ожидает финальной оплаты',
   completed: 'Завершён',
   cancelled: 'Отменён',
 };
@@ -57,13 +60,15 @@ export function getOrderIndicator(
   _materialReadiness?: string | null,
   isOverdue?: boolean
 ): OrderIndicator {
+  // Подписи всегда берём из STATUS_LABELS (getStatusLabel), чтобы не заводить
+  // третью копию текстов. Здесь выбирается только ЦВЕТ (variant).
+  // Исключение — «Просрочен»: это производное состояние, а не статус заказа.
   const s = (status ?? '').toLowerCase();
-  if (s === 'cancelled') return { variant: 'danger', label: 'Отменён' };
+  if (s === 'cancelled') return { variant: 'danger', label: getStatusLabel(s) };
   if (isOverdue) return { variant: 'danger', label: 'Просрочен' };
-  if (s === 'completed') return { variant: 'neutral', label: 'Завершён' };
+  if (s === 'completed') return { variant: 'neutral', label: getStatusLabel(s) };
   if (s === 'ready' || s === 'on_installation') return { variant: 'success', label: getStatusLabel(s) };
-  if (s === 'waiting_final_payment') return { variant: 'warning', label: 'Ожидает оплаты' };
-  if (s === 'in_production') return { variant: 'primary', label: 'В производстве' };
-  if (s === 'in_work') return { variant: 'primary', label: 'В работе' };
+  if (s === 'waiting_final_payment') return { variant: 'warning', label: getStatusLabel(s) };
+  if (s === 'in_production' || s === 'in_work') return { variant: 'primary', label: getStatusLabel(s) };
   return { variant: 'neutral', label: getStatusLabel(s) };
 }

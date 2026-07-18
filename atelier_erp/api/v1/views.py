@@ -1203,16 +1203,12 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
             'order_material_readiness_label': order.get_material_readiness_display(),
         })
 
-STATUS_LABELS = {
-    'new': 'Новый',
-    'in_work': 'В работе',
-    'in_production': 'В производстве',
-    'ready': 'Готов к установке',
-    'on_installation': 'На установке',
-    'waiting_final_payment': 'Ожидает финальной оплаты',
-    'completed': 'Завершён',
-    'cancelled': 'Отменён',
-}
+# Единый источник истины для подписей статусов — Order.Status на модели.
+# Раньше здесь был отдельный словарь, из-за чего рабочие очереди отдавали
+# 'Готов к установке'/'На установке', а сериализаторы (get_status_display) —
+# 'Готов'/'На установке / выдаче'. Один заказ получал разную подпись в
+# зависимости от эндпоинта, а веб и мобилка держали ещё по своей копии.
+STATUS_LABELS = {value: str(label) for value, label in Order.Status.choices}
 
 MATERIAL_LABELS = {
     MaterialReadiness.NOT_READY: 'Не готово',

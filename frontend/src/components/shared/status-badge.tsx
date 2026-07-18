@@ -12,6 +12,12 @@ type StatusType = OrderStatus | TaskStatus | ProductionStatus | PaymentStatus | 
 
 interface StatusBadgeProps {
   status: StatusType;
+  /**
+   * Готовая подпись с бэкенда (`status_label`). Если передана — имеет приоритет
+   * над локальным словарём: бэкенд единственный источник истины для текста
+   * статуса. Локальный словарь остаётся fallback'ом, когда label не передан.
+   */
+  label?: string;
   className?: string;
 }
 
@@ -53,11 +59,14 @@ const statusStyles: Record<string, string> = {
 };
 
 const statusLabels: Record<string, string> = {
+  // Должно совпадать с Order.Status на бэкенде (единый источник истины) и с
+  // mobile/src/utils/orderLabels.ts. Расхождение подписей = разный текст на
+  // вебе и в мобилке для одного и того же заказа.
   new: "Новый",
   in_work: "В работе",
   in_production: "В производстве",
   ready: "Готов",
-  on_installation: "Установка / выдача",
+  on_installation: "На установке / выдаче",
   waiting_final_payment: "Ожидает финальной оплаты",
   completed: "Завершён",
   cancelled: "Отменён",
@@ -100,12 +109,12 @@ function humanizeStatus(status: string): string {
   return statusLabels[status] || status.replaceAll("_", " ");
 }
 
-export function StatusBadge({ status, className }: StatusBadgeProps) {
+export function StatusBadge({ status, label, className }: StatusBadgeProps) {
   const style = statusStyles[status] || "bg-slate-100 text-slate-700";
 
   return (
     <Badge variant="secondary" className={cn(style, className)}>
-      {humanizeStatus(status)}
+      {label || humanizeStatus(status)}
     </Badge>
   );
 }
