@@ -50,7 +50,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useRole } from "@/hooks/useRole";
 import { useQuote } from "@/hooks/useQuotes";
-import { useDeleteMeasurement } from "@/hooks/useMeasurements";
+import { useDeleteMeasurement, useUpdateMeasurement } from "@/hooks/useMeasurements";
 import { shortOrderNumber } from "@/lib/order-number";
 import type { MeasurementDTO } from "@/types/measurement";
 import { useCreatePayment, useDeletePayment } from "@/hooks/usePayments";
@@ -282,14 +282,19 @@ function MeasurementRow({
   editable = false,
   onEdit,
   onDelete,
+  onQuantityChange,
+  savingQty = false,
 }: {
   measurement: MeasurementDTO;
   price: number | null;
   editable?: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
+  onQuantityChange?: (next: number) => void;
+  savingQty?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const qty = Math.max(1, Math.round(Number(measurement.quantity ?? 1)));
   const dims =
     measurement.width_cm && measurement.height_cm
       ? ` (${measurement.width_cm}x${measurement.height_cm})`
@@ -313,9 +318,12 @@ function MeasurementRow({
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <span className="text-[14px] font-medium text-[#0F172A] whitespace-nowrap">
-            {price != null ? fmtCurrency(price) : "—"}
-          </span>
+          <div className="text-right">
+            <span className="text-[14px] font-medium text-[#0F172A] whitespace-nowrap">
+              {price != null ? fmtCurrency(price) : "—"}
+            </span>
+            {qty > 1 && <div className="text-[12px] text-[#94A3B8]">({qty} шт.)</div>}
+          </div>
           {open ? (
             <ChevronUp size={16} className="text-[#94A3B8]" />
           ) : (
@@ -363,13 +371,30 @@ function MeasurementRow({
             )}
           </div>
 
-          {/* Количество — одно окно = одно изделие, поле в замере не хранится. */}
+          {/* Количество одинаковых изделий по окну: повторяющиеся окна не
+              заводят отдельными замерами, а увеличивают количество здесь. */}
           <div className="mt-3 flex items-center gap-3">
             <span className="text-[#0F172A] font-medium">Количество:</span>
-            <span className="inline-flex items-center gap-3 rounded-[10px] bg-[#F1F5F9] px-3 py-1">
-              <span className="text-[#94A3B8]">−</span>
-              <span className="text-[14px] text-[#0F172A]">1</span>
-              <span className="text-[#94A3B8]">+</span>
+            <span className="inline-flex items-center gap-1 rounded-[10px] bg-[#F1F5F9] px-1 py-1">
+              <button
+                type="button"
+                onClick={() => onQuantityChange?.(Math.max(1, qty - 1))}
+                disabled={!editable || qty <= 1 || savingQty}
+                className="grid h-7 w-7 place-items-center rounded-[8px] text-[#475569] transition-colors hover:bg-white disabled:opacity-40"
+                aria-label="Уменьшить количество"
+              >
+                <Minus size={14} />
+              </button>
+              <span className="min-w-[24px] text-center text-[14px] text-[#0F172A]">{qty}</span>
+              <button
+                type="button"
+                onClick={() => onQuantityChange?.(qty + 1)}
+                disabled={!editable || savingQty}
+                className="grid h-7 w-7 place-items-center rounded-[8px] text-[#475569] transition-colors hover:bg-white disabled:opacity-40"
+                aria-label="Увеличить количество"
+              >
+                <Plus size={14} />
+              </button>
             </span>
           </div>
 
@@ -832,6 +857,8 @@ export default function OrderDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [productionModalOpen, setProductionModalOpen] = useState(false);
   const [measurementModalOpen, setMeasurementModalOpen] = useState(false);
+  // Замер, открытый на редактирование из блока «Позиции».
+  const [editingMeasurement, setEditingMeasurement] = useState<MeasurementDTO | null>(null);
   const [kpModalOpen, setKPModalOpen] = useState(false);
   const [prepayModalOpen, setPrepayModalOpen] = useState(false);
   const [prepayLoading, setPrepayLoading] = useState(false);
@@ -860,6 +887,16 @@ export default function OrderDetailPage() {
   const quoteId = order?.related_quotes?.[0]?.id ?? order?.source_quote?.id ?? null;
   const { data: quoteDetail } = useQuote(quoteId);
   const deleteMeasurementMutation = useDeleteMeasurement();
+  const updateMeasurementMutation = useUpdateMeasurement();
+
+  async function handleMeasurementQty(measurementId: string, next: number) {
+    try {
+      await updateMeasurementMutation.mutateAsync({ id: measurementId, data: { quantity: next } });
+      await refetchOrder();
+    } catch (e) {
+      alert((e as Error)?.message ?? "Не удалось изменить количество");
+    }
+  }
 
   async function handleDeleteMeasurement(measurementId: string) {
     if (!confirm("Удалить замер?")) return;
@@ -1213,8 +1250,13 @@ export default function OrderDetailPage() {
                         measurement={line.measurement}
                         price={line.price}
                         editable={isOwnerOrDesigner}
-                        onEdit={() => setKPModalOpen(true)}
+                        onEdit={() => {
+                          setEditingMeasurement(line.measurement);
+                          setMeasurementModalOpen(true);
+                        }}
                         onDelete={() => handleDeleteMeasurement(line.id)}
+                        onQuantityChange={(next) => handleMeasurementQty(line.id, next)}
+                        savingQty={updateMeasurementMutation.isPending}
                       />
                     ))}
                     <div className="flex items-center justify-between pt-4 mt-2 pl-1 pr-[32px]">
@@ -1481,10 +1523,17 @@ export default function OrderDetailPage() {
       {/* ── Measurement Modal ──────────────────────────────────── */}
       <CreateMeasurementModal
         isOpen={measurementModalOpen}
-        onClose={() => setMeasurementModalOpen(false)}
+        onClose={() => {
+          setMeasurementModalOpen(false);
+          setEditingMeasurement(null);
+        }}
         orderId={orderId}
+        // Передан замер — модалка открывается на редактирование.
+        measurement={editingMeasurement}
         onSuccess={() => {
           setMeasurementModalOpen(false);
+          setEditingMeasurement(null);
+          refetchOrder();
         }}
       />
 

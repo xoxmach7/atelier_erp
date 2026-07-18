@@ -249,6 +249,8 @@ class OrderExecutionService:
                 'sewing_done': m.sewing_done,
                 # Установщик отмечает по каждому окну, что изделие повешено
                 'installation_done': m.installation_done,
+                # Сколько одинаковых изделий по этому окну
+                'quantity': m.quantity,
                 'photos': [
                     {
                         'id': str(p.id),

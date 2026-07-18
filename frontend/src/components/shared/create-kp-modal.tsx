@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ModalCloseX } from "./modal-close";
-import { useCreateQuote, type CreateQuoteInput } from "@/hooks/useQuotes";
+import { useCreateQuote, useQuote, type CreateQuoteInput } from "@/hooks/useQuotes";
 import { useOrder } from "@/hooks/useOrders";
 import { generateQuotePdf } from "@/services/http/orders";
 import type { OrderDetailDTO, OrderItemDTO } from "@/types";
@@ -33,14 +33,22 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
   const { data: fetchedOrder } = useOrder(orderProp ? null : orderId);
   const order = orderProp ?? fetchedOrder;
 
+  // Значения по умолчанию берутся из уже созданного КП (см. useEffect ниже):
+  // открыв КП повторно, пользователь должен увидеть то, что сохранял.
   const [discountPercent, setDiscountPercent] = useState("");
   const [installPrice, setInstallPrice] = useState("");
   const [prepayPct, setPrepayPct] = useState("50");
+  const [prefilled, setPrefilled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const createQuoteMutation = useCreateQuote();
   const items: OrderItemDTO[] = order?.items ?? [];
+
+  // Существующее КП: из него берутся уже проставленные цены по окнам,
+  // а также прежние установка/скидка/предоплата.
+  const quoteId = order?.related_quotes?.[0]?.id ?? order?.source_quote?.id ?? null;
+  const { data: quoteDetail } = useQuote(quoteId);
 
   /**
    * Строки КП: позиции заказа, а если их ещё нет — замеры.
@@ -68,20 +76,30 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
         folds: it.folds_count ?? 0,
       }));
     }
-    return (order?.measurements ?? []).map((m) => ({
-      key: m.id,
-      room: m.room_name || "Комната",
-      window: m.window_name || "Окно",
-      width: m.width_cm ?? 0,
-      height: m.height_cm ?? 0,
-      qty: 1,
-      price: parseFloat(prices[m.id] || "0") || 0,
-      editable: true,
-      fabric: null as string | null,
-      sewingType: "standard",
-      folds: 0,
-    }));
-  }, [items, order?.measurements, prices]);
+    return (order?.measurements ?? []).map((m) => {
+      // Цена уже посчитана в КП — подставляем её, а не спрашиваем заново.
+      // Меняются только установка, скидка и предоплата; вручную цену можно
+      // задать, если КП ещё нет или её нужно поправить.
+      const fromQuote = quoteDetail?.items?.find(
+        (qi) => qi.room_name === m.room_name && qi.window_name === m.window_name
+      );
+      const typed = prices[m.id];
+      const hasTyped = typed !== undefined && typed !== "";
+      return {
+        key: m.id,
+        room: m.room_name || "Комната",
+        window: m.window_name || "Окно",
+        width: m.width_cm ?? 0,
+        height: m.height_cm ?? 0,
+        qty: 1,
+        price: hasTyped ? parseFloat(typed) || 0 : Number(fromQuote?.line_total ?? 0),
+        editable: true,
+        fabric: null as string | null,
+        sewingType: "standard",
+        folds: 0,
+      };
+    });
+  }, [items, order?.measurements, prices, quoteDetail]);
 
   const totals = useMemo(() => {
     const subtotal = lines.reduce((s, l) => s + l.price, 0);
@@ -95,10 +113,26 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
     return { subtotal, discountAmt, installAmt, total };
   }, [lines, discountPercent, installPrice]);
 
+  // Подставляем сохранённые значения один раз за открытие модалки, иначе
+  // правки пользователя затирались бы при каждом перерисовывании.
+  useEffect(() => {
+    if (!isOpen || prefilled || !quoteDetail) return;
+    const install = Number(quoteDetail.installation_cost ?? 0);
+    const subtotal = Number(quoteDetail.subtotal ?? 0);
+    const discount = Number(quoteDetail.discount_amount ?? 0);
+    const base = subtotal + install;
+    if (install > 0) setInstallPrice(String(Math.round(install)));
+    if (discount > 0 && base > 0) setDiscountPercent(String(Math.round((discount / base) * 100)));
+    if (quoteDetail.prepayment_percent) {
+      setPrepayPct(String(Math.round(Number(quoteDetail.prepayment_percent) * 100)));
+    }
+    setPrefilled(true);
+  }, [isOpen, prefilled, quoteDetail]);
+
   const customerId = typeof order?.customer === "object" ? order.customer.id : order?.customer ?? "";
 
   const reset = () => {
-    setDiscountPercent(""); setInstallPrice(""); setPrepayPct("50"); setErr(null); setPrices({});
+    setDiscountPercent(""); setInstallPrice(""); setPrepayPct("50"); setErr(null); setPrices({}); setPrefilled(false);
   };
   const close = () => { reset(); onClose(); };
 

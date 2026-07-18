@@ -1014,6 +1014,9 @@ class Measurement(UUIDModel):
     # Установщик отмечает по каждому окну, что изделие установлено.
     # Третий независимый флаг: склад собрал → цех сшил → монтаж повесил.
     installation_done = models.BooleanField(default=False, db_index=True)
+    # Сколько одинаковых изделий по этому окну. Повторяющиеся окна не заводят
+    # отдельными замерами — увеличивают количество здесь.
+    quantity = models.PositiveIntegerField(default=1)
     measured_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     measured_at = models.DateTimeField(auto_now_add=True, db_index=True)
     

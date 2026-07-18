@@ -197,7 +197,7 @@ class MeasurementSerializer(serializers.ModelSerializer):
             # Phase 3: Curtain and tulle fabrics
             'curtain_fabric', 'curtain_fabric_details', 'curtain_meters', 'curtain_gathering',
             'tulle_fabric', 'tulle_fabric_details', 'tulle_meters', 'tulle_gathering',
-            'notes', 'materials_ready', 'sewing_done', 'installation_done',
+            'notes', 'materials_ready', 'sewing_done', 'installation_done', 'quantity',
         ]
 
 
@@ -272,7 +272,7 @@ class MeasurementWriteSerializer(serializers.ModelSerializer):
             'width_cm', 'height_cm', 'mounting_type',
             'curtain_fabric', 'curtain_meters', 'curtain_gathering',
             'tulle_fabric', 'tulle_meters', 'tulle_gathering', 'notes',
-            'materials_ready', 'sewing_done', 'installation_done',
+            'materials_ready', 'sewing_done', 'installation_done', 'quantity',
         ]
         read_only_fields = ['curtain_meters', 'tulle_meters']
 

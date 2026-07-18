@@ -114,6 +114,8 @@ export interface MeasurementDTO {
   tulle_fabric_name?: string;     // For list view
   tulle_meters: number;
   notes: string;
+  /** Сколько одинаковых изделий по этому окну (повторяющиеся окна). */
+  quantity?: number;
   measured_by: string | null; // User ID
   measured_by_name: string | null; // Display name from backend
   measured_at: string;

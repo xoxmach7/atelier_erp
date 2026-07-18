@@ -96,6 +96,25 @@ class TestMeasurementRoleFlags(TestCase):
         )
         assert resp.status_code == 403
 
+    def test_designer_can_change_quantity(self):
+        """Повторяющиеся окна не заводят отдельными замерами — растят количество."""
+        client = self._client_for(Roles.DESIGNER)
+        resp = client.patch(self._url(), {'quantity': 3}, format='json')
+        assert resp.status_code == 200, resp.content
+        self.measurement.refresh_from_db()
+        assert self.measurement.quantity == 3
+
+    def test_quantity_defaults_to_one(self):
+        assert self.measurement.quantity == 1
+
+    def test_executor_cannot_change_quantity(self):
+        """Складу и цеху количество менять нельзя — только свою галочку."""
+        client = self._client_for(Roles.WAREHOUSE)
+        resp = client.patch(self._url(), {'quantity': 7}, format='json')
+        assert resp.status_code == 200, resp.content
+        self.measurement.refresh_from_db()
+        assert self.measurement.quantity == 1
+
     def test_designer_still_has_full_edit(self):
         client = self._client_for(Roles.DESIGNER)
         resp = client.patch(self._url(), {'width_cm': 220}, format='json')
