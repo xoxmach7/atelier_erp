@@ -32,7 +32,12 @@
       "PowerShell(git status --short; Write-Output \"=== untracked/ignored cruft ===\"; git clean -nxd | Where-Object { $_ -notmatch 'node_modules|\\\\.next|__pycache__|\\\\.venv|venv/' } | Select-Object -First 30; Write-Output \"=== gc ===\"; git count-objects -vH | Select-String 'size-pack|count')",
       "Bash(grep -rn 'ENDPOINT}/\\\\|_ENDPOINT}/' src/services/http/)",
       "Bash(echo \"--- exit $? ---\")",
-      "PowerShell(git add -A)"
+      "PowerShell(git add -A)",
+      "Bash(curl -sSL --max-time 30 \"https://app.mcpmarket.com/install/fWSTPjvlZUdrd2zq1n_AZf8oI46k8C-vfBv5lTRjSbU\" -o mcpmarket-install.sh)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(bash mcpmarket-install.sh)",
+      "Bash(sed -i 's|const path = patch.mock.calls\\\\[0\\\\]\\\\[0\\\\] as unknown as string;|const path = patch.mock.calls[0][0];|; s|const path = post.mock.calls\\\\[0\\\\]\\\\[0\\\\] as unknown as string;|const path = post.mock.calls[0][0];|' src/services/http/endpoints.test.ts)",
+      "Bash(sed -i 's|      .map\\(\\(args\\) => args\\\\[0\\\\]\\)|      .map\\(\\(args\\) => args[0]\\)|' src/services/http/endpoints.test.ts)"
     ]
   }
 }
