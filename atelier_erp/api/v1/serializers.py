@@ -94,6 +94,9 @@ class OrderListSerializer(serializers.ModelSerializer):
     balance_due = serializers.DecimalField(source='remaining_amount', max_digits=12, decimal_places=2, read_only=True)
     designer_name = serializers.SerializerMethodField()
     ui_badge = serializers.SerializerMethodField()
+    # Производное состояние: считается из planned_completion и статуса.
+    # Фронт группирует по нему пилюлю «Просрочено».
+    is_overdue = serializers.BooleanField(read_only=True)
     material_readiness_label = serializers.CharField(source='get_material_readiness_display', read_only=True)
     production_stage_label = serializers.CharField(source='get_production_stage_display', read_only=True)
     handover_stage_label = serializers.CharField(source='get_handover_stage_display', read_only=True)
@@ -102,7 +105,7 @@ class OrderListSerializer(serializers.ModelSerializer):
         model = Order
         fields = [
             'id', 'order_number', 'customer', 'customer_name', 'customer_phone',
-            'status', 'status_display', 'ui_badge',
+            'status', 'status_display', 'ui_badge', 'is_overdue',
             'total_amount', 'paid_amount', 'balance_due',
             'designer_name', 'created_at', 'planned_completion',
             'material_readiness', 'material_readiness_label',
@@ -356,6 +359,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     
     # Payment info
     is_paid = serializers.BooleanField(read_only=True)
+    is_overdue = serializers.BooleanField(read_only=True)
     balance_due = serializers.DecimalField(source='remaining_amount', max_digits=12, decimal_places=2, read_only=True)
     payment_state = serializers.SerializerMethodField()
     payment_state_label = serializers.SerializerMethodField()
@@ -375,7 +379,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
         model = Order
         fields = [
             'id', 'order_number', 'customer', 'status', 'status_label',
-            'total_amount', 'paid_amount', 'is_paid', 'balance_due',
+            'total_amount', 'paid_amount', 'is_paid', 'balance_due', 'is_overdue',
             'payment_state', 'payment_state_label',
             'items', 'notes',
             'material_readiness', 'material_readiness_label',

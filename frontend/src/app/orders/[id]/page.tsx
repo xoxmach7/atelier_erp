@@ -977,8 +977,8 @@ export default function OrderDetailPage() {
                 <InfoCell label="Создан">{fmtDate(order.created_at)}</InfoCell>
                 <InfoCell label="Дизайнер">{getDesignerName(order)}</InfoCell>
                 <InfoCell label="Статус">
-                  <span className="font-medium" style={{ color: getCoarseStatus(order.status).color }}>
-                    {getCoarseStatus(order.status).label}
+                  <span className="font-medium" style={{ color: getCoarseStatus(order.status, order.is_overdue).color }}>
+                    {getCoarseStatus(order.status, order.is_overdue).label}
                   </span>
                 </InfoCell>
                 <InfoCell label="Дата замера">{fmtDate(order.measurement_date)}</InfoCell>

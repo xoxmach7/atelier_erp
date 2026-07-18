@@ -62,7 +62,7 @@ function OrdersContent() {
 
 
     // List status pill filter
-    if (listStatusFilter && getListStatus(o.status) !== listStatusFilter) return false;
+    if (listStatusFilter && getListStatus(o.status, o.is_overdue) !== listStatusFilter) return false;
 
     // Date range filter
     if (dateFrom && o.created_at) {
@@ -83,7 +83,7 @@ function OrdersContent() {
   });
 
   function countByLS(ls: Exclude<ListStatusKey, "">) {
-    return baseOrders.filter((o) => getListStatus(o.status) === ls).length;
+    return baseOrders.filter((o) => getListStatus(o.status, o.is_overdue) === ls).length;
   }
 
   const hasActiveFilters = !!listStatusFilter || !!dateFrom || !!dateTo;
@@ -307,7 +307,7 @@ function OrdersContent() {
                       )}
                       <td className="px-6 py-4">
                         {(() => {
-                          const d = getCoarseStatus(order.status);
+                          const d = getCoarseStatus(order.status, order.is_overdue);
                           return <span className="font-medium" style={{ color: d.color }}>{d.label}</span>;
                         })()}
                       </td>

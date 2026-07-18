@@ -30,8 +30,12 @@ ORDER_STATUS_GROUPS = {
         Order.Status.NEW,
         Order.Status.WAITING_FINAL_PAYMENT,
     ],
+    # Отменённые лежат здесь же: иначе такой заказ не попадает ни в одну
+    # пилюлю и виден только в «Все». Так же сгруппировано на вебе
+    # (frontend/src/lib/list-status.ts, ключ "done").
     'completed': [
         Order.Status.COMPLETED,
+        Order.Status.CANCELLED,
     ],
 }
 

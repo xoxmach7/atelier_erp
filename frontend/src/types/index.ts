@@ -71,6 +71,8 @@ export interface OrderListItemDTO {
   balance_due: string;
   measurement_date: string | null;
   planned_completion: string | null;
+  /** Производное состояние с бэка: дедлайн прошёл и заказ не закрыт. */
+  is_overdue?: boolean;
   created_at: string;
   designer_name?: string;
   status_display?: string;
@@ -165,6 +167,8 @@ export interface OrderDetailDTO {
   balance_due: string;
   measurement_date: string | null;
   planned_completion: string | null;
+  /** Производное состояние с бэка: дедлайн прошёл и заказ не закрыт. */
+  is_overdue?: boolean;
   created_at: string;
 
   // V1 API returns customer as nested object (CustomerMinimalSerializer)

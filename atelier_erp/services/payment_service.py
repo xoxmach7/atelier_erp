@@ -114,8 +114,17 @@ class PaymentService:
         # Update order paid amount
         order.paid_amount += amount
         order.save(update_fields=['paid_amount', 'updated_at'])
-        
-        
+
+        # Заказ доплачен — закрываем. Только из waiting_final_payment:
+        # 100% предоплата на раннем этапе не должна завершать заказ, по
+        # которому ещё не сшили и не установили.
+        if (
+            order.paid_amount >= order.total_amount
+            and order.status == Order.Status.WAITING_FINAL_PAYMENT
+        ):
+            from .status_automation import auto_advance
+            auto_advance(order, Order.Status.COMPLETED, "заказ полностью оплачен", received_by)
+
         return payment
     
     def record_prepayment(

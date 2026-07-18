@@ -2,7 +2,13 @@ import { describe, it, expect } from "vitest";
 import { getListStatus, getCoarseStatus, LIST_STATUS_DISPLAY } from "./list-status";
 
 describe("getListStatus (укрупнённый статус)", () => {
-  it("overdue → overdue", () => expect(getListStatus("overdue")).toBe("overdue"));
+  it("флаг is_overdue → overdue, перебивает стадию", () => {
+    expect(getListStatus("in_work", true)).toBe("overdue");
+  });
+  it("просрочка не применяется к закрытым заказам", () => {
+    expect(getListStatus("completed", true)).toBe("done");
+    expect(getListStatus("cancelled", true)).toBe("done");
+  });
   it("completed/cancelled → done", () => {
     expect(getListStatus("completed")).toBe("done");
     expect(getListStatus("cancelled")).toBe("done");

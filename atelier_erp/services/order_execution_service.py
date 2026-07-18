@@ -978,7 +978,12 @@ class OrderExecutionService:
                 changed_by_id=changed_by,
                 notes=f"Material readiness changed: {old_value} -> {material_readiness}. {notes}".strip()
             )
-        
+
+        # Материалы обеспечены — пошив может начинаться.
+        if material_readiness == MaterialReadiness.READY and order.status == Order.Status.IN_WORK:
+            from .status_automation import auto_advance
+            auto_advance(order, Order.Status.IN_PRODUCTION, "материалы готовы", changed_by)
+
         return order, warnings
     
     def change_production_stage(
@@ -1030,7 +1035,12 @@ class OrderExecutionService:
                 changed_by_id=changed_by,
                 notes=f"Production stage changed: {old_value} -> {production_stage}. {notes}".strip()
             )
-        
+
+        # Пошив завершён — заказ готов.
+        if production_stage == ProductionStage.DONE:
+            from .status_automation import auto_advance
+            auto_advance(order, Order.Status.READY, "производство завершено", changed_by)
+
         return order
     
     def change_handover_stage(
@@ -1119,10 +1129,18 @@ class OrderExecutionService:
         
         # Check if can auto-complete (handover done AND fully paid)
         can_auto_complete = (
-            handover_stage == HandoverStage.DONE and 
+            handover_stage == HandoverStage.DONE and
             order.paid_amount >= order.total_amount
         )
-        
+
+        # Раньше флаг только возвращался наружу, и его никто не применял —
+        # заказ так и оставался незакрытым. Пробуем завершить сами; если не
+        # хватает АВР или фотоотчёта, transition_status_mvp не пропустит и
+        # заказ просто останется в текущем статусе.
+        if can_auto_complete:
+            from .status_automation import auto_advance
+            auto_advance(order, Order.Status.COMPLETED, "установка завершена и оплачена", changed_by)
+
         return order, can_auto_complete
     
     def cancel_order(

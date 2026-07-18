@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 from django.db import transaction
 from django.utils import timezone
 
-from ..models import Quote, QuoteItem, Task, Fabric, Cornice, Customer
+from ..models import Quote, QuoteItem, Task, Fabric, Cornice, Customer, Order
 from ..constants import SewingRates, MeasurementConfig, GatheringRatios
 from .exceptions import QuoteNotFoundError, QuoteServiceError, QuoteExpiredError, QuoteNotApprovedError
 
@@ -235,6 +235,15 @@ class QuoteService:
 
             quote.status = Quote.Status.APPROVED
             quote.save(update_fields=['status', 'updated_at'])
+
+        # Обратный порядок действий: позиции уже сформированы, а КП одобряют
+        # после — тогда переход в in_work открывается именно сейчас.
+        # Если позиций ещё нет, auto_advance молча ничего не сделает, и заказ
+        # уедет в in_work позже, при генерации позиций.
+        order = quote.order
+        if order and order.status == Order.Status.NEW:
+            from .status_automation import auto_advance
+            auto_advance(order, Order.Status.IN_WORK, "КП одобрено")
 
         return quote
     

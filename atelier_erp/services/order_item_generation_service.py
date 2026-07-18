@@ -140,7 +140,14 @@ class OrderItemGenerationService:
                 order, quote_item
             )
             created_items.append(order_item)
-        
+
+        # Позиции сформированы из одобренного КП — заказ перестал быть заявкой.
+        # Момент выбран именно здесь: FSM пускает в in_work только когда есть
+        # и одобренное КП, и позиции, так что раньше переход всё равно не прошёл бы.
+        if created_items and order.status == Order.Status.NEW:
+            from .status_automation import auto_advance
+            auto_advance(order, Order.Status.IN_WORK, "позиции сформированы из КП", self.user)
+
         return created_items
     
     def _create_order_item_from_quote_item(
