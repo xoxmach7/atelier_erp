@@ -401,7 +401,10 @@ export default function OrderDetailScreen() {
             disabled={changingStatus || isExecutor}
           >
             <Text style={s.addrLine}>
-              <Text style={s.addrLabel}>Статус: </Text>{data.status_label || '—'}
+              {/* Показываем группу, а не сырой статус FSM: иначе список
+                  говорит «Просрочен», а карточка — «Ожидает финальной оплаты». */}
+              <Text style={s.addrLabel}>Статус: </Text>
+              {data.status_group_label || data.status_label || '—'}
             </Text>
             {changingStatus && <ActivityIndicator size="small" color="#60CCED" />}
             {!changingStatus && !isExecutor && <Text style={s.statusChange}>изменить</Text>}

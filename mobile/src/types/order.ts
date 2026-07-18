@@ -26,6 +26,12 @@ export interface Order {
   material_readiness?: string;
   ui_badge?: { color: 'red' | 'yellow' | 'green' | 'gray'; label: string };
   /**
+   * Группа статуса с бэка — то, что показывается пользователю: «В работе»,
+   * «Ожидание», «Завершён», «Просрочен». Сырой `status` наружу не выводим.
+   */
+  status_group?: string;
+  status_group_label?: string;
+  /**
    * Ролевой подстатус с бэка: 'execution' | null. Заполняется только для
    * швейного цеха и установщика (см. api/v1/substatus.py).
    */

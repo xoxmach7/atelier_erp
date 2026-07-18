@@ -361,7 +361,11 @@ export interface OrderExecution {
     address?: string | { city?: string; street?: string; building?: string; apartment?: string };
   };
   status: string;
+  /** Сырой статус FSM — для показа пользователю не годится. */
   status_label: string;
+  /** Группа статуса: то, что видит пользователь (4 значения). */
+  status_group?: string;
+  status_group_label?: string;
   material_readiness: string;
   material_readiness_label: string;
   production_stage: string;

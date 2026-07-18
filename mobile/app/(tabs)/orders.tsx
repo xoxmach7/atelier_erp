@@ -83,7 +83,11 @@ function OrderCard({ order, warehouse, onPress }: {
   const designer = order.designer_name?.split(' ')[0] ?? '—';
   const indicator = getOrderIndicator(order.status, order.material_readiness, isOverdue(order));
   // Склад видит обеспечение материалами (Закуп/Сборка/Готово),
-  // остальные роли — статус заказа.
+  // остальные роли — группу статуса заказа.
+  //
+  // Подпись берём с бэка (status_group_label / ui_badge.label), а не считаем
+  // сами: локальный расчёт был третьей копией правил и расходился с карточкой
+  // заказа — в списке «Просрочен», внутри «Новый».
   const indColor = warehouse
     ? getWarehouseColor(order.material_readiness)
     : (order.ui_badge?.color && BADGE_HEX[order.ui_badge.color]
@@ -91,7 +95,7 @@ function OrderCard({ order, warehouse, onPress }: {
         : INDICATOR_COLOR[indicator.variant]);
   const label = warehouse
     ? getWarehouseLabel(order.material_readiness)
-    : (order.ui_badge?.label ?? indicator.label);
+    : (order.status_group_label ?? order.ui_badge?.label ?? indicator.label);
   return (
     <TouchableOpacity style={card.wrap} onPress={onPress} activeOpacity={0.6}>
       <View style={card.content}>

@@ -16,6 +16,7 @@ from ..constants import (
     MaterialReadiness, ProductionStage, HandoverStage
 )
 from .exceptions import OrderValidationError, InvalidOrderStatusTransition
+from ..api.v1.status_groups import get_status_group, get_status_group_label
 
 
 class OrderExecutionService:
@@ -59,6 +60,10 @@ class OrderExecutionService:
             'customer': self._get_customer_summary(order),
             'status': order.status,
             'status_label': order.get_status_display(),
+            # Пользователю показывается группа (4 значения), а не сырой статус
+            # FSM: карточка заказа и список должны говорить одно и то же.
+            'status_group': get_status_group(order),
+            'status_group_label': get_status_group_label(order),
             'material_readiness': order.material_readiness,
             'material_readiness_label': self._get_material_readiness_label(order.material_readiness),
             'production_stage': order.production_stage,

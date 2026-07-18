@@ -15,29 +15,9 @@ import django_filters
 from django.utils import timezone
 
 from ...models import Order
-
-
-# Группа -> технические статусы FSM. Держать синхронным с
-# mobile/src/utils/orderLabels.ts (STATUS_GROUP_LABELS).
-ORDER_STATUS_GROUPS = {
-    'in_work': [
-        Order.Status.IN_WORK,
-        Order.Status.IN_PRODUCTION,
-        Order.Status.READY,
-        Order.Status.ON_INSTALLATION,
-    ],
-    'waiting': [
-        Order.Status.NEW,
-        Order.Status.WAITING_FINAL_PAYMENT,
-    ],
-    # Отменённые лежат здесь же: иначе такой заказ не попадает ни в одну
-    # пилюлю и виден только в «Все». Так же сгруппировано на вебе
-    # (frontend/src/lib/list-status.ts, ключ "done").
-    'completed': [
-        Order.Status.COMPLETED,
-        Order.Status.CANCELLED,
-    ],
-}
+# Раскладка групп живёт в status_groups.py — она нужна и фильтрам, и подписям
+# статусов в сериализаторах, поэтому вынесена в общий модуль.
+from .status_groups import ORDER_STATUS_GROUPS  # noqa: F401  (реэкспорт для обратной совместимости)
 
 
 class OrderFilterSet(django_filters.FilterSet):

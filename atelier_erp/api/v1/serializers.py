@@ -25,34 +25,35 @@ class RelatedQuoteSerializer(serializers.ModelSerializer):
 from atelier_erp.constants import MaterialReadiness
 from atelier_erp.roles import Roles, user_in
 from .substatus import get_execution_substatus
+from .status_groups import (
+    get_status_group, get_status_group_label, GROUP_LABELS,
+    IN_WORK, WAITING, COMPLETED, OVERDUE,
+)
 
 # Финансовые поля заказа, скрываемые от ролей без финансового доступа
 FINANCIAL_ORDER_FIELDS = ('total_amount', 'paid_amount', 'balance_due')
 
 
+# Цвет пилюли по группе статуса. Текст берётся из GROUP_LABELS —
+# см. status_groups.py.
+_GROUP_COLORS = {
+    OVERDUE: 'red',
+    WAITING: 'yellow',
+    IN_WORK: 'green',
+    COMPLETED: 'gray',
+}
+
+
 def compute_ui_badge(order) -> dict:
     """Возвращает {color, label} для карточки заказа на фронте/мобиле.
 
-    Приоритет:
-      1. red    — просрочен (is_overdue), перебивает всё
-      2. yellow — ожидание оплаты ИЛИ in_work без готовых материалов
-      3. green  — активное выполнение
-      4. gray   — new / completed / cancelled
+    Подпись — всегда одна из четырёх групп («В работе», «Ожидание»,
+    «Завершён», «Просрочен»). Раньше здесь были свои тексты («Новый»,
+    «Ожидание оплаты», «Ожидание материалов»), из-за чего список заказов и
+    карточка того же заказа показывали разные статусы.
     """
-    S = order.__class__.Status
-
-    if order.is_overdue:
-        return {'color': 'red', 'label': 'Просрочен'}
-
-    if order.status == S.WAITING_FINAL_PAYMENT:
-        return {'color': 'yellow', 'label': 'Ожидание оплаты'}
-    if order.status == S.IN_WORK and order.material_readiness != MaterialReadiness.READY:
-        return {'color': 'yellow', 'label': 'Ожидание материалов'}
-
-    if order.status in (S.IN_WORK, S.IN_PRODUCTION, S.ON_INSTALLATION, S.READY):
-        return {'color': 'green', 'label': 'В работе'}
-
-    return {'color': 'gray', 'label': order.get_status_display()}
+    group = get_status_group(order)
+    return {'color': _GROUP_COLORS[group], 'label': GROUP_LABELS[group]}
 
 
 class CustomerMinimalSerializer(serializers.ModelSerializer):
@@ -100,6 +101,9 @@ class OrderListSerializer(serializers.ModelSerializer):
     is_overdue = serializers.BooleanField(read_only=True)
     # Ролевой подстатус «Исполнение» (швейный цех / установщик), см. substatus.py.
     execution_substatus = serializers.SerializerMethodField()
+    # Группа статуса — то, что видит пользователь (4 значения вместо 8 статусов FSM).
+    status_group = serializers.SerializerMethodField()
+    status_group_label = serializers.SerializerMethodField()
     material_readiness_label = serializers.CharField(source='get_material_readiness_display', read_only=True)
     production_stage_label = serializers.CharField(source='get_production_stage_display', read_only=True)
     handover_stage_label = serializers.CharField(source='get_handover_stage_display', read_only=True)
@@ -108,7 +112,8 @@ class OrderListSerializer(serializers.ModelSerializer):
         model = Order
         fields = [
             'id', 'order_number', 'customer', 'customer_name', 'customer_phone',
-            'status', 'status_display', 'ui_badge', 'is_overdue', 'execution_substatus',
+            'status', 'status_display', 'status_group', 'status_group_label',
+            'ui_badge', 'is_overdue', 'execution_substatus',
             'total_amount', 'paid_amount', 'balance_due',
             'designer_name', 'created_at', 'planned_completion',
             'material_readiness', 'material_readiness_label',
@@ -130,6 +135,12 @@ class OrderListSerializer(serializers.ModelSerializer):
     def get_execution_substatus(self, obj):
         request = self.context.get('request')
         return get_execution_substatus(obj, getattr(request, 'user', None))
+
+    def get_status_group(self, obj) -> str:
+        return get_status_group(obj)
+
+    def get_status_group_label(self, obj) -> str:
+        return get_status_group_label(obj)
 
     def to_representation(self, instance):
         """Скрыть денежные поля от ролей без финансового доступа.

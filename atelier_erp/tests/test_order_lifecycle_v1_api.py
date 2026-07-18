@@ -140,9 +140,12 @@ class UIBadgeTests(APITestCase):
         from atelier_erp.api.v1.serializers import compute_ui_badge
         return compute_ui_badge(order)
 
-    def test_new_order_is_gray(self):
+    def test_new_order_is_shown_as_waiting(self):
+        """Статуса «Новый» в интерфейсе нет — заказ ждёт начала работ."""
         o = self._order(self.Order.Status.NEW)
-        self.assertEqual(self._badge(o)['color'], 'gray')
+        badge = self._badge(o)
+        self.assertEqual(badge['color'], 'yellow')
+        self.assertEqual(badge['label'], 'Ожидание')
 
     def test_completed_is_gray(self):
         o = self._order(self.Order.Status.COMPLETED)
@@ -153,18 +156,23 @@ class UIBadgeTests(APITestCase):
         o = self._order(self.Order.Status.IN_WORK, material_readiness=MaterialReadiness.READY)
         self.assertEqual(self._badge(o)['color'], 'green')
 
-    def test_in_work_without_materials_is_yellow(self):
+    def test_in_work_without_materials_is_still_in_work(self):
+        """
+        Обеспечение материалами — отдельная шкала склада (Закуп/Сборка/Готово),
+        в статусе заказа она больше не отражается: раньше здесь была подпись
+        «Ожидание материалов», которой нет среди четырёх согласованных статусов.
+        """
         from atelier_erp.constants import MaterialReadiness
         o = self._order(self.Order.Status.IN_WORK, material_readiness=MaterialReadiness.NOT_READY)
         badge = self._badge(o)
-        self.assertEqual(badge['color'], 'yellow')
-        self.assertIn('материал', badge['label'].lower())
+        self.assertEqual(badge['color'], 'green')
+        self.assertEqual(badge['label'], 'В работе')
 
-    def test_waiting_final_payment_is_yellow(self):
+    def test_waiting_final_payment_is_shown_as_waiting(self):
         o = self._order(self.Order.Status.WAITING_FINAL_PAYMENT)
         badge = self._badge(o)
         self.assertEqual(badge['color'], 'yellow')
-        self.assertIn('оплат', badge['label'].lower())
+        self.assertEqual(badge['label'], 'Ожидание')
 
     def test_in_production_is_green(self):
         o = self._order(self.Order.Status.IN_PRODUCTION)
