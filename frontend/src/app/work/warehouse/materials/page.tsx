@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ArrowLeft, Plus, Loader2, X, HelpCircle } from "lucide-react";
+import { Search, ArrowLeft, Plus, Loader2, X, HelpCircle, MoreVertical } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { ModalCloseX } from "@/components/shared/modal-close";
@@ -12,6 +12,7 @@ import {
   createInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
+  addInventoryQuantity,
 } from "@/services/http/inventory-items";
 import type { InventoryCategory, InventoryUnit, InventoryItemDTO, InventoryItemCreateInput } from "@/types";
 
@@ -70,6 +71,11 @@ function MaterialsContent() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [formError, setFormError] = useState("");
+  // «•••» у строки: id открытого меню и id позиции с открытой модалкой «Добавить количество»
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [addQtyId, setAddQtyId] = useState<string | null>(null);
+  const [addQtyValue, setAddQtyValue] = useState("");
+  const [addQtyError, setAddQtyError] = useState("");
 
   const { data: fabricsData, isLoading: fabricsLoading } = useQuery({
     queryKey: ["inventory", "fabrics", search],
@@ -116,6 +122,17 @@ function MaterialsContent() {
     mutationFn: deleteInventoryItem,
     onSuccess: onMutationSuccess,
     onError: onMutationError,
+  });
+  const addQtyMutation = useMutation({
+    mutationFn: ({ item, delta }: { item: InventoryItemDTO; delta: number }) =>
+      addInventoryQuantity(item, delta),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory", "items"] });
+      setAddQtyId(null);
+      setAddQtyValue("");
+      setAddQtyError("");
+    },
+    onError: (e: unknown) => setAddQtyError(e instanceof Error ? e.message : "Не удалось добавить"),
   });
 
   const saving = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
@@ -213,6 +230,35 @@ function MaterialsContent() {
     deleteMutation.mutate(editingId);
   };
 
+  // «•••»: те же три действия, что в мобильном меню (Добавить количество /
+  // Редактировать / Удалить) — на вебе редактирование раньше открывалось
+  // только кликом по строке, без явного меню, а «Добавить количество»
+  // отдельным действием не было вовсе (только полная перезапись остатка
+  // через форму редактирования).
+  const handleMenuDelete = (it: InventoryItemDTO) => {
+    setMenuOpenId(null);
+    if (!confirm(`Удалить позицию «${it.name}»?`)) return;
+    deleteMutation.mutate(it.id);
+  };
+
+  const openAddQty = (it: InventoryItemDTO) => {
+    setMenuOpenId(null);
+    setAddQtyError("");
+    setAddQtyValue("");
+    setAddQtyId(it.id);
+  };
+
+  const submitAddQty = () => {
+    const it = addQtyId ? itemsById.get(addQtyId) : undefined;
+    const delta = parseFloat(addQtyValue);
+    if (!it) return;
+    if (!addQtyValue || Number.isNaN(delta) || delta <= 0) {
+      setAddQtyError("Введите количество больше нуля");
+      return;
+    }
+    addQtyMutation.mutate({ item: it, delta });
+  };
+
   return (
     <div className="min-h-screen bg-[#F0F4F8]">
       <div className="bg-white rounded-xl shadow-sm">
@@ -266,16 +312,18 @@ function MaterialsContent() {
                 <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Категория</th>
                 <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Стоимость за ед., ₸</th>
                 <th className="px-6 py-4 text-left text-[14px] font-medium text-white whitespace-nowrap">Свободно</th>
+                <th className="px-4 py-4 text-white w-12" />
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={5} className="px-[52px] py-10 text-center text-[#94A3B8]">Загрузка...</td></tr>
+                <tr><td colSpan={6} className="px-[52px] py-10 text-center text-[#94A3B8]">Загрузка...</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={5} className="px-[52px] py-10 text-center text-[#94A3B8]">Материалы не найдены</td></tr>
+                <tr><td colSpan={6} className="px-[52px] py-10 text-center text-[#94A3B8]">Материалы не найдены</td></tr>
               ) : (
                 rows.map((r) => {
                   const editable = r.source === "item";
+                  const it = editable && r.rawId ? itemsById.get(r.rawId) : undefined;
                   return (
                     <tr
                       key={r.id}
@@ -291,6 +339,45 @@ function MaterialsContent() {
                         <span className={r.low ? "text-[#D97706]" : ""}>{fmtNum(r.available)} {r.unit}</span>
                         {r.low && <span className="ml-2 text-[12px] font-medium text-[#D97706]">(На исходе)</span>}
                       </td>
+                      <td className="px-4 py-4 relative" onClick={(e) => e.stopPropagation()}>
+                        {editable && it && (
+                          <>
+                            <button
+                              onClick={() => setMenuOpenId((v) => (v === r.id ? null : r.id))}
+                              className="flex h-8 w-8 items-center justify-center rounded-full text-[#94A3B8] hover:bg-[#F1F5F9] hover:text-[#475569] transition-colors"
+                              title="Действия"
+                            >
+                              <MoreVertical size={18} />
+                            </button>
+                            {menuOpenId === r.id && (
+                              <>
+                                {/* Клик вне меню закрывает его. */}
+                                <div className="fixed inset-0 z-10" onClick={() => setMenuOpenId(null)} />
+                                <div className="absolute right-4 top-11 z-20 w-52 rounded-[10px] bg-white py-1.5 shadow-lg border border-[#E2E8F0]">
+                                  <button
+                                    onClick={() => openAddQty(it)}
+                                    className="w-full px-4 py-2.5 text-left text-[14px] text-[#0F172A] hover:bg-[#F1F5F9] transition-colors"
+                                  >
+                                    Добавить количество
+                                  </button>
+                                  <button
+                                    onClick={() => { setMenuOpenId(null); openEdit(it); }}
+                                    className="w-full px-4 py-2.5 text-left text-[14px] text-[#0F172A] hover:bg-[#F1F5F9] transition-colors"
+                                  >
+                                    Редактировать
+                                  </button>
+                                  <button
+                                    onClick={() => handleMenuDelete(it)}
+                                    className="w-full px-4 py-2.5 text-left text-[14px] text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"
+                                  >
+                                    Удалить
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </td>
                     </tr>
                   );
                 })
@@ -303,6 +390,45 @@ function MaterialsContent() {
           Показано {rows.length} из {all.length} материалов
         </div>
       </div>
+
+      {/* Добавить количество (приход) */}
+      {addQtyId && (() => {
+        const it = itemsById.get(addQtyId);
+        if (!it) return null;
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-6"
+            style={{ background: "rgba(15,23,42,.35)", backdropFilter: "blur(4px)" }}
+            onClick={() => !addQtyMutation.isPending && setAddQtyId(null)}
+          >
+            <div
+              className="relative w-full max-w-[380px] rounded-[14px] bg-white p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="mb-1 text-[20px] font-semibold text-[#0F172A]">Добавить количество</h2>
+              <p className="mb-5 text-[14px] text-[#94A3B8]">
+                {it.name} · сейчас {fmtNum(it.quantity)} {it.unit_display}
+              </p>
+              <input
+                type="number" min="0" step="0.01" autoFocus
+                value={addQtyValue}
+                onChange={(e) => setAddQtyValue(e.target.value)}
+                placeholder="0"
+                className={inputCls}
+              />
+              {addQtyError && <p className="mt-3 text-[13px] text-[#DC2626]">{addQtyError}</p>}
+              <button
+                onClick={submitAddQty}
+                disabled={addQtyMutation.isPending}
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-[10px] bg-[#60CCED] py-[12px] text-[15px] font-semibold text-white transition-colors hover:bg-[#4DBCE0] disabled:opacity-50"
+              >
+                {addQtyMutation.isPending && <Loader2 size={16} className="animate-spin" />}
+                Добавить
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Create / edit inventory item modal */}
       {modalOpen && (

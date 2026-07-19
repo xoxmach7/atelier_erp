@@ -50,3 +50,19 @@ export async function updateInventoryItem(
 export async function deleteInventoryItem(id: string): Promise<void> {
   return del<void>(`/v1/inventory-items/${id}/`);
 }
+
+/**
+ * Добавить количество к остатку (например, поступила новая партия).
+ *
+ * Отдельного эндпоинта «приход» на бэке нет — прибавляем к текущему остатку
+ * через обычный PATCH. Тот же приём уже используется в мобилке
+ * (mobile/src/api/inventory.ts, addInventoryQuantity).
+ */
+export async function addInventoryQuantity(
+  item: InventoryItemDTO,
+  delta: number,
+): Promise<InventoryItemDTO> {
+  const current = parseFloat(item.quantity) || 0;
+  const next = Math.max(0, current + delta);
+  return updateInventoryItem(item.id, { quantity: String(next) });
+}
