@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useOrders } from "@/hooks/useOrders";
 import { useCreatePayment, usePayments } from "@/hooks/usePayments";
 import type { OrderListItemDTO, PaymentDTO } from "@/types";
+import { shortOrderNumber } from "@/lib/order-number";
 import {
   ArrowRightLeft,
   Banknote,
@@ -68,7 +69,7 @@ function isInvalidOrderId(orderId: string | null): boolean {
 }
 
 function orderNumber(order: OrderListItemDTO): string {
-  return order.order_number?.trim() || "Заказ без номера";
+  return shortOrderNumber(order.order_number?.trim()) || "Заказ без номера";
 }
 
 function customerName(order: OrderListItemDTO): string {

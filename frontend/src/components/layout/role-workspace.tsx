@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { WorkMaterialItem, WorkOrderTask } from "@/services/http/work";
+import { shortOrderNumber } from "@/lib/order-number";
 
 export function parseMoney(value: string | number | null | undefined): number {
   const amount = typeof value === "string" ? Number.parseFloat(value) : value;
@@ -138,7 +139,7 @@ export function WorkOrderHeader({
       <div className="flex min-w-0 gap-3">
         <StatusDot tone={dotTone} />
         <div className="min-w-0">
-          <div className="text-base font-semibold text-slate-950">{task.order_number || "Заказ без номера"}</div>
+          <div className="text-base font-semibold text-slate-950">{shortOrderNumber(task.order_number) || "Заказ без номера"}</div>
           <div className="mt-1 text-sm text-slate-600">
             {task.customer_name || "Клиент не указан"}
             {task.customer_phone ? ` · ${task.customer_phone}` : ""}

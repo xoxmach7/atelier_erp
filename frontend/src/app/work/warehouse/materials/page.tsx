@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Search, ArrowLeft, Plus, Loader2, X, HelpCircle, MoreVertical } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -71,11 +72,28 @@ function MaterialsContent() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [formError, setFormError] = useState("");
-  // «•••» у строки: id открытого меню и id позиции с открытой модалкой «Добавить количество»
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  // «•••» у строки. Меню рендерится порталом в document.body с
+  // position:fixed по координатам кнопки — строка таблицы лежит внутри
+  // overflow-x-auto, а тот неявно обрезает и вертикаль (CSS: overflow-x
+  // отличный от visible вычисляет overflow-y в auto), поэтому обычный
+  // position:absolute внутри <td> обрезался нижней границей контейнера.
+  const [menu, setMenu] = useState<{ id: string; top: number; right: number } | null>(null);
   const [addQtyId, setAddQtyId] = useState<string | null>(null);
   const [addQtyValue, setAddQtyValue] = useState("");
   const [addQtyError, setAddQtyError] = useState("");
+
+  // Меню в fixed-координатах не следует за скроллом — закрываем его, чтобы
+  // не повисало оторванным от кнопки.
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [menu]);
 
   const { data: fabricsData, isLoading: fabricsLoading } = useQuery({
     queryKey: ["inventory", "fabrics", search],
@@ -236,13 +254,13 @@ function MaterialsContent() {
   // отдельным действием не было вовсе (только полная перезапись остатка
   // через форму редактирования).
   const handleMenuDelete = (it: InventoryItemDTO) => {
-    setMenuOpenId(null);
+    setMenu(null);
     if (!confirm(`Удалить позицию «${it.name}»?`)) return;
     deleteMutation.mutate(it.id);
   };
 
   const openAddQty = (it: InventoryItemDTO) => {
-    setMenuOpenId(null);
+    setMenu(null);
     setAddQtyError("");
     setAddQtyValue("");
     setAddQtyId(it.id);
@@ -339,43 +357,22 @@ function MaterialsContent() {
                         <span className={r.low ? "text-[#D97706]" : ""}>{fmtNum(r.available)} {r.unit}</span>
                         {r.low && <span className="ml-2 text-[12px] font-medium text-[#D97706]">(На исходе)</span>}
                       </td>
-                      <td className="px-4 py-4 relative" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                         {editable && it && (
-                          <>
-                            <button
-                              onClick={() => setMenuOpenId((v) => (v === r.id ? null : r.id))}
-                              className="flex h-8 w-8 items-center justify-center rounded-full text-[#94A3B8] hover:bg-[#F1F5F9] hover:text-[#475569] transition-colors"
-                              title="Действия"
-                            >
-                              <MoreVertical size={18} />
-                            </button>
-                            {menuOpenId === r.id && (
-                              <>
-                                {/* Клик вне меню закрывает его. */}
-                                <div className="fixed inset-0 z-10" onClick={() => setMenuOpenId(null)} />
-                                <div className="absolute right-4 top-11 z-20 w-52 rounded-[10px] bg-white py-1.5 shadow-lg border border-[#E2E8F0]">
-                                  <button
-                                    onClick={() => openAddQty(it)}
-                                    className="w-full px-4 py-2.5 text-left text-[14px] text-[#0F172A] hover:bg-[#F1F5F9] transition-colors"
-                                  >
-                                    Добавить количество
-                                  </button>
-                                  <button
-                                    onClick={() => { setMenuOpenId(null); openEdit(it); }}
-                                    className="w-full px-4 py-2.5 text-left text-[14px] text-[#0F172A] hover:bg-[#F1F5F9] transition-colors"
-                                  >
-                                    Редактировать
-                                  </button>
-                                  <button
-                                    onClick={() => handleMenuDelete(it)}
-                                    className="w-full px-4 py-2.5 text-left text-[14px] text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"
-                                  >
-                                    Удалить
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </>
+                          <button
+                            onClick={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setMenu((v) =>
+                                v?.id === it.id
+                                  ? null
+                                  : { id: it.id, top: rect.bottom + 4, right: window.innerWidth - rect.right }
+                              );
+                            }}
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-[#94A3B8] hover:bg-[#F1F5F9] hover:text-[#475569] transition-colors"
+                            title="Действия"
+                          >
+                            <MoreVertical size={18} />
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -390,6 +387,50 @@ function MaterialsContent() {
           Показано {rows.length} из {all.length} материалов
         </div>
       </div>
+
+      {/*
+        Меню «•••» — портал в document.body поверх всего, а не абсолютное
+        позиционирование внутри строки таблицы. Строка лежит в
+        overflow-x-auto, который обрезает меню по нижнему краю контейнера
+        (CSS: overflow-x ≠ visible вычисляет overflow-y в auto — обрезка была
+        видна на скрине пользователя). position:fixed по координатам кнопки
+        полностью выходит из-под клиппинга предков.
+      */}
+      {menu && typeof document !== "undefined" && createPortal(
+        (() => {
+          const it = itemsById.get(menu.id);
+          if (!it) return null;
+          return (
+            <>
+              <div className="fixed inset-0 z-[100]" onClick={() => setMenu(null)} />
+              <div
+                className="fixed z-[101] w-52 rounded-[10px] bg-white py-1.5 shadow-2xl border border-[#E2E8F0]"
+                style={{ top: menu.top, right: menu.right }}
+              >
+                <button
+                  onClick={() => openAddQty(it)}
+                  className="w-full px-4 py-2.5 text-left text-[14px] text-[#0F172A] hover:bg-[#F1F5F9] transition-colors"
+                >
+                  Добавить количество
+                </button>
+                <button
+                  onClick={() => { setMenu(null); openEdit(it); }}
+                  className="w-full px-4 py-2.5 text-left text-[14px] text-[#0F172A] hover:bg-[#F1F5F9] transition-colors"
+                >
+                  Редактировать
+                </button>
+                <button
+                  onClick={() => handleMenuDelete(it)}
+                  className="w-full px-4 py-2.5 text-left text-[14px] text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"
+                >
+                  Удалить
+                </button>
+              </div>
+            </>
+          );
+        })(),
+        document.body
+      )}
 
       {/* Добавить количество (приход) */}
       {addQtyId && (() => {

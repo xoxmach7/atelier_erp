@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFinanceQueue } from "@/hooks/useWorkQueues";
 import type { WorkOrderTask } from "@/services/http/work";
 import { EmptyRoleState, StatusPill, TaskSection, WorkOrderHeader, WorkspaceHeader, formatDate, formatMoney } from "@/components/layout/role-workspace";
+import { shortOrderNumber } from "@/lib/order-number";
 
 function PaymentOrderCard({ task, paid }: { task: WorkOrderTask; paid?: boolean }) {
   return (
@@ -62,7 +63,7 @@ function FinanceWorkspace() {
           <CardContent className="grid gap-2 md:grid-cols-2">
             {data?.recent_payments.map((payment) => (
               <Link key={payment.id} href={`/orders/${payment.order_id}?view=finance`} className="rounded-xl bg-slate-50 p-3 text-sm transition hover:bg-sky-50">
-                <div className="font-medium text-slate-900">{payment.order_number} · {payment.customer_name}</div>
+                <div className="font-medium text-slate-900">{shortOrderNumber(payment.order_number)} · {payment.customer_name}</div>
                 <div className="mt-1 text-slate-500">{formatMoney(payment.amount)} · {formatDate(payment.received_at)}</div>
               </Link>
             ))}

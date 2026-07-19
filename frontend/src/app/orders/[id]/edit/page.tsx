@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { shortOrderNumber } from "@/lib/order-number";
 import { useOrder, useUpdateOrder } from "@/hooks/useOrders";
 import { useRole } from "@/hooks/useRole";
 import { ArrowLeft, Loader2, Save } from "lucide-react";
@@ -152,7 +153,7 @@ export default function EditOrderPage() {
         </Link>
         <PageHeader
           title="Редактировать заказ"
-          description={order.order_number}
+          description={shortOrderNumber(order.order_number)}
         />
       </div>
 

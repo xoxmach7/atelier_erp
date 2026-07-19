@@ -26,6 +26,7 @@ import { ApiClientError } from "@/services/http/client";
 import { useEstimateDraft } from "./hooks/useEstimateDraft";
 import { useCreateQuote, type CreateQuoteInput } from "@/hooks/useQuotes";
 import { fetchQuoteById, fetchQuotes } from "@/services/http/quotes";
+import { shortOrderNumber } from "@/lib/order-number";
 import {
   Select,
   SelectContent,
@@ -659,7 +660,7 @@ function EstimateContent() {
                   <h3 className="font-semibold text-blue-900">КП из замеров</h3>
                   <p className="text-sm text-blue-700">
                     Загружено: {measurementsCount} позиций из замеров заказа
-                    {orderData?.order_number && ` ${orderData.order_number}`}
+                    {orderData?.order_number && ` ${shortOrderNumber(orderData.order_number)}`}
                   </p>
                 </div>
               </div>
@@ -677,7 +678,7 @@ function EstimateContent() {
       {!isPersisted && orderFromQuery && (
         <Card className="bg-slate-50 border-slate-200 mb-5">
           <CardContent className="p-4 text-sm text-slate-600">
-            КП создаётся из замеров заказа{orderData?.order_number ? ` ${orderData.order_number}` : ""}.
+            КП создаётся из замеров заказа{orderData?.order_number ? ` ${shortOrderNumber(orderData.order_number)}` : ""}.
             Размеры, ткань, тюль и метры подтягиваются из замеров; цены, пошив, карниз, монтаж и доп. услуги заполняются здесь вручную.
             Тюль остаётся внутри той же позиции КП.
           </CardContent>

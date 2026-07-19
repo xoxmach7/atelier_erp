@@ -21,6 +21,7 @@ import {
 import { useQuote, useUpdateQuote, useDeleteQuote, useConvertQuoteToOrder } from "@/hooks/useQuotes";
 import { ApiClientError } from "@/services/http/client";
 import type { QuoteItemDTO, QuoteStatus } from "@/types";
+import { shortOrderNumber } from "@/lib/order-number";
 import {
   Calculator,
   ArrowLeft,
@@ -412,7 +413,7 @@ function QuoteDetailContent() {
                 >
                   <Link href={`/orders/${quote.converted_order!.id}`}>
                     <CheckCircle2 className="mr-2 h-4 w-4" />
-                    Заказ {quote.converted_order!.order_number}
+                    Заказ {shortOrderNumber(quote.converted_order!.order_number)}
                   </Link>
                 </Button>
               ) : !isApprovedQuote ? (
@@ -619,7 +620,7 @@ function QuoteDetailContent() {
                         href={`/orders/${quote.converted_order!.id}`}
                         className="font-semibold underline hover:text-green-900"
                       >
-                        {quote.converted_order!.order_number}
+                        {shortOrderNumber(quote.converted_order!.order_number)}
                       </Link>
                     </p>
                   </div>

@@ -44,6 +44,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { getMountingTypeLabel } from "@/lib/mounting-types";
+import { shortOrderNumber } from "@/lib/order-number";
 import { CreateMeasurementModal } from "@/components/shared/create-measurement-modal";
 import {
   PageHeader,
@@ -319,7 +320,7 @@ function MeasurementCard({ measurement, orders, onDelete, onEdit }: MeasurementC
             <span className="text-[var(--t3)]">Заказ:</span>
             {order ? (
               <>
-                <span className="font-medium text-[var(--t1)]">{order.order_number}</span>
+                <span className="font-medium text-[var(--t1)]">{shortOrderNumber(order.order_number)}</span>
                 <span className="text-[var(--t3)]">— {order.customer_name}</span>
               </>
             ) : (

@@ -6,6 +6,7 @@ import { Search, LogOut } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useOrders } from "@/hooks/useOrders";
 import { useAuth } from "@/contexts/auth-context";
+import { shortOrderNumber } from "@/lib/order-number";
 
 const STAGE: Record<string, { label: string; color: string }> = {
   not_started: { label: "Не начато", color: "#DC2626" },
@@ -125,11 +126,11 @@ function ProductionOrdersContent() {
                       onClick={() => router.push(`/orders/${order.id}`)}
                       className="border-b border-dashed border-[#CBD5E1] cursor-pointer hover:bg-[#F8FAFC] transition-colors"
                     >
-                      <td className="px-4 sm:px-[52px] py-4 font-medium text-[#0F172A] whitespace-nowrap">{order.order_number || i + 1}</td>
+                      <td className="px-4 sm:px-[52px] py-4 font-medium text-[#0F172A] whitespace-nowrap">{shortOrderNumber(order.order_number) || i + 1}</td>
                       <td className="px-6 py-4 text-[14px] text-[#0F172A]">{order.customer_name || "—"}</td>
                       <td className="px-6 py-4 text-[14px] text-[#0F172A] whitespace-nowrap">
                         {order.created_at
-                          ? new Date(order.created_at).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" })
+                          ? new Date(order.created_at).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })
                           : "—"}
                       </td>
                       <td className="px-6 py-4 text-[14px] text-[#0F172A]">{order.designer_name || "—"}</td>
