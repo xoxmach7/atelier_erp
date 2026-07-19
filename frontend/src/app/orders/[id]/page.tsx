@@ -14,6 +14,7 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { LoadingState } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { getCoarseStatus } from "@/lib/list-status";
+import { getMountingTypeLabel } from "@/lib/mounting-types";
 import { formatPhone } from "@/lib/phone";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -862,10 +863,9 @@ export default function OrderDetailPage() {
   const [kpModalOpen, setKPModalOpen] = useState(false);
   const [prepayModalOpen, setPrepayModalOpen] = useState(false);
   const [prepayLoading, setPrepayLoading] = useState(false);
-  // Warehouse: per-item checkboxes + transferred state
-  const [matChecked, setMatChecked] = useState<Record<string, boolean>>({});
+  // Склад: раскрытые строки замеров. Готовность (materials_ready) и передача
+  // в цех (material_readiness) — реальные поля с бэка, не локальный стейт.
   const [matExpanded, setMatExpanded] = useState<Record<string, boolean>>({});
-  const [matTransferred, setMatTransferred] = useState(false);
 
   /* ---- guard against literal [id] placeholder in URL ---- */
   const hasValidOrderId =
@@ -895,6 +895,18 @@ export default function OrderDetailPage() {
       await refetchOrder();
     } catch (e) {
       alert((e as Error)?.message ?? "Не удалось изменить количество");
+    }
+  }
+
+  // Склад: отметить окно собранным. useUpdateMeasurement.onSuccess инвалидирует
+  // только запрос замера, не заказ — без refetchOrder() галочка не позеленела
+  // бы в этой карточке (order.measurements) до перезагрузки страницы.
+  async function handleMaterialsReady(measurementId: string) {
+    try {
+      await updateMeasurementMutation.mutateAsync({ id: measurementId, data: { materials_ready: true } });
+      await refetchOrder();
+    } catch (e) {
+      setActionError((e as Error)?.message ?? "Не удалось отметить окно собранным");
     }
   }
 
@@ -1148,7 +1160,13 @@ export default function OrderDetailPage() {
           </div>
 
           {/* ── Role view for non-owners ─────────────────────── */}
-          {role !== "owner" && (
+          {/*
+            Склад намеренно исключён: по макету у него только карточка
+            «Позиции» с чекбоксами по окнам — ничего сверху. MyTaskCard для
+            warehouse к тому же не была доведена до конца: getWarehouseTask
+            отдаёт кнопку без onAction/actionHref — она ничего не делает.
+          */}
+          {role !== "owner" && role !== "warehouse" && (
             <div className="px-4 sm:px-[52px] pb-2">
               <MyTaskCard
                 order={order}
@@ -1307,26 +1325,39 @@ export default function OrderDetailPage() {
           {showMaterials && (
             <div className="px-4 sm:px-[52px] pb-10">
               <div className="flex flex-col md:flex-row gap-4 md:gap-8">
-                {/* Материалы с чекбоксами */}
+                {/*
+                  Источник — order.measurements, а не order.items: у OrderItem
+                  нет materials_ready (это поле Measurement), а сами items
+                  появляются только ПОСЛЕ утверждённого КП — до этого момента
+                  склад видел бы «Позиции по заказу ещё не сформированы»,
+                  хотя окна и ткани в замерах уже есть. Действие «Завершить»
+                  раньше меняло только локальный React-стейт (matChecked) —
+                  ничего не сохранялось на сервере, и при обновлении страницы
+                  вся отметка исчезала. Теперь это настоящий PATCH
+                  /measurements/{id}/.
+                */}
                 <div className="flex-1 rounded-xl border border-[#E2E8F0] p-6">
                   <div className="flex items-center justify-center gap-2 mb-5">
                     <img src="/icons/positions.png" width={20} height={20} alt="" />
                     <span className="text-[16px] font-medium text-[#0F172A]">Позиции</span>
                   </div>
 
-                  {items.length === 0 ? (
-                    <p className="text-[14px] text-[#94A3B8] italic py-4">Позиции по заказу ещё не сформированы.</p>
+                  {(order.measurements ?? []).length === 0 ? (
+                    <p className="text-[14px] text-[#94A3B8] italic py-4">Замеры по заказу ещё не добавлены.</p>
                   ) : (
                     <div className="space-y-1 mb-4">
-                      {items.map((item) => {
-                        const done = !!matChecked[item.id];
-                        const open = !!matExpanded[item.id];
-                        const roomLabel = [item.room_name, item.window_name].filter(Boolean).join(" — ");
-                        const dims = item.window_width_cm && item.window_height_cm ? ` (${item.window_width_cm}×${item.window_height_cm})` : "";
+                      {(order.measurements ?? []).map((m) => {
+                        const done = !!m.materials_ready;
+                        const open = !!matExpanded[m.id];
+                        const roomLabel = [m.room_name, m.window_name].filter(Boolean).join(" — ");
+                        const dims = m.width_cm && m.height_cm ? ` (${m.width_cm}×${m.height_cm})` : "";
+                        const curtainName = m.curtain_fabric_name || m.curtain_fabric_details?.name;
+                        const tulleName = m.tulle_fabric_name || m.tulle_fabric_details?.name;
+                        const saving = updateMeasurementMutation.isPending && updateMeasurementMutation.variables?.id === m.id;
                         return (
-                          <div key={item.id} className="border-b border-[#E2E8F0] last:border-0">
+                          <div key={m.id} className="border-b border-[#E2E8F0] last:border-0">
                             <button
-                              onClick={() => setMatExpanded(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
+                              onClick={() => setMatExpanded(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
                               className="w-full flex items-center justify-between py-4 text-left"
                             >
                               <span className={`text-[14px] font-medium ${done ? "text-[#16A34A]" : "text-[#0F172A]"}`}>
@@ -1336,26 +1367,29 @@ export default function OrderDetailPage() {
                             </button>
                             {open && (
                               <div className="pb-4 space-y-2.5">
-                                <div className="flex flex-wrap gap-x-8 gap-y-1.5 text-[13px] text-[#475569]">
-                                  {item.fabric_name && <span><span className="font-medium text-[#0F172A]">Шторы:</span> {item.fabric_name}</span>}
-                                  {item.notes && <span><span className="font-medium text-[#0F172A]">Тюль:</span> {item.notes}</span>}
-                                  {item.sewing_type && <span><span className="font-medium text-[#0F172A]">Тип крепления:</span> {item.sewing_type}</span>}
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                  <div className="flex flex-wrap gap-x-8 gap-y-1.5 text-[13px] text-[#475569]">
+                                    <span><span className="font-medium text-[#0F172A]">Шторы:</span> {curtainName ? `${curtainName}${m.curtain_meters ? ` (${m.curtain_meters} м)` : ""}` : "—"}</span>
+                                    <span><span className="font-medium text-[#0F172A]">Тюль:</span> {tulleName ? `${tulleName}${m.tulle_meters ? ` (${m.tulle_meters} м)` : ""}` : "—"}</span>
+                                    <span><span className="font-medium text-[#0F172A]">Тип крепления:</span> {getMountingTypeLabel(m.mounting_type)}</span>
+                                  </div>
+                                  {done ? (
+                                    <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#16A34A] shrink-0">
+                                      <Check size={16} /> Собрано
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleMaterialsReady(m.id)}
+                                      disabled={saving}
+                                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#60CCED] text-white text-[13px] font-semibold hover:bg-[#4DBCE0] transition-colors disabled:opacity-50 shrink-0"
+                                    >
+                                      <Check size={16} /> {saving ? "Сохранение…" : "Завершить"}
+                                    </button>
+                                  )}
                                 </div>
                                 <div className="text-[13px] text-[#475569]">
-                                  <span className="font-medium text-[#0F172A]">Количество:</span> {item.quantity}
+                                  <span className="font-medium text-[#0F172A]">Количество:</span> {m.quantity ?? 1}
                                 </div>
-                                {!matTransferred && (done ? (
-                                  <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#16A34A]">
-                                    <Check size={16} /> Собрано
-                                  </span>
-                                ) : (
-                                  <button
-                                    onClick={() => setMatChecked(prev => ({ ...prev, [item.id]: true }))}
-                                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#60CCED] text-white text-[13px] font-semibold hover:bg-[#4DBCE0] transition-colors"
-                                  >
-                                    <Check size={16} /> Завершить
-                                  </button>
-                                ))}
                               </div>
                             )}
                           </div>
@@ -1364,9 +1398,11 @@ export default function OrderDetailPage() {
                     </div>
                   )}
 
-                  {items.length > 0 && (() => {
-                    const cnt = items.filter(i => matChecked[i.id]).length;
-                    if (matTransferred) {
+                  {(order.measurements ?? []).length > 0 && (() => {
+                    const total = (order.measurements ?? []).length;
+                    const cnt = (order.measurements ?? []).filter(m => m.materials_ready).length;
+                    const allReady = order.material_readiness === "ready";
+                    if (allReady) {
                       return (
                         <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-[#DCFCE7] text-[#16A34A] text-[13px] font-semibold">
                           <Check size={16} /> Передано швее на пошив
@@ -1375,8 +1411,16 @@ export default function OrderDetailPage() {
                     }
                     return (
                       <button
-                        onClick={() => { if (cnt > 0) { setMatTransferred(true); } }}
-                        disabled={cnt === 0}
+                        onClick={async () => {
+                          if (cnt === 0) return;
+                          try {
+                            await changeMaterialMutation.mutateAsync({ orderId, data: { material_readiness: "ready" } });
+                            await refetchOrder();
+                          } catch (e) {
+                            setActionError((e as Error)?.message ?? "Не удалось передать в цех");
+                          }
+                        }}
+                        disabled={cnt === 0 || changeMaterialMutation.isPending}
                         className="w-full py-3 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-2 transition-all disabled:cursor-not-allowed"
                         style={{
                           background: cnt > 0 ? "#60CCED" : "#F1F5F9",
@@ -1384,7 +1428,7 @@ export default function OrderDetailPage() {
                         }}
                       >
                         <Scissors size={14} />
-                        Передать в цех на пошив{cnt > 0 ? ` (${cnt})` : ""}
+                        {changeMaterialMutation.isPending ? "Передаём…" : `Передать в цех на пошив (${cnt}/${total})`}
                       </button>
                     );
                   })()}

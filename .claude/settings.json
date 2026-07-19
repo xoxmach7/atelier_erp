@@ -37,7 +37,11 @@
       "Bash(timeout 900 python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_quote_calc)",
       "Bash(npx next *)",
       "Bash(command -v railway)",
-      "Bash(timeout 900 python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_seed_demo)"
+      "Bash(timeout 900 python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_seed_demo)",
+      "Bash(DATABASE_PUBLIC_URL=postgresql://postgres:qEZHoyjDDhIRUiTpqxJqcCDFmTefAGtL@acela.proxy.rlwy.net:17423/railway DJANGO_SECRET_KEY=dry-run-only DATABASE_URL=postgresql://postgres:qEZHoyjDDhIRUiTpqxJqcCDFmTefAGtL@acela.proxy.rlwy.net:17423/railway python -c ' *)",
+      "Bash(DB_ENGINE=postgresql DB_HOST=acela.proxy.rlwy.net DB_PORT=17423 DB_NAME=railway DB_USER=postgres DB_PASSWORD=qEZHoyjDDhIRUiTpqxJqcCDFmTefAGtL DB_SSLMODE=require DJANGO_SECRET_KEY=dry-run-only-not-serving python -c ' *)",
+      "Bash(DB_ENGINE=postgresql DB_HOST=acela.proxy.rlwy.net DB_PORT=17423 DB_NAME=railway DB_USER=postgres DB_PASSWORD=qEZHoyjDDhIRUiTpqxJqcCDFmTefAGtL DB_SSLMODE=require DJANGO_SECRET_KEY=fix-only-not-serving python -c ' *)",
+      "Bash(DB_ENGINE=postgresql DB_HOST=acela.proxy.rlwy.net DB_PORT=17423 DB_NAME=railway DB_USER=postgres DB_PASSWORD=qEZHoyjDDhIRUiTpqxJqcCDFmTefAGtL DB_SSLMODE=require DJANGO_SECRET_KEY=verify-only python -c ' *)"
     ]
   }
 }
