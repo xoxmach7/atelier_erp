@@ -11,6 +11,7 @@ import {
   fetchOrderExecution, fetchQuotes, deleteOrder, deleteMeasurement, updateMeasurement,
   changeOrderStatus, uploadPhotoReport, deletePhotoReport,
   fetchCompletionAct, createCompletionAct, uploadSignedAct,
+  changeProductionStage, changeHandoverStage,
   type OrderExecution, type QuoteDTO,
 } from '../../src/api/orders';
 import * as ImagePicker from 'expo-image-picker';
@@ -70,6 +71,14 @@ export default function OrderDetailScreen() {
   const [actFile, setActFile] = useState<string | null>(null);
   const [uploadingAct, setUploadingAct] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
+
+  // Цех/установщик: галочки по окнам (sewing_done/installation_done) не
+  // двигают заказ сами по себе — это отдельные поля Measurement, а переход
+  // читает production_stage/handover_stage на Order. Без явного завершения
+  // этапа заказ навсегда застревал бы в in_production/on_installation, даже
+  // если все окна отмечены. changeProductionStage/changeHandoverStage раньше
+  // существовали только в api-слое и нигде не вызывались.
+  const [finishingStage, setFinishingStage] = useState(false);
 
   // Модалка одного замера (тап по строке)
   type MeasurementRow = NonNullable<OrderExecution['measurements']>[number];
@@ -157,6 +166,31 @@ export default function OrderDetailScreen() {
     } catch (e: any) {
       Alert.alert('Ошибка', e?.message ?? 'Не удалось обновить отметку');
     }
+  };
+
+  // Цех: все изделия сшиты — завершить производство, заказ откроется
+  // установщику (auto_advance переведёт в ready на бэке).
+  const finishProduction = async () => {
+    setFinishingStage(true);
+    try {
+      await changeProductionStage(idStr, 'done');
+      await load();
+      Alert.alert('Готово', 'Производство завершено');
+    } catch (e: any) {
+      Alert.alert('Не удалось завершить', e?.message ?? 'Попробуйте ещё раз');
+    } finally { setFinishingStage(false); }
+  };
+
+  // Установщик: все изделия навешены — завершить установку/выдачу.
+  const finishHandover = async () => {
+    setFinishingStage(true);
+    try {
+      await changeHandoverStage(idStr, 'done');
+      await load();
+      Alert.alert('Готово', 'Установка завершена');
+    } catch (e: any) {
+      Alert.alert('Не удалось завершить', e?.message ?? 'Попробуйте ещё раз');
+    } finally { setFinishingStage(false); }
   };
 
   // Смена статуса заказа. Что именно разрешено — решает бэк (FSM в
@@ -353,6 +387,10 @@ export default function OrderDetailScreen() {
     return Boolean(m.materials_ready);
   };
 
+  const allWindowsDone = measurements.length > 0 && measurements.every(windowDone);
+  const productionDone = data.production_stage === 'done';
+  const handoverDone = data.handover_stage === 'done';
+
   // price per window from quote items (match by room+window)
   const priceFor = (room?: string, window?: string): string | null => {
     const it = quote?.items?.find(q => q.room_name === room && q.window_name === window);
@@ -500,6 +538,53 @@ export default function OrderDetailScreen() {
               </View>
             );
           })
+        )}
+
+        {/* Завершение этапа — отдельное действие от галочек по окнам:
+            production_stage/handover_stage живут на Order, а не на
+            Measurement, и без явного нажатия заказ не поедет дальше по
+            ролям, даже если все окна отмечены. */}
+        {isSeamstress && measurements.length > 0 && (
+          productionDone ? (
+            <View style={s.finishDoneBanner}>
+              <Icon name="check" size={16} color="#16A34A" />
+              <Text style={s.finishDoneText}>Производство завершено</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[s.finishBtn, (!allWindowsDone || finishingStage) && s.finishBtnDisabled]}
+              onPress={finishProduction}
+              disabled={!allWindowsDone || finishingStage}
+              activeOpacity={0.85}
+            >
+              {finishingStage
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={s.finishBtnText}>
+                    Завершить пошив ({measurements.filter(windowDone).length}/{measurements.length})
+                  </Text>}
+            </TouchableOpacity>
+          )
+        )}
+        {isInstaller && measurements.length > 0 && (
+          handoverDone ? (
+            <View style={s.finishDoneBanner}>
+              <Icon name="check" size={16} color="#16A34A" />
+              <Text style={s.finishDoneText}>Установка завершена</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[s.finishBtn, (!allWindowsDone || finishingStage) && s.finishBtnDisabled]}
+              onPress={finishHandover}
+              disabled={!allWindowsDone || finishingStage}
+              activeOpacity={0.85}
+            >
+              {finishingStage
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={s.finishBtnText}>
+                    Завершить установку ({measurements.filter(windowDone).length}/{measurements.length})
+                  </Text>}
+            </TouchableOpacity>
+          )
         )}
       </ScrollView>
 
@@ -655,6 +740,20 @@ const s = StyleSheet.create({
   actBtnText: { color: '#FFFFFF', fontSize: 17, fontFamily: 'TTNormsPro-Bold' },
   actFile: { fontSize: 17, color: '#0F172A', marginTop: 14 },
   actFileName: { color: '#94A3B8' },
+
+  // Цех/установщик: завершить этап целиком
+  finishBtn: {
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#60CCED', borderRadius: 14, paddingVertical: 14,
+    marginTop: 16,
+  },
+  finishBtnDisabled: { opacity: 0.5 },
+  finishBtnText: { color: '#FFFFFF', fontSize: 15, fontFamily: 'TTNormsPro-Bold' },
+  finishDoneBanner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#DCFCE7', borderRadius: 14, paddingVertical: 14, marginTop: 16,
+  },
+  finishDoneText: { color: '#16A34A', fontSize: 15, fontFamily: 'TTNormsPro-Bold' },
 
   // Установщик: фото по окну
   photoBlock: { marginTop: 18 },

@@ -875,6 +875,8 @@ export default function OrderDetailPage() {
   // Склад: раскрытые строки замеров. Готовность (materials_ready) и передача
   // в цех (material_readiness) — реальные поля с бэка, не локальный стейт.
   const [matExpanded, setMatExpanded] = useState<Record<string, boolean>>({});
+  // Швея: раскрытые строки замеров в блоке «Производство».
+  const [sewExpanded, setSewExpanded] = useState<Record<string, boolean>>({});
 
   /* ---- guard against literal [id] placeholder in URL ---- */
   const hasValidOrderId =
@@ -916,6 +918,17 @@ export default function OrderDetailPage() {
       await refetchOrder();
     } catch (e) {
       setActionError((e as Error)?.message ?? "Не удалось отметить окно собранным");
+    }
+  }
+
+  // Швея: отметить изделие сшитым. sewing_done — отдельное поле замера, не
+  // связанное с материалами (materials_ready) — разные роли, разные стадии.
+  async function handleSewingDone(measurementId: string) {
+    try {
+      await updateMeasurementMutation.mutateAsync({ id: measurementId, data: { sewing_done: true } });
+      await refetchOrder();
+    } catch (e) {
+      setActionError((e as Error)?.message ?? "Не удалось отметить изделие сшитым");
     }
   }
 
@@ -1447,11 +1460,18 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* ── Пошив: Производство + История ────────────────────── */}
+          {/* ── Швея: Производство + История ────────────────────── */}
           {showProduction && (
             <div className="px-4 sm:px-[52px] pb-10">
               <div className="flex flex-col md:flex-row gap-4 md:gap-8">
-                {/* Производство */}
+                {/*
+                  Источник — order.measurements, а не order.items: у OrderItem
+                  нет sewing_done (это поле Measurement), а сами items
+                  появляются только ПОСЛЕ утверждённого КП. Раньше блок
+                  показывал статичный список item'ов без возможности раскрыть
+                  строку или отметить готовность — швея не могла ни
+                  посмотреть детали изделия, ни продвинуть заказ дальше.
+                */}
                 <div className="flex-1 rounded-xl border border-[#E2E8F0] p-6">
                   <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-2">
@@ -1461,35 +1481,103 @@ export default function OrderDetailPage() {
                     <span className={`text-[12px] font-semibold px-3 py-1 rounded-full ${
                       execution?.production_stage === "done"
                         ? "bg-[#DCFCE7] text-[#16A34A]"
-                        : execution?.production_stage === "sewing" || execution?.production_stage === "cutting"
-                        ? "bg-[#EDE9FE] text-[#7C3AED]"
                         : "bg-[#F1F5F9] text-[#475569]"
                     }`}>
-                      {execution?.production_stage === "done" ? "Готово" : execution?.production_stage === "sewing" ? "Пошив" : execution?.production_stage === "cutting" ? "Раскрой" : "Не начато"}
+                      {execution?.production_stage === "done" ? "Готово" : "Не начато"}
                     </span>
                   </div>
-                  {items.length === 0 ? (
-                    <p className="text-[14px] text-[#94A3B8] italic py-4">Позиции по заказу ещё не сформированы.</p>
+
+                  {(order.measurements ?? []).length === 0 ? (
+                    <p className="text-[14px] text-[#94A3B8] italic py-4">Замеры по заказу ещё не добавлены.</p>
                   ) : (
-                    <div className="space-y-2">
-                      {items.map((item) => {
-                        const roomLabel = [item.room_name, item.window_name].filter(Boolean).join(" / ");
+                    <div className="space-y-1 mb-4">
+                      {(order.measurements ?? []).map((m) => {
+                        const done = !!m.sewing_done;
+                        const open = !!sewExpanded[m.id];
+                        const roomLabel = [m.room_name, m.window_name].filter(Boolean).join(" — ");
+                        const dims = m.width_cm && m.height_cm ? ` (${m.width_cm}×${m.height_cm})` : "";
+                        const curtainName = m.curtain_fabric_name || m.curtain_fabric_details?.name;
+                        const tulleName = m.tulle_fabric_name || m.tulle_fabric_details?.name;
+                        const saving = updateMeasurementMutation.isPending && updateMeasurementMutation.variables?.id === m.id;
                         return (
-                          <div key={item.id} className="p-3 rounded-xl bg-[#F1F5F9]">
-                            <div className="text-[13px] font-semibold text-[#0F172A]">{roomLabel || "Позиция"}</div>
-                            <div className="flex gap-4 text-[11px] text-[#475569] mt-0.5 flex-wrap">
-                              {item.fabric_name && <span>Ткань: {item.fabric_name}</span>}
-                              {item.notes && <span>Тюль: {item.notes}</span>}
-                              {item.window_width_cm && item.window_height_cm && (
-                                <span>{item.window_width_cm}×{item.window_height_cm} см</span>
-                              )}
-                              <span>Кол-во: {Math.round(Number(item.quantity))}</span>
-                            </div>
+                          <div key={m.id} className="border-b border-[#E2E8F0] last:border-0">
+                            <button
+                              onClick={() => setSewExpanded(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
+                              className="w-full flex items-center justify-between py-4 text-left"
+                            >
+                              <span className={`text-[14px] font-medium ${done ? "text-[#16A34A]" : "text-[#0F172A]"}`}>
+                                Изделие: {roomLabel || "—"}{dims}
+                              </span>
+                              {open ? <ChevronUp size={18} className="text-[#94A3B8]" /> : <ChevronDown size={18} className="text-[#94A3B8]" />}
+                            </button>
+                            {open && (
+                              <div className="pb-4 space-y-2.5">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                  <div className="flex flex-wrap gap-x-8 gap-y-1.5 text-[13px] text-[#475569]">
+                                    <span><span className="font-medium text-[#0F172A]">Шторы:</span> {curtainName ? `${curtainName}${m.curtain_meters ? ` (${m.curtain_meters} м)` : ""}` : "—"}</span>
+                                    <span><span className="font-medium text-[#0F172A]">Тюль:</span> {tulleName ? `${tulleName}${m.tulle_meters ? ` (${m.tulle_meters} м)` : ""}` : "—"}</span>
+                                    <span><span className="font-medium text-[#0F172A]">Тип крепления:</span> {getMountingTypeLabel(m.mounting_type)}</span>
+                                  </div>
+                                  {done ? (
+                                    <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#16A34A] shrink-0">
+                                      <Check size={16} /> Сшито
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleSewingDone(m.id)}
+                                      disabled={saving}
+                                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#60CCED] text-white text-[13px] font-semibold hover:bg-[#4DBCE0] transition-colors disabled:opacity-50 shrink-0"
+                                    >
+                                      <Check size={16} /> {saving ? "Сохранение…" : "Готово"}
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="text-[13px] text-[#475569]">
+                                  <span className="font-medium text-[#0F172A]">Количество:</span> {m.quantity ?? 1}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
                     </div>
                   )}
+
+                  {(order.measurements ?? []).length > 0 && (() => {
+                    const total = (order.measurements ?? []).length;
+                    const cnt = (order.measurements ?? []).filter(m => m.sewing_done).length;
+                    const stage = execution?.production_stage ?? order.production_stage;
+                    if (stage === "done") {
+                      return (
+                        <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-[#DCFCE7] text-[#16A34A] text-[13px] font-semibold">
+                          <Check size={16} /> Изделия готовы
+                        </div>
+                      );
+                    }
+                    return (
+                      <button
+                        onClick={async () => {
+                          if (cnt < total) return;
+                          try {
+                            await changeProductionMutation.mutateAsync({ orderId, data: { production_stage: "done" } });
+                            await refetchOrder();
+                            await refetchExecution();
+                          } catch (e) {
+                            setActionError((e as Error)?.message ?? "Не удалось завершить производство");
+                          }
+                        }}
+                        disabled={cnt < total || changeProductionMutation.isPending}
+                        className="w-full py-3 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-2 transition-all disabled:cursor-not-allowed"
+                        style={{
+                          background: cnt === total ? "#60CCED" : "#F1F5F9",
+                          color: cnt === total ? "#fff" : "#94A3B8",
+                        }}
+                      >
+                        <Scissors size={14} />
+                        {changeProductionMutation.isPending ? "Завершаем…" : `Завершить пошив (${cnt}/${total})`}
+                      </button>
+                    );
+                  })()}
                 </div>
 
                 {/* История */}
