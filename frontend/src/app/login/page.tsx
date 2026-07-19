@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 
 export default function LoginPage() {
@@ -9,6 +10,7 @@ export default function LoginPage() {
   const { login, isAuthenticated } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -78,15 +80,27 @@ export default function LoginPage() {
             disabled={submitting}
             className="w-full rounded-lg border-none bg-[#E5E7EB] px-3.5 py-3 text-sm text-[#0F172A] outline-none transition-colors placeholder:text-[#6B7280] focus:ring-2 focus:ring-[#0EA5E9] disabled:opacity-60"
           />
-          <input
-            type="password"
-            placeholder="Пароль"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            disabled={submitting}
-            className="w-full rounded-lg border-none bg-[#E5E7EB] px-3.5 py-3 text-sm text-[#0F172A] outline-none transition-colors placeholder:text-[#6B7280] focus:ring-2 focus:ring-[#0EA5E9] disabled:opacity-60"
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Пароль"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={submitting}
+              className="w-full rounded-lg border-none bg-[#E5E7EB] px-3.5 py-3 pr-11 text-sm text-[#0F172A] outline-none transition-colors placeholder:text-[#6B7280] focus:ring-2 focus:ring-[#0EA5E9] disabled:opacity-60"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              disabled={submitting}
+              tabIndex={-1}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#0F172A] transition-colors disabled:opacity-60"
+              aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
           <button
             type="submit"
             disabled={submitting || !username || !password}

@@ -30,6 +30,7 @@ from atelier_erp.models import (
     Measurement, Quote, Payment, Customer, OrderMaterial, InventoryItem
 )
 from atelier_erp.services import OrderService, TaskService, UnitOfWork, QuoteService
+from atelier_erp.services.inventory_fabric_sync import sync_fabric_from_inventory_item
 
 
 logger = logging.getLogger(__name__)
@@ -2158,9 +2159,18 @@ class InventoryItemViewSet(TenantModelMixin, viewsets.ModelViewSet):
             return [IsAuthenticated()]
         return [IsAuthenticated(), IsWarehouseOrOwner()]
 
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        sync_fabric_from_inventory_item(serializer.instance)
+
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        sync_fabric_from_inventory_item(serializer.instance)
+
     def perform_destroy(self, instance):
         instance.is_active = False
         instance.save(update_fields=['is_active'])
+        sync_fabric_from_inventory_item(instance)
 
 
 class QuoteViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
