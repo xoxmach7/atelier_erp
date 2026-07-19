@@ -1073,13 +1073,19 @@ export default function OrderDetailPage() {
     const quoteItem = quoteDetail?.items?.find(
       (qi) => qi.room_name === m.room_name && qi.window_name === m.window_name
     );
+    // Цена окна считается сервером из выбранных тканей (метраж × цена за
+    // метр). Сохранённая в КП имеет приоритет: если её правили, расчёт её
+    // не перебивает. Тот же порядок в модалке КП и в мобилке.
+    const saved = quoteItem ? Number(quoteItem.line_total ?? 0) : 0;
+    const calculated = Number(m.calculated_price ?? 0);
+    const price = saved || calculated;
     return {
       id: m.id,
       measurement: m,
-      price: quoteItem ? Number(quoteItem.line_total ?? 0) : null,
+      price: price > 0 ? price : null,
     };
   });
-  // Предытог — сумма окон, у которых цена уже проставлена в КП.
+  // Предытог — сумма окон, у которых цена уже известна.
   const measurementsSubtotal = measurementLines.reduce((s, l) => s + (l.price ?? 0), 0);
 
   const total = parseFloat(order.total_amount || "0");

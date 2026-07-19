@@ -55,11 +55,13 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
    *
    * OrderItem'ы генерируются ИЗ утверждённого КП, поэтому у нового заказа их
    * не бывает: модалка показывала «Нет позиций — сначала добавьте замер» даже
-   * когда замеры были, и создать КП с веба было невозможно. Цена по окну
-   * вводится вручную (авторасчёт цены запаркован), как и в мобилке.
+   * когда замеры были, и создать КП с веба было невозможно.
+   *
+   * Цена окна руками не вводится: её считает сервер из выбранных тканей
+   * (метраж × цена за метр, см. services/quote_calc.py). Здесь только показ.
+   * Приоритет у уже сохранённой цены КП — если её правили, расчёт её не
+   * затирает при переоткрытии модалки.
    */
-  const [prices, setPrices] = useState<Record<string, string>>({});
-
   const lines = useMemo(() => {
     if (items.length > 0) {
       return items.map((it) => ({
@@ -70,23 +72,16 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
         height: it.window_height_cm ?? 0,
         qty: Math.round(Number(it.quantity ?? 1)),
         price: lineTotalOf(it),
-        editable: false,
         fabric: it.fabric || null,
         sewingType: it.sewing_type || "standard",
         folds: it.folds_count ?? 0,
       }));
     }
     return (order?.measurements ?? []).map((m) => {
-      // Цена уже посчитана в КП — подставляем её, а не спрашиваем заново.
-      // Меняются только установка, скидка и предоплата; вручную цену можно
-      // задать, если КП ещё нет или её нужно поправить.
       const fromQuote = quoteDetail?.items?.find(
         (qi) => qi.room_name === m.room_name && qi.window_name === m.window_name
       );
-      const typed = prices[m.id];
-      const hasTyped = typed !== undefined && typed !== "";
-      // Цена из выбранных тканей (метраж × цена за метр) — считает сервер.
-      // Используется, когда КП ещё нет: тогда подставлять нечего.
+      const saved = Number(fromQuote?.line_total ?? 0);
       const calculated = Number(m.calculated_price ?? 0);
       return {
         key: m.id,
@@ -94,17 +89,14 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
         window: m.window_name || "Окно",
         width: m.width_cm ?? 0,
         height: m.height_cm ?? 0,
-        qty: 1,
-        price: hasTyped
-          ? parseFloat(typed) || 0
-          : Number(fromQuote?.line_total ?? 0) || calculated,
-        editable: true,
+        qty: Math.round(Number(m.quantity ?? 1)),
+        price: saved || calculated,
         fabric: null as string | null,
         sewingType: "standard",
         folds: 0,
       };
     });
-  }, [items, order?.measurements, prices, quoteDetail]);
+  }, [items, order?.measurements, quoteDetail]);
 
   const totals = useMemo(() => {
     const subtotal = lines.reduce((s, l) => s + l.price, 0);
@@ -131,24 +123,15 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
     if (quoteDetail.prepayment_percent) {
       setPrepayPct(String(Math.round(Number(quoteDetail.prepayment_percent) * 100)));
     }
-    // Цены по окнам тоже подставляем в поля ввода, а не только в расчёт:
-    // без этого «Предытог» показывал сумму из КП, а строки стояли пустыми.
-    const seeded: Record<string, string> = {};
-    for (const m of order?.measurements ?? []) {
-      const qi = quoteDetail.items?.find(
-        (q) => q.room_name === m.room_name && q.window_name === m.window_name
-      );
-      const val = Number(qi?.line_total ?? 0) || Number(m.calculated_price ?? 0);
-      if (val > 0) seeded[m.id] = String(Math.round(val));
-    }
-    if (Object.keys(seeded).length > 0) setPrices(seeded);
+    // Цены по окнам здесь не подставляем: они больше не поля ввода, а
+    // считаются в `lines` (сохранённая цена КП, иначе расчёт по тканям).
     setPrefilled(true);
-  }, [isOpen, prefilled, quoteDetail, order?.measurements]);
+  }, [isOpen, prefilled, quoteDetail]);
 
   const customerId = typeof order?.customer === "object" ? order.customer.id : order?.customer ?? "";
 
   const reset = () => {
-    setDiscountPercent(""); setInstallPrice(""); setPrepayPct("50"); setErr(null); setPrices({}); setPrefilled(false);
+    setDiscountPercent(""); setInstallPrice(""); setPrepayPct("50"); setErr(null); setPrefilled(false);
   };
   const close = () => { reset(); onClose(); };
 
@@ -239,25 +222,15 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
                       <div>{line.room}</div>
                       <div>{line.window + dims}</div>
                     </div>
+                    {/*
+                      Сводка, а не форма. Цена окна считается сервером из
+                      выбранных тканей (метраж × цена за метр) — вводить её
+                      руками нельзя, иначе веб и мобилка разойдутся в суммах.
+                    */}
                     <div className="text-right">
-                      {line.editable ? (
-                        <div className="flex items-center gap-2">
-                          <input
-                            inputMode="numeric"
-                            value={prices[line.key] ?? ""}
-                            onChange={(e) =>
-                              setPrices((p) => ({ ...p, [line.key]: e.target.value.replace(/\D/g, "") }))
-                            }
-                            placeholder="0"
-                            className={`${fieldCls} w-32 text-right`}
-                          />
-                          <span className="text-[15px] text-[#475569]">₸</span>
-                        </div>
-                      ) : (
-                        <div className="text-[16px] font-medium text-[#0F172A] whitespace-nowrap">
-                          {fmtNum(line.price)} ₸
-                        </div>
-                      )}
+                      <div className="text-[16px] font-medium text-[#0F172A] whitespace-nowrap">
+                        {fmtNum(line.price)} ₸
+                      </div>
                       {line.qty > 1 && <div className="text-[13px] text-[#94A3B8]">({line.qty} шт.)</div>}
                     </div>
                   </div>
