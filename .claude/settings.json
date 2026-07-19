@@ -19,7 +19,8 @@
       "PowerShell(git ls-remote origin:*)",
       "Bash(python -)",
       "Bash(timeout 600 python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_error_message_leakage)",
-      "Bash(timeout 600 python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_error_message_leakage.TestErrorMessageLeakage.test_business_errors_keep_their_message)"
+      "Bash(timeout 600 python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_error_message_leakage.TestErrorMessageLeakage.test_business_errors_keep_their_message)",
+      "PowerShell(git ls-remote origin main)"
     ]
   }
 }

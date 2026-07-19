@@ -18,6 +18,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 
 from atelier_erp.api.permissions import IsManagerOrAdmin, IsOwnerOrDesigner, IsWarehouseOrOwner, IsInstallationOrOwner, IsInstallationOrOwnerOrReadOnly, IsSeamstressOrOwner, CanAccessMeasurement
+from atelier_erp.api.v1.role_scope import scope_orders_for_role, filter_by_visible_orders
 from atelier_erp.tenant_utils import TenantModelMixin, TenantViaOrderMixin
 from atelier_erp.roles import Roles, user_in
 from atelier_erp.services.numbering import next_number
@@ -114,28 +115,9 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
             .annotate(**execution_substatus_annotations())
             .order_by('-created_at')
         )
-        user = self.request.user
-
-        if user_in(user, *Roles.FULL_ORDER_ACCESS):
-            scoped = qs
-        elif user_in(user, Roles.WAREHOUSE):
-            scoped = qs.filter(status__in=[
-                Order.Status.IN_WORK,
-                Order.Status.IN_PRODUCTION,
-                Order.Status.READY,
-            ])
-        elif user_in(user, Roles.SEAMSTRESS):
-            scoped = qs.filter(status=Order.Status.IN_PRODUCTION)
-        elif user_in(user, Roles.INSTALLER):
-            scoped = qs.filter(status__in=[
-                Order.Status.READY,
-                Order.Status.ON_INSTALLATION,
-                Order.Status.WAITING_FINAL_PAYMENT,
-            ])
-        else:
-            # Нет подходящей роли — ничего не показываем (default deny).
-            scoped = qs.none()
-
+        # Раскладка «роль → статусы» живёт в role_scope.py: тем же правилом
+        # сужаются замеры, иначе они оказываются шире заказов.
+        scoped = scope_orders_for_role(qs, self.request.user)
         return self.scope_to_tenant(scoped)
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = OrderFilterSet
@@ -1961,7 +1943,11 @@ class TaskViewSet(TenantModelMixin, viewsets.ModelViewSet):
     Convert to order: POST /api/v1/tasks/{id}/convert_to_order/
     """
     queryset = Task.objects.all().order_by('-created_at')
-    permission_classes = [IsAuthenticated]
+    # Лиды ведут владелец и дизайнер. Раньше стоял голый IsAuthenticated, и
+    # любая роль (склад, цех, монтаж) могла вычитать все лиды тенанта вместе
+    # с контактами клиентов — при том, что ни один экран этот эндпоинт не
+    # использует. Приведено к таблице ролей из CLAUDE.md.
+    permission_classes = [IsAuthenticated, IsOwnerOrDesigner]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'client_phone']
     search_fields = ['task_number', 'client_name', 'client_phone']
@@ -2332,9 +2318,12 @@ class CustomerViewSet(TenantModelMixin, viewsets.ModelViewSet):
         return self.scope_to_tenant(qs)
 
     def get_permissions(self):
-        if self.action in ('create', 'update', 'partial_update', 'destroy'):
-            return [IsAuthenticated(), IsOwnerOrDesigner()]
-        return [IsAuthenticated()]
+        # Справочник клиентов — владелец и дизайнер. Раньше чтение было открыто
+        # любой роли: склад/цех/монтаж могли выгрузить всю клиентскую базу с
+        # телефонами и почтой. Имя клиента по своему заказу исполнители
+        # по-прежнему видят — оно приходит внутри OrderDetailSerializer,
+        # а не отсюда.
+        return [IsAuthenticated(), IsOwnerOrDesigner()]
 
 
 # ---------------------------------------------------------------------------
@@ -2414,8 +2403,14 @@ class MeasurementViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
         # (см. TenantViaOrderMixin в tenant_utils.py) — фильтрация идёт через
         # order__tenant. scope_to_tenant() здесь ЕДИНСТВЕННАЯ линия защиты,
         # а не вторая: удаление вызова полностью открывает кросс-тенантный доступ.
+        #
+        # Поверх тенанта — ролевой срез по заказу. Без него замеры были шире
+        # заказов: исполнитель не видел чужой заказ в списке, но мог прочитать
+        # и отметить галочку на его замере по прямому id, а автопродвижение
+        # статусов превращало это в смену статуса чужого заказа.
+        qs = Measurement.objects.select_related('curtain_fabric', 'tulle_fabric').all()
         return self.scope_to_tenant(
-            Measurement.objects.select_related('curtain_fabric', 'tulle_fabric').all()
+            filter_by_visible_orders(qs, self.request.user)
         )
 
 

@@ -265,3 +265,51 @@ class ActionRBACTests(APITestCase):
         self._make_user('inst_accept', Roles.INSTALLER)
         resp = self.client.post(self._url(self.order_new, 'accept'))
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class ExecutorCannotEnumerateDirectoriesTests(APITestCase):
+    """
+    Исполнители не выгружают справочники целиком.
+
+    Лиды (`/v1/tasks/`) и клиентская база (`/v1/customers/`) стояли под голым
+    IsAuthenticated: склад, цех и монтаж могли вычитать все лиды и всех клиентов
+    тенанта с телефонами и почтой. Ни один экран этих ролей туда не ходит —
+    приведено к таблице ролей (владелец/дизайнер).
+    """
+
+    def setUp(self):
+        self.customer = Customer.objects.create(
+            full_name='Клиент Справочник', phone='+70000000088',
+        )
+
+    def _client_for(self, role, username):
+        group, _ = Group.objects.get_or_create(name=role)
+        user = User.objects.create_user(username=username, password='pwd12345')
+        user.groups.add(group)
+        self.client.force_authenticate(user=user)
+        return user
+
+    def test_executors_cannot_list_customers(self):
+        for role in (Roles.WAREHOUSE, Roles.SEAMSTRESS, Roles.INSTALLER):
+            with self.subTest(role=role):
+                self._client_for(role, f'dir_cust_{role}')
+                resp = self.client.get('/api/v1/customers/')
+                self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_executors_cannot_list_tasks(self):
+        for role in (Roles.WAREHOUSE, Roles.SEAMSTRESS, Roles.INSTALLER):
+            with self.subTest(role=role):
+                self._client_for(role, f'dir_task_{role}')
+                resp = self.client.get('/api/v1/tasks/')
+                self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_designer_keeps_access(self):
+        """Сужение не должно задеть тех, кто ведёт клиентов и лиды."""
+        self._client_for(Roles.DESIGNER, 'dir_designer')
+        self.assertEqual(self.client.get('/api/v1/customers/').status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.get('/api/v1/tasks/').status_code, status.HTTP_200_OK)
+
+    def test_owner_keeps_access(self):
+        self._client_for(Roles.OWNER, 'dir_owner')
+        self.assertEqual(self.client.get('/api/v1/customers/').status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.get('/api/v1/tasks/').status_code, status.HTTP_200_OK)

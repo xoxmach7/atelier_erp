@@ -122,7 +122,18 @@ class TestMeasurementRoleFlags(TestCase):
         self.measurement.refresh_from_db()
         assert self.measurement.width_cm == 220
 
+    def _move_order_to_installation(self):
+        """
+        Заказ на стадии монтажа.
+
+        Замер виден исполнителю только пока заказ в его ролевом срезе
+        (см. api/v1/role_scope.py), а `IN_PRODUCTION` установщику не показывают.
+        """
+        self.order.status = Order.Status.READY
+        self.order.save(update_fields=['status'])
+
     def test_installer_can_set_installation_done(self):
+        self._move_order_to_installation()
         client = self._client_for(Roles.INSTALLER)
         resp = client.patch(self._url(), {'installation_done': True}, format='json')
         assert resp.status_code == 200, resp.content
@@ -131,6 +142,7 @@ class TestMeasurementRoleFlags(TestCase):
 
     def test_installer_cannot_flip_sewing_flag(self):
         """Установщик не закрывает пошив за цех."""
+        self._move_order_to_installation()
         client = self._client_for(Roles.INSTALLER)
         resp = client.patch(self._url(), {'sewing_done': True}, format='json')
         assert resp.status_code == 200, resp.content
