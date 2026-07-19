@@ -514,10 +514,32 @@ function MaterialsContent() {
                 />
               </div>
 
-              {/* 3. Единица измерения */}
+              {/* 3. Категория */}
               <div className="mb-6">
                 <label className="block text-[15px] text-[#0F172A] mb-2">
-                  3. Единица измерения <span className="text-[#DC2626]">*</span>
+                  3. Категория <span className="text-[#DC2626]">*</span>
+                </label>
+                <div className="relative">
+                  <select
+                    value={form.category}
+                    onChange={(e) => setForm({ ...form, category: e.target.value as InventoryCategory })}
+                    className={`${inputCls} appearance-none pr-10`}
+                  >
+                    {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </select>
+                  <svg
+                    className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#475569]"
+                    width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
+                  >
+                    <path d="M12 16 6 9h12z" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* 4. Единица измерения */}
+              <div className="mb-6">
+                <label className="block text-[15px] text-[#0F172A] mb-2">
+                  4. Единица измерения <span className="text-[#DC2626]">*</span>
                 </label>
                 <div className="relative">
                   <select
@@ -536,9 +558,9 @@ function MaterialsContent() {
                 </div>
               </div>
 
-              {/* 4. Стоимость */}
+              {/* 5. Стоимость */}
               <div className="mb-6">
-                <label className="block text-[15px] text-[#0F172A] mb-2">4. Стоимость за м/шт.</label>
+                <label className="block text-[15px] text-[#0F172A] mb-2">5. Стоимость за м/шт.</label>
                 <div className="flex items-center gap-3">
                   <input
                     type="number" min="0" step="0.01"
@@ -551,10 +573,10 @@ function MaterialsContent() {
                 </div>
               </div>
 
-              {/* 5. Минимальный запас */}
+              {/* 6. Минимальный запас */}
               <div className="mb-8">
                 <label className="flex items-center gap-2 text-[15px] text-[#0F172A] mb-2">
-                  5. Минимальный запас
+                  6. Минимальный запас
                   <span title="Если остаток опустится ниже этого значения, позиция подсветится как «на исходе»">
                     <HelpCircle size={16} className="text-[#94A3B8]" />
                   </span>
