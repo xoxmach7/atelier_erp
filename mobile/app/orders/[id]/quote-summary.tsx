@@ -136,6 +136,27 @@ export default function QuoteSummaryScreen() {
         </TouchableOpacity>
         <Text style={s.title}>Заказ №{quote.order_number?.match(/\d+$/)?.[0] ?? quote.order_number}</Text>
 
+        {/* Строки КП с ценами — как на макете: сводка, а не форма. */}
+        {quote.items.map(it => {
+          const dims = it.window_width_cm && it.window_height_cm
+            ? ` (${it.window_width_cm}x${it.window_height_cm})`
+            : '';
+          return (
+            <View key={it.id} style={s.itemRow}>
+              <View style={s.itemLeft}>
+                <Text style={s.itemRoom}>{it.room_name}</Text>
+                <Text style={s.itemWindow}>{it.window_name}{dims}</Text>
+              </View>
+              <Text style={s.itemPrice}>{money(it.line_total)} ₸</Text>
+            </View>
+          );
+        })}
+
+        <View style={s.subtotalRow}>
+          <Text style={s.subtotalLabel}>Предытог</Text>
+          <Text style={s.subtotalValue}>{money(subtotal)} ₸</Text>
+        </View>
+
         <View style={s.row}>
           <Text style={s.label}>Установка:</Text>
           <TextInput
@@ -212,6 +233,23 @@ const s = StyleSheet.create({
   },
   back: { fontSize: 16, color: '#94A3B8', fontFamily: 'TTNormsPro-Regular', marginBottom: 10 },
   title: { fontSize: 26, fontFamily: 'TTNormsPro-Bold', color: '#0F172A', textAlign: 'center', marginBottom: 28 },
+
+  itemRow: {
+    flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between',
+    paddingBottom: 12, marginBottom: 12,
+    borderBottomWidth: 1, borderBottomColor: '#E9E9E9',
+  },
+  itemLeft: { flex: 1, paddingRight: 12 },
+  itemRoom: { fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Regular' },
+  itemWindow: { fontSize: 15, color: '#64748B', fontFamily: 'TTNormsPro-Regular', marginTop: 2 },
+  itemPrice: { fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Bold' },
+
+  subtotalRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginTop: 8, marginBottom: 22,
+  },
+  subtotalLabel: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Regular' },
+  subtotalValue: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Bold' },
 
   row: { flexDirection: 'row', alignItems: 'center', marginBottom: 22 },
   label: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', flex: 1 },

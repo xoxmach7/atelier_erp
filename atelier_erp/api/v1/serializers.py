@@ -9,6 +9,7 @@ from rest_framework import serializers
 from atelier_erp.models import Order, Task, Fabric, OrderItem, Customer, Quote, QuoteItem, Measurement, Payment, PhotoReport, OrderMaterial, InventoryItem
 # Inline definitions (previously imported from api/serializers.py)
 from atelier_erp.models import Fabric as _Fabric, Quote as _Quote
+from atelier_erp.services.quote_calc import window_price, window_price_breakdown
 
 class FabricListSerializer(serializers.ModelSerializer):
     """Minimal fabric serializer"""
@@ -188,6 +189,11 @@ class MeasurementSerializer(serializers.ModelSerializer):
     # Phase 3: Curtain and tulle fabrics with meters
     curtain_fabric_details = FabricListSerializer(source='curtain_fabric', read_only=True)
     tulle_fabric_details = FabricListSerializer(source='tulle_fabric', read_only=True)
+    # Цена окна выводится из выбранных тканей (метраж × цена за метр) и считается
+    # на сервере — см. services/quote_calc.py. Клиенты её только показывают,
+    # своей копии формулы не держат, иначе веб и мобилка разойдутся в суммах.
+    calculated_price = serializers.SerializerMethodField()
+    price_breakdown = serializers.SerializerMethodField()
 
     class Meta:
         model = Measurement
@@ -198,7 +204,15 @@ class MeasurementSerializer(serializers.ModelSerializer):
             'curtain_fabric', 'curtain_fabric_details', 'curtain_meters', 'curtain_gathering',
             'tulle_fabric', 'tulle_fabric_details', 'tulle_meters', 'tulle_gathering',
             'notes', 'materials_ready', 'sewing_done', 'installation_done', 'quantity',
+            'calculated_price', 'price_breakdown',
         ]
+
+    def get_calculated_price(self, obj):
+        return str(window_price(obj))
+
+    def get_price_breakdown(self, obj):
+        data = window_price_breakdown(obj)
+        return {k: (str(v) if not isinstance(v, int) else v) for k, v in data.items()}
 
 
 class MeasurementWarehouseFlagSerializer(serializers.ModelSerializer):

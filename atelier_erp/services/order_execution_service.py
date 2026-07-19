@@ -16,6 +16,7 @@ from ..constants import (
     MaterialReadiness, ProductionStage, HandoverStage
 )
 from .exceptions import OrderValidationError, InvalidOrderStatusTransition
+from .quote_calc import window_price
 from ..api.v1.status_groups import get_status_group, get_status_group_label
 
 
@@ -251,6 +252,9 @@ class OrderExecutionService:
                 'installation_done': m.installation_done,
                 # Сколько одинаковых изделий по этому окну
                 'quantity': m.quantity,
+                # Цена окна из выбранных тканей (метраж × цена за метр),
+                # считается на сервере — см. services/quote_calc.py.
+                'calculated_price': str(window_price(m)),
                 'photos': [
                     {
                         'id': str(p.id),

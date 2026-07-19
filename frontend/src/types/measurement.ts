@@ -116,6 +116,19 @@ export interface MeasurementDTO {
   notes: string;
   /** Сколько одинаковых изделий по этому окну (повторяющиеся окна). */
   quantity?: number;
+  /**
+   * Цена окна, посчитанная сервером из выбранных тканей: метраж × цена за
+   * метр, отдельно шторы и тюль, затем × количество. Формула на бэке в
+   * services/quote_calc.py — на клиенте её дублировать нельзя.
+   */
+  calculated_price?: string;
+  price_breakdown?: {
+    curtain_cost: string;
+    tulle_cost: string;
+    per_item: string;
+    quantity: number;
+    total: string;
+  };
   measured_by: string | null; // User ID
   measured_by_name: string | null; // Display name from backend
   measured_at: string;

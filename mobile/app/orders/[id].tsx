@@ -707,9 +707,14 @@ const s = StyleSheet.create({
   },
   prepayUnit: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', marginLeft: 10 },
 
+  // Без flex: 1. Кнопка лежит в колонке, которая тянется по содержимому:
+  // flex-ребёнок в такой колонке схлопывается в нулевую высоту (базис 0, а
+  // распределять нечего), и «Сохранить» в модалке предоплаты был невидим —
+  // высота 52 при этом перебивалась флексом.
   modalBtn: {
     backgroundColor: '#60CCED', borderRadius: 12, height: 52,
-    alignItems: 'center', justifyContent: 'center', marginTop: 8, flex: 1,
+    alignItems: 'center', justifyContent: 'center', marginTop: 8,
+    alignSelf: 'stretch',
   },
   modalBtnDisabled: { opacity: 0.5 },
   modalBtnText: { color: '#FFFFFF', fontSize: 17, fontFamily: 'TTNormsPro-Regular' },

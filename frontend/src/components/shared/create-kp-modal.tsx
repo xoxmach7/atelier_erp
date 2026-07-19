@@ -85,6 +85,9 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
       );
       const typed = prices[m.id];
       const hasTyped = typed !== undefined && typed !== "";
+      // Цена из выбранных тканей (метраж × цена за метр) — считает сервер.
+      // Используется, когда КП ещё нет: тогда подставлять нечего.
+      const calculated = Number(m.calculated_price ?? 0);
       return {
         key: m.id,
         room: m.room_name || "Комната",
@@ -92,7 +95,9 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
         width: m.width_cm ?? 0,
         height: m.height_cm ?? 0,
         qty: 1,
-        price: hasTyped ? parseFloat(typed) || 0 : Number(fromQuote?.line_total ?? 0),
+        price: hasTyped
+          ? parseFloat(typed) || 0
+          : Number(fromQuote?.line_total ?? 0) || calculated,
         editable: true,
         fabric: null as string | null,
         sewingType: "standard",
@@ -133,7 +138,7 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
       const qi = quoteDetail.items?.find(
         (q) => q.room_name === m.room_name && q.window_name === m.window_name
       );
-      const val = Number(qi?.line_total ?? 0);
+      const val = Number(qi?.line_total ?? 0) || Number(m.calculated_price ?? 0);
       if (val > 0) seeded[m.id] = String(Math.round(val));
     }
     if (Object.keys(seeded).length > 0) setPrices(seeded);

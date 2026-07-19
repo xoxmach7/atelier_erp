@@ -97,6 +97,14 @@ export interface MeasurementsList {
     tulle_meters?: string;
     tulle_gathering?: string;
     notes?: string;
+    /** Сколько одинаковых изделий по этому окну (повторяющиеся окна). */
+    quantity?: number;
+    /**
+     * Цена окна, посчитанная сервером из выбранных тканей
+     * (метраж × цена за метр, с учётом количества). Клиент её только
+     * показывает — формула живёт на бэке в services/quote_calc.py.
+     */
+    calculated_price?: string;
     measured_at?: string;
   }>;
 }

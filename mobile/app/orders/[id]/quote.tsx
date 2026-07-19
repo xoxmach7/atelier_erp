@@ -1,13 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, Alert, Platform, StatusBar,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Icon } from '../../../src/components/Icon';
 import {
-  fetchMeasurements, createQuote, fetchOrderExecution,
+  fetchMeasurements, createQuote, fetchOrderExecution, fetchQuotes,
   type MeasurementsList, type CreateQuotePayload,
 } from '../../../src/api/orders';
 import { fetchFabricsList } from '../../../src/api/fabrics';
@@ -17,7 +16,8 @@ type Meas = MeasurementsList['results'][number];
 interface Line {
   m: Meas;
   qty: number;
-  price: string;
+  /** Цена окна из уже сохранённого КП. Здесь она только показывается. */
+  price: number;
 }
 
 function money(n: number): string {
@@ -40,12 +40,32 @@ export default function QuoteScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const [meas, fabrics, exec] = await Promise.all([
+        const [meas, fabrics, exec, quotes] = await Promise.all([
           fetchMeasurements(idStr),
           fetchFabricsList().catch(() => []),
           fetchOrderExecution(idStr).catch(() => null),
+          fetchQuotes(idStr).catch(() => null),
         ]);
-        setLines(meas.results.map(m => ({ m, qty: 1, price: '' })));
+
+        // Цена окна считается сервером из выбранных тканей (метраж × цена за
+        // метр) и приходит в calculated_price. Если КП уже сохранено и цену
+        // правили руками, приоритет у сохранённой — иначе правка терялась бы
+        // при каждом открытии экрана.
+        const existing = quotes?.results?.[0] ?? null;
+        const priceOf = (m: Meas): number => {
+          const hit = existing?.items?.find(
+            it => it.room_name === m.room_name && it.window_name === m.window_name,
+          );
+          const saved = parseFloat(hit?.line_total ?? '0') || 0;
+          if (saved > 0) return saved;
+          return parseFloat(m.calculated_price ?? '0') || 0;
+        };
+
+        setLines(meas.results.map(m => ({
+          m,
+          qty: Math.max(1, Math.round(Number(m.quantity ?? 1))),
+          price: priceOf(m),
+        })));
         const map: Record<string, string> = {};
         fabrics.forEach(f => { map[f.id] = f.name; });
         setFabricNames(map);
@@ -56,15 +76,12 @@ export default function QuoteScreen() {
     })();
   }, [idStr]);
 
+  // Цена окна уже включает количество (line_total из КП), поэтому на qty
+  // не домножаем — иначе повторяющиеся окна считались бы дважды.
   const total = useMemo(
-    () => lines.reduce((sum, l) => sum + (parseFloat(l.price) || 0) * l.qty, 0),
+    () => lines.reduce((sum, l) => sum + l.price, 0),
     [lines],
   );
-
-  const setQty = (i: number, delta: number) =>
-    setLines(ls => ls.map((l, idx) => idx === i ? { ...l, qty: Math.max(1, l.qty + delta) } : l));
-  const setPrice = (i: number, v: string) =>
-    setLines(ls => ls.map((l, idx) => idx === i ? { ...l, price: v } : l));
 
   const fabricLabel = (uuid?: string | null) => (uuid && fabricNames[uuid]) || (uuid ? '—' : '');
 
@@ -82,7 +99,7 @@ export default function QuoteScreen() {
           window_height_cm: l.m.height_cm ?? 0,
           fabric_meters: l.m.curtain_meters ?? 0,
           tulle_meters: l.m.tulle_meters ?? 0,
-          line_total: (parseFloat(l.price) || 0) * l.qty,
+          line_total: l.price,
         })),
       };
       const quote = await createQuote(payload);
@@ -129,18 +146,10 @@ export default function QuoteScreen() {
               {Boolean(l.m.mounting_type) && <Text style={s.cardLine}><Text style={s.b}>Тип крепления: </Text>{l.m.mounting_type}</Text>}
               {Boolean(l.m.notes) && <Text style={s.cardLine}><Text style={s.b}>Комментарий: </Text>{l.m.notes}</Text>}
 
+              {/* Сводка, а не форма: количество и цена приходят из «Позиций». */}
               <View style={s.cardControls}>
-                <View style={s.qtyRow}>
-                  <Text style={s.b}>Количество: </Text>
-                  <TouchableOpacity style={s.qtyBtn} onPress={() => setQty(i, -1)}><Icon name="minus" size={16} color="#475569" /></TouchableOpacity>
-                  <Text style={s.qtyVal}>{l.qty}</Text>
-                  <TouchableOpacity style={s.qtyBtn} onPress={() => setQty(i, +1)}><Icon name="plus" size={16} color="#475569" /></TouchableOpacity>
-                </View>
-                <View style={s.priceRow}>
-                  <Text style={s.b}>Стоимость: </Text>
-                  <TextInput style={s.priceInput} value={l.price} onChangeText={(v) => setPrice(i, v)} keyboardType="numeric" placeholder="0" placeholderTextColor="#94A3B8" />
-                  <Text style={s.cardLine}> ₸</Text>
-                </View>
+                <Text style={s.cardLine}><Text style={s.b}>Количество: </Text>{l.qty}</Text>
+                <Text style={s.priceValue}>{money(l.price)} ₸</Text>
               </View>
             </View>
           );
@@ -148,7 +157,7 @@ export default function QuoteScreen() {
 
         {/* Totals — только итог; предоплата/оплата задаются на след. экране КП */}
         <View style={s.totalsBox}>
-          <Text style={s.totalLabel}>Итоговая стоимость:</Text>
+          <Text style={s.totalLabel}>Предытог:</Text>
           <Text style={s.totalValue}>{money(total)} ₸</Text>
         </View>
 
@@ -180,12 +189,11 @@ const s = StyleSheet.create({
   cardRoom: { fontSize: 19, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', marginBottom: 2 },
   cardLine: { fontSize: 16, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', lineHeight: 24 },
   b: { fontFamily: 'TTNormsPro-Bold' },
-  cardControls: { marginTop: 12, gap: 10 },
-  qtyRow: { flexDirection: 'row', alignItems: 'center' },
-  qtyBtn: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#E9E9E9', alignItems: 'center', justifyContent: 'center', marginHorizontal: 6 },
-  qtyVal: { fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Medium', minWidth: 20, textAlign: 'center' },
-  priceRow: { flexDirection: 'row', alignItems: 'center' },
-  priceInput: { minWidth: 90, backgroundColor: '#E9E9E9', borderRadius: 8, height: 40, paddingHorizontal: 12, fontSize: 17, color: '#0F172A', fontFamily: 'TTNormsPro-Bold' },
+  cardControls: {
+    marginTop: 12, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  priceValue: { fontSize: 18, color: '#0F172A', fontFamily: 'TTNormsPro-Bold' },
 
   totalsBox: { marginTop: 10, marginBottom: 8 },
   totalLabel: { fontSize: 20, color: '#0F172A', fontFamily: 'TTNormsPro-Regular' },
