@@ -13,6 +13,7 @@ import { useCreateOrder } from "@/hooks/useOrders";
 import { useStaff } from "@/hooks/useStaff";
 import { useCustomers, useCreateCustomer } from "@/hooks/useCustomers";
 import type { CustomerDTO } from "@/hooks/useCustomers";
+import { maskPhoneInput } from "@/lib/phone";
 
 /* ------------------------------------------------------------------ */
 /*  Inline Customer Search/Select                                     */
@@ -109,10 +110,14 @@ function InlineNewCustomer({
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const createMutation = useCreateCustomer();
 
+  const isPhoneValid = phone.replace(/\D/g, "").length === 11;
+
   async function handleCreate() {
-    if (!name.trim() || !phone.trim()) return;
+    if (!name.trim() || !isPhoneValid) return;
+    setError(null);
     try {
       const customer = await createMutation.mutateAsync({
         full_name: name.trim(),
@@ -120,7 +125,7 @@ function InlineNewCustomer({
       });
       onCreated(customer);
     } catch (err) {
-      console.error("Failed to create customer:", err);
+      setError(err instanceof Error ? err.message : "Не удалось создать клиента");
     }
   }
 
@@ -144,13 +149,15 @@ function InlineNewCustomer({
         type="text"
         placeholder="+7 (777) 000-00-00 *"
         value={phone}
-        onChange={(e) => setPhone(e.target.value)}
+        onChange={(e) => setPhone(maskPhoneInput(e.target.value))}
+        inputMode="tel"
         className="w-full rounded-[10px] border border-[#E2E8F0] bg-white px-4 py-2.5 text-[14px] outline-none focus:border-[#0EA5E9]"
       />
+      {error && <p className="text-[13px] text-[#DC2626]">{error}</p>}
       <button
         type="button"
         onClick={handleCreate}
-        disabled={!name.trim() || !phone.trim() || createMutation.isPending}
+        disabled={!name.trim() || !isPhoneValid || createMutation.isPending}
         className="w-full rounded-[10px] bg-[#60CCED] py-2.5 text-[14px] font-medium text-white hover:bg-[#4DBCE0] transition-colors disabled:opacity-50"
       >
         {createMutation.isPending ? "Создание..." : "Добавить и выбрать"}
