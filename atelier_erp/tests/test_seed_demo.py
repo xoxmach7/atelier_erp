@@ -44,6 +44,44 @@ class TestSeedDemo(TestCase):
         assert Measurement.objects.filter(installation_done=True).exists()
         assert Measurement.objects.filter(sewing_done=False).exists()
 
+    def test_fabrics_have_stock(self):
+        """
+        Раньше ткани создавались без stock_meters (по умолчанию 0): экран
+        «Материалы» показывал «0 м / На исходе» по каждой ткани одновременно
+        с тем, что заказы демонстрировали «Собран»/«В сборке» — выглядело
+        как склад пуст, а материалы для заказов якобы уже есть.
+        """
+        from atelier_erp.models import Fabric
+
+        call_command("seed_demo", stdout=StringIO())
+        demo_fabrics = Fabric.objects.filter(name__startswith="[DEMO]")
+        assert demo_fabrics.exists()
+        for fabric in demo_fabrics:
+            assert fabric.stock_meters > 0, fabric.name
+
+    def test_fabric_stock_fixable_without_touching_orders(self):
+        """
+        `_ensure_fabrics` чинит уже засеянные ткани сама по себе, не завязана
+        на --reset и не создаёт заказов. Важно для прода: полная команда
+        `Order.objects.create()` без наличия ключа идемпотентности — повторный
+        вызов `seed_demo` без --reset задублировал бы все 12 заказов, поэтому
+        точечный фикс остатка ткани на проде обязан идти в обход всей команды
+        (напрямую через `_ensure_fabrics` или прямым UPDATE), а не повторным
+        запуском сидера.
+        """
+        from atelier_erp.management.commands.seed_demo import Command
+        from atelier_erp.models import Fabric
+
+        call_command("seed_demo", stdout=StringIO())
+        Fabric.objects.filter(name__startswith="[DEMO]").update(stock_meters=0)
+        orders_before = Order.objects.count()
+
+        Command()._ensure_fabrics(tenant=None)
+
+        assert Order.objects.count() == orders_before
+        for fabric in Fabric.objects.filter(name__startswith="[DEMO]"):
+            assert fabric.stock_meters > 0, fabric.name
+
     def test_data_is_bound_to_tenant(self):
         """
         Без tenant демо-данные не видны никому: TenantManager фильтрует

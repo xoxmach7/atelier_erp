@@ -234,15 +234,29 @@ class Command(BaseCommand):
         return False
 
     def _ensure_fabrics(self, tenant) -> list:
+        """
+        Ткани каталога с реальным остатком на складе.
+
+        Раньше здесь не задавался `stock_meters` (по умолчанию 0), и
+        `get_or_create` не обновлял его на повторных запусках. Итог — экран
+        «Материалы» показывал 0 м / «На исходе» по каждой ткани, хотя
+        заказы одновременно демонстрировали статусы «Собран»/«В сборке»
+        (materials_ready — независимый ручной флаг склада по заказу, не
+        связан с остатком Fabric). Со стороны выглядело как явное
+        противоречие: склад пуст, а заказы якобы обеспечены материалом.
+        `update_or_create` с ненулевым остатком чинит и новые окружения, и
+        уже засеянные (повторный запуск обновляет остаток на месте).
+        """
         fabrics = []
         for name, hanger, price, width in FABRICS:
-            fabric, _ = Fabric.objects.get_or_create(
+            fabric, _ = Fabric.objects.update_or_create(
                 hanger_number=hanger,
                 defaults={
                     "name": f"{DEMO_TAG} {name}",
                     "price_per_meter": price,
                     "width_cm": width,
                     "tenant": tenant,
+                    "stock_meters": Decimal('80'),
                 },
             )
             fabrics.append(fabric)

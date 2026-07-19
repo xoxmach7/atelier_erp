@@ -35,7 +35,9 @@
       "Bash(curl -s --max-time 8 \"http://127.0.0.1:4040/api/tunnels\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 6 \"http://127.0.0.1:8081/status\")",
       "Bash(timeout 900 python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_quote_calc)",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "Bash(command -v railway)",
+      "Bash(timeout 900 python manage.py test --settings=atelier_erp.settings_test atelier_erp.tests.test_seed_demo)"
     ]
   }
 }
