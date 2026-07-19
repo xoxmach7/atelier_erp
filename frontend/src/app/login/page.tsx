@@ -68,15 +68,15 @@ export default function LoginPage() {
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex w-full flex-col gap-2.5">
+        <form onSubmit={handleSubmit} className="flex w-full flex-col gap-3">
           <input
             type="text"
-            placeholder="Логин"
+            placeholder="E-mail/телефон"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
             disabled={submitting}
-            className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-3 text-sm text-[#0F172A] outline-none transition-colors placeholder:text-[#94A3B8] focus:border-[#0EA5E9] disabled:opacity-60"
+            className="w-full rounded-lg border-none bg-[#E5E7EB] px-3.5 py-3 text-sm text-[#0F172A] outline-none transition-colors placeholder:text-[#6B7280] focus:ring-2 focus:ring-[#0EA5E9] disabled:opacity-60"
           />
           <input
             type="password"
@@ -85,14 +85,14 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             required
             disabled={submitting}
-            className="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-3 text-sm text-[#0F172A] outline-none transition-colors placeholder:text-[#94A3B8] focus:border-[#0EA5E9] disabled:opacity-60"
+            className="w-full rounded-lg border-none bg-[#E5E7EB] px-3.5 py-3 text-sm text-[#0F172A] outline-none transition-colors placeholder:text-[#6B7280] focus:ring-2 focus:ring-[#0EA5E9] disabled:opacity-60"
           />
           <button
             type="submit"
             disabled={submitting || !username || !password}
             className="mt-1 w-full rounded-lg bg-[#60CCED] py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[#4DBCE0] disabled:opacity-70"
           >
-            {submitting ? "Вход..." : "Войти"}
+            {submitting ? "Вход..." : "Вход"}
           </button>
         </form>
       </div>

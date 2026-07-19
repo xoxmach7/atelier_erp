@@ -51,9 +51,10 @@ interface CustomerFormProps {
   onSubmit: (data: CreateCustomerInput | UpdateCustomerInput) => void;
   isPending: boolean;
   onCancel: () => void;
+  error?: string | null;
 }
 
-function CustomerForm({ initial, onSubmit, isPending, onCancel }: CustomerFormProps) {
+function CustomerForm({ initial, onSubmit, isPending, onCancel, error }: CustomerFormProps) {
   const [fullName, setFullName] = useState(initial?.full_name ?? "");
   const [phone, setPhone] = useState(maskPhoneInput(initial?.phone ?? ""));
   const [email, setEmail] = useState(initial?.email ?? "");
@@ -121,6 +122,12 @@ function CustomerForm({ initial, onSubmit, isPending, onCancel }: CustomerFormPr
         />
       </div>
 
+      {error && (
+        <div className="mb-4 rounded-lg bg-[#FEE2E2] border border-[#FECACA] px-4 py-3 text-[13px] text-[#DC2626]">
+          {error}
+        </div>
+      )}
+
       <button
         type="submit"
         disabled={!isValid || isPending}
@@ -142,6 +149,7 @@ export default function CustomersPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<CustomerDTO | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<CustomerDTO | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Data
   const { data, isLoading, error } = useCustomers(search || undefined);
@@ -156,23 +164,34 @@ export default function CustomersPage() {
 
   function openCreate() {
     setEditingCustomer(null);
+    setFormError(null);
     setDialogOpen(true);
   }
 
   function openEdit(c: CustomerDTO) {
     setEditingCustomer(c);
+    setFormError(null);
     setDialogOpen(true);
   }
 
+  function extractErrorMessage(err: unknown): string {
+    return err instanceof Error && err.message ? err.message : "Не удалось сохранить клиента";
+  }
+
   function handleFormSubmit(data: CreateCustomerInput | UpdateCustomerInput) {
+    setFormError(null);
     if (editingCustomer) {
       updateMutation.mutate(
         { customerId: editingCustomer.id, data: data as UpdateCustomerInput },
-        { onSuccess: () => setDialogOpen(false) }
+        {
+          onSuccess: () => setDialogOpen(false),
+          onError: (err) => setFormError(extractErrorMessage(err)),
+        }
       );
     } else {
       createMutation.mutate(data as CreateCustomerInput, {
         onSuccess: () => setDialogOpen(false),
+        onError: (err) => setFormError(extractErrorMessage(err)),
       });
     }
   }
@@ -320,6 +339,7 @@ export default function CustomersPage() {
             onSubmit={handleFormSubmit}
             isPending={createMutation.isPending || updateMutation.isPending}
             onCancel={() => setDialogOpen(false)}
+            error={formError}
           />
         </DialogContent>
       </Dialog>

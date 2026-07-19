@@ -74,7 +74,7 @@ class Customer(TenantManagerMixin, UUIDModel, TimestampedModel):
         unique=True,
         db_index=True,
         validators=[RegexValidator(
-            regex=r'^\+?[\d\s-]{10,20}$',
+            regex=r'^\+?[\d\s()-]{10,20}$',
             message='Phone must be 10-20 digits'
         )]
     )

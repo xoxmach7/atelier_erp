@@ -1233,8 +1233,8 @@ export default function OrderDetailPage() {
                 {/* Action pill buttons */}
                 {isOwnerOrDesigner && (
                   <div className="flex gap-2 mb-4">
-                    {/* Добавить замер — только дизайнер */}
-                    {role === "designer" && (
+                    {/* Добавить замер — дизайнер и владелец */}
+                    {(role === "designer" || role === "owner") && (
                       <button
                         onClick={() => setMeasurementModalOpen(true)}
                         className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
