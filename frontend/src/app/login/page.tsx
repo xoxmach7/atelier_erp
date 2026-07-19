@@ -47,7 +47,7 @@ export default function LoginPage() {
         {/* Logo */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/logo_transparent.png"
+          src="/logo_icon.png"
           alt="Sheber"
           width={140}
           height={140}
