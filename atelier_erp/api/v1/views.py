@@ -2218,6 +2218,28 @@ class QuoteViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
                 valid_until=data.get('valid_until'),
                 created_by=request.user.id if request.user.is_authenticated else None
             )
+
+            # В этом ателье КП создаёт сам дизайнер/владелец уже в финальном
+            # виде — отдельного шага «отправить клиенту / клиент одобрил» в
+            # интерфейсе нет (create-kp-modal сразу «Скачать КП»). Без
+            # авто-одобрения здесь Quote навсегда оставался бы в draft, а
+            # order.status — в new: auto_advance в in_work требует ОДНОВРЕМЕННО
+            # одобренного КП и сформированных позиций (см. status_automation.py).
+            try:
+                quote = service.approve_quote(quote.id)
+            except Exception:
+                pass  # КП создано, но не одобрено — можно доодобрить вручную
+
+            if quote.status == Quote.Status.APPROVED and quote.order_id:
+                from atelier_erp.services import OrderItemGenerationService
+                gen_service = OrderItemGenerationService(
+                    user=request.user.id if request.user.is_authenticated else None
+                )
+                try:
+                    gen_service.generate_order_items_from_quote(quote.order)
+                except Exception:
+                    pass  # позиции можно сформировать позже вручную
+
             response_serializer = QuoteSerializer(quote)
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         except Exception as e:

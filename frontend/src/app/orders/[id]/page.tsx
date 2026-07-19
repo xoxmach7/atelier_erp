@@ -347,7 +347,7 @@ function MeasurementRow({
               </span>
               <span>
                 <span className="text-[#0F172A] font-medium">Тип крепления:</span>{" "}
-                {measurement.mounting_type || "—"}
+                {getMountingTypeLabel(measurement.mounting_type)}
               </span>
             </div>
             {editable && (
