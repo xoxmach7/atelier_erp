@@ -94,12 +94,29 @@ class OrderRoleAccessTests(APITestCase):
         _, statuses = self._list_statuses(user)
         self.assertEqual(len(statuses), self.total_orders)
 
-    def test_warehouse_sees_only_its_slice(self):
+    def test_warehouse_sees_in_work_group(self):
+        """Склад видит группу «В работе» (2026-07-20, ранее без on_installation)."""
         user = self._user_with_role('wh1', Roles.WAREHOUSE)
         _, statuses = self._list_statuses(user)
-        allowed = {Order.Status.IN_WORK, Order.Status.IN_PRODUCTION, Order.Status.READY}
-        self.assertTrue(set(statuses).issubset(allowed))
-        self.assertEqual(len(statuses), 3)
+        allowed = {
+            Order.Status.IN_WORK, Order.Status.IN_PRODUCTION,
+            Order.Status.READY, Order.Status.ON_INSTALLATION,
+        }
+        self.assertEqual(set(statuses), allowed)
+
+    def test_warehouse_also_sees_overdue_orders_of_any_status(self):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        overdue_new = Order.objects.create(
+            order_number='О-2026-898', customer=self.customer,
+            status=Order.Status.NEW, total_amount=Decimal('10000.00'),
+            planned_completion=timezone.localtime(timezone.now()).date() - timedelta(days=1),
+        )
+        user = self._user_with_role('wh_overdue', Roles.WAREHOUSE)
+        _, statuses = self._list_statuses(user)
+        self.assertIn(overdue_new.status, statuses)
+        self.assertEqual(len([s for s in statuses if s == Order.Status.NEW]), 1)
 
     def test_seamstress_sees_in_work_group(self):
         """

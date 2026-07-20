@@ -21,15 +21,9 @@ from ...roles import Roles, user_in
 
 # Роль → статусы заказов, которые ей показываются (простые случаи).
 # Owner/Designer отсутствуют намеренно: у них полный доступ (см. ROLE_SEES_ALL).
-# Seamstress/Installer — «В работе» + просроченные, см. `_ACTIVE_OR_OVERDUE_ROLES`
-# и `_active_or_overdue_q` ниже.
-ROLE_VISIBLE_STATUSES = {
-    Roles.WAREHOUSE: (
-        Order.Status.IN_WORK,
-        Order.Status.IN_PRODUCTION,
-        Order.Status.READY,
-    ),
-}
+# Warehouse/Seamstress/Installer — «В работе» + просроченные, см.
+# `_ACTIVE_OR_OVERDUE_ROLES` и `_active_or_overdue_q` ниже.
+ROLE_VISIBLE_STATUSES = {}
 
 # Статусы группы «В работе» (совпадает с IN_WORK-группой из status_groups.py).
 _ACTIVE_STATUSES = (
@@ -40,10 +34,10 @@ _ACTIVE_STATUSES = (
 )
 
 # Роли, у которых пилюли ровно «В работе»/«Просрочен» (2026-07-20, по прямому
-# запросу владельца — швея и установщик исторически видели только один узкий
-# статус/срез, из-за чего просроченные и уже принятые в работу заказы на
-# соседних стадиях выпадали из вида).
-_ACTIVE_OR_OVERDUE_ROLES = (Roles.SEAMSTRESS, Roles.INSTALLER)
+# запросу владельца — склад/швея/установщик исторически видели только один
+# узкий статус/срез каждая, из-за чего просроченные и уже принятые в работу
+# заказы на соседних стадиях выпадали из вида).
+_ACTIVE_OR_OVERDUE_ROLES = (Roles.WAREHOUSE, Roles.SEAMSTRESS, Roles.INSTALLER)
 
 
 def _active_or_overdue_q(prefix=''):
