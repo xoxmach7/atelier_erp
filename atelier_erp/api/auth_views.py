@@ -3,6 +3,8 @@
 серверный logout с отзывом refresh-токена (blacklist), текущий пользователь.
 """
 
+import logging
+
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -12,12 +14,38 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+logger = logging.getLogger(__name__)
+
 
 class ThrottledTokenObtainPairView(TokenObtainPairView):
     """Логин с лимитом частоты (scope 'login', см. DEFAULT_THROTTLE_RATES)."""
 
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'login'
+
+    def post(self, request, *args, **kwargs):
+        # SimpleJWT поднимает исключение (AuthenticationFailed/ValidationError)
+        # при неверных креденшлах — оно пролетает мимо простого "проверить
+        # response.status_code после super().post()", т.к. вылетает ИЗ
+        # super().post() до return. Ловим сами и конвертируем через
+        # handle_exception (тот же путь, что использовал бы DRF dispatch),
+        # чтобы залогировать и вернуть тот же ответ, что и раньше.
+        try:
+            response = super().post(request, *args, **kwargs)
+        except Exception as exc:
+            response = self.handle_exception(exc)
+
+        if response.status_code != status.HTTP_200_OK:
+            # Логируем username и IP, НЕ пароль — нужно для расследования
+            # брутфорса постфактум (security-аудит 2026-07-20, G1: раньше
+            # неудачные попытки логина нигде не оставляли следа).
+            logger.warning(
+                'Неудачная попытка входа: username=%r, ip=%s, status=%s',
+                request.data.get('username'),
+                request.META.get('REMOTE_ADDR'),
+                response.status_code,
+            )
+        return response
 
 
 class LogoutView(APIView):

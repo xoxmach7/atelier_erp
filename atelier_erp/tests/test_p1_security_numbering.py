@@ -70,6 +70,27 @@ class LoginThrottleTests(_HostPatchMixin, APITestCase):
         self.assertEqual(statuses[-1], status.HTTP_429_TOO_MANY_REQUESTS)
         self.assertNotIn(status.HTTP_429_TOO_MANY_REQUESTS, statuses[:5])
 
+    def test_failed_login_is_logged(self):
+        """
+        Раньше неудачные попытки логина нигде не оставляли следа — брутфорс
+        нельзя было расследовать постфактум (security-аудит 2026-07-20, G1).
+        """
+        url = reverse('token_obtain_pair')
+        with self.assertLogs('atelier_erp.api.auth_views', level='WARNING') as logs:
+            self.client.post(url, {'username': 'thr_user', 'password': 'wrong'}, format='json')
+        self.assertTrue(any('thr_user' in msg for msg in logs.output))
+
+    def test_successful_login_is_not_logged_as_failure(self):
+        url = reverse('token_obtain_pair')
+        import logging
+        logger = logging.getLogger('atelier_erp.api.auth_views')
+        with self.assertRaises(AssertionError):
+            # assertLogs бросает AssertionError, если ничего не залогировано —
+            # успешный логин не должен ничего писать в WARNING.
+            with self.assertLogs(logger, level='WARNING'):
+                r = self.client.post(url, {'username': 'thr_user', 'password': 'secret-pass-123'}, format='json')
+                self.assertEqual(r.status_code, status.HTTP_200_OK)
+
 
 class NumberingTests(APITestCase):
     def setUp(self):

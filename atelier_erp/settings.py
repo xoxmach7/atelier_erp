@@ -174,6 +174,20 @@ if os.environ.get('AWS_ACCESS_KEY_ID'):
     # Медиа URL берётся из endpoint + bucket
     MEDIA_URL = f'{AWS_S3_ENDPOINT_URL}/{AWS_STORAGE_BUCKET_NAME}/'
 
+# Кеш — используется DRF-throttling (rate-limit логина/anon/user, см.
+# REST_FRAMEWORK ниже). Дефолтный LocMemCache — память ОТДЕЛЬНОГО процесса:
+# gunicorn поднят с несколькими воркерами (см. Dockerfile), и без общего
+# кеша каждый воркер считает попытки независимо — throttle 'login: 5/min'
+# по факту допускает до N×5 в минуту, где N — число воркеров (найдено в
+# security-аудите 2026-07-20, B2). FileBasedCache — на диске контейнера,
+# общий для всех воркеров одного инстанса (в отличие от LocMemCache).
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': str(BASE_DIR / '.django_cache'),
+    }
+}
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
