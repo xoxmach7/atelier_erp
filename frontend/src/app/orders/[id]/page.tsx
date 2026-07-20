@@ -1633,15 +1633,6 @@ export default function OrderDetailPage() {
                   <FileText size={14} /> Сгенерировать АВР
                 </Link>
               </div>
-
-              {/* История */}
-              <div className="rounded-xl border border-[#CBD5E1] p-6">
-                <div className="flex items-center justify-center gap-2 mb-5">
-                  <img src="/icons/history.png" width={20} height={20} alt="" />
-                  <span className="text-[16px] font-medium text-[#0F172A]">История</span>
-                </div>
-                <HistoryTimeline events={timeline} />
-              </div>
             </div>
           )}
 
