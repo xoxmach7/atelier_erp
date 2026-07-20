@@ -1,8 +1,12 @@
 """
-Tests for M2.2 — авторасчёт метража ткани/тюля из замеров.
+Метраж ткани/тюля в замере — ручной ввод (2026-07-20).
 
-Метраж вычисляется сервером из ширины окна и коэффициента сборки; клиент его
-не задаёт. См. services.measurement_calc и action orders/{id}/measurements/.
+Раньше метраж вычислялся сервером из ширины окна и коэффициента сборки
+(M2.2). По прямому запросу владельца формула была признана сырой и
+отключена везде: и на вебе (MeasurementWriteSerializer), и в мобилке
+(MeasurementCreateSerializer, action orders/{id}/measurements/). Метраж —
+обычное писабельное поле, ничем не отличающееся от прочих; клиент
+задаёт число сам (или оставляет 0/не указывает).
 """
 
 import pytest
@@ -20,18 +24,16 @@ User = get_user_model()
 
 
 class TestMeterageFormula(TestCase):
-    """Юнит-тесты формулы метража (без БД)."""
+    """Формула compute_meters всё ещё используется — seed_demo.py генерирует
+    правдоподобные демо-данные тем же расчётом. API её больше не вызывает."""
 
     def test_basic(self):
-        # 300 см × 2.2 / 100 = 6.6 м
         assert compute_meters(300, Decimal('2.2'), has_fabric=True) == Decimal('6.6')
 
     def test_rounds_up_to_tenth(self):
-        # 305 × 2.2 / 100 = 6.71 → округл. вверх до 6.8
         assert compute_meters(305, Decimal('2.2'), has_fabric=True) == Decimal('6.8')
 
     def test_exact_value_not_rounded_up(self):
-        # 100 × 2.0 / 100 = 2.0 ровно — не должно уйти в 2.1
         assert compute_meters(100, Decimal('2.0'), has_fabric=True) == Decimal('2.0')
 
     def test_zero_when_no_fabric(self):
@@ -44,7 +46,7 @@ class TestMeterageFormula(TestCase):
 
 @pytest.mark.django_db
 class TestMeasurementCreateEndpoint(TestCase):
-    """POST /orders/{id}/measurements/ вычисляет метраж и игнорирует присланный."""
+    """POST /orders/{id}/measurements/ (мобильный путь) — метраж ручной."""
 
     def setUp(self):
         self.client = APIClient()
@@ -67,86 +69,60 @@ class TestMeasurementCreateEndpoint(TestCase):
             f'/api/v1/orders/{self.order.id}/measurements/', body, format='json'
         )
 
-    def test_computes_both_meterages(self):
+    def test_saves_manually_supplied_meters(self):
         resp = self._post({
             'room_name': 'Гостиная', 'window_number': 'Окно 1',
             'width': 300, 'height': 250,
-            'curtain_fabric_name': 'Бархат', 'curtain_gathering': '2.2',
-            'tulle_fabric_name': 'Тюль Белый', 'tulle_gathering': '2.0',
+            'curtain_fabric_name': 'Бархат', 'curtain_meters': '8',
+            'tulle_fabric_name': 'Тюль Белый', 'tulle_meters': '5.5',
         })
         assert resp.status_code == 201, resp.content
         m = Measurement.objects.get(order=self.order)
         assert m.curtain_fabric == self.curtain
         assert m.tulle_fabric == self.tulle
-        assert m.curtain_meters == Decimal('6.6')   # 300 × 2.2 / 100
-        assert m.tulle_meters == Decimal('6.0')     # 300 × 2.0 / 100
-        assert m.curtain_gathering == Decimal('2.2')
-        assert m.tulle_gathering == Decimal('2.0')
+        assert m.curtain_meters == Decimal('8.00')
+        assert m.tulle_meters == Decimal('5.50')
 
-    def test_uses_default_gathering_when_omitted(self):
+    def test_defaults_to_zero_when_meters_omitted(self):
         resp = self._post({
             'room_name': 'Спальня', 'width': 200, 'height': 220,
             'curtain_fabric_name': 'Бархат',
         })
         assert resp.status_code == 201, resp.content
         m = Measurement.objects.get(order=self.order)
-        assert m.curtain_meters == Decimal('4.4')   # 200 × 2.2(default) / 100
-        assert m.tulle_meters == Decimal('0')       # тюль не выбран
+        assert m.curtain_meters == Decimal('0.00')
+        assert m.tulle_meters == Decimal('0.00')
 
-    def test_patch_without_meters_key_recomputes(self):
-        """
-        PATCH /measurements/{id}/ (веб-путь MeasurementWriteSerializer) без
-        ключа curtain_meters в payload по-прежнему считает метраж сам.
-        """
+    def test_patch_saves_manual_meters(self):
+        """PATCH /measurements/{id}/ (веб- и мобайл-путь MeasurementWriteSerializer)."""
         resp = self._post({
             'room_name': 'Зал', 'width': 200, 'height': 220,
-            'curtain_fabric_name': 'Бархат', 'curtain_gathering': '2.0',
+            'curtain_fabric_name': 'Бархат',
         })
         assert resp.status_code == 201, resp.content
         m = Measurement.objects.get(order=self.order)
-        assert m.curtain_meters == Decimal('4.0')
-
-        # Меняем сборку, метраж не трогаем — сервер пересчитает сам.
-        patch = self.client.patch(
-            f'/api/v1/measurements/{m.id}/',
-            {'curtain_gathering': '2.5'},
-            format='json',
-        )
-        assert patch.status_code == 200, patch.content
-        m.refresh_from_db()
-        assert m.curtain_gathering == Decimal('2.5')
-        assert m.curtain_meters == Decimal('5.0')   # 200 × 2.5 / 100
-
-    def test_patch_with_explicit_meters_uses_manual_value(self):
-        """
-        2026-07-20 (по прямому запросу владельца): если клиент явно передал
-        curtain_meters, сервер использует его как есть — раньше поле в форме
-        выглядело редактируемым, но значение молча перезаписывалось расчётом.
-        """
-        resp = self._post({
-            'room_name': 'Прихожая', 'width': 200, 'height': 220,
-            'curtain_fabric_name': 'Бархат', 'curtain_gathering': '2.0',
-        })
-        assert resp.status_code == 201, resp.content
-        m = Measurement.objects.get(order=self.order)
-        assert m.curtain_meters == Decimal('4.0')
+        assert m.curtain_meters == Decimal('0.00')
 
         patch = self.client.patch(
-            f'/api/v1/measurements/{m.id}/',
-            {'curtain_meters': '8'},
-            format='json',
+            f'/api/v1/measurements/{m.id}/', {'curtain_meters': '8'}, format='json',
         )
         assert patch.status_code == 200, patch.content
         m.refresh_from_db()
         assert m.curtain_meters == Decimal('8.00')
 
-    def test_client_supplied_meters_ignored(self):
-        # Клиент пытается навязать метраж — сервер его игнорирует и считает сам.
+    def test_patch_without_meters_key_keeps_existing_value(self):
+        """Ключ не передан — значение не трогается (не пересчитывается и не обнуляется)."""
         resp = self._post({
-            'room_name': 'Кухня', 'width': 100, 'height': 100,
-            'curtain_fabric_name': 'Бархат', 'curtain_gathering': '2.0',
-            'curtain_meters': '999', 'tulle_meters': '999',
+            'room_name': 'Кухня', 'width': 200, 'height': 220,
+            'curtain_fabric_name': 'Бархат', 'curtain_meters': '6',
         })
         assert resp.status_code == 201, resp.content
         m = Measurement.objects.get(order=self.order)
-        assert m.curtain_meters == Decimal('2.0')   # 100 × 2.0 / 100, не 999
+        assert m.curtain_meters == Decimal('6.00')
+
+        patch = self.client.patch(
+            f'/api/v1/measurements/{m.id}/', {'notes': 'просто комментарий'}, format='json',
+        )
+        assert patch.status_code == 200, patch.content
+        m.refresh_from_db()
+        assert m.curtain_meters == Decimal('6.00')

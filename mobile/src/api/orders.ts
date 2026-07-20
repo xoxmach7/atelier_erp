@@ -74,11 +74,11 @@ export interface MeasurementPayload {
   height: number | string;
   mounting_type?: string;
   comment?: string;
-  // Раздельные ткани и коэффициенты сборки. Метраж вычисляет сервер.
+  // Раздельные ткани. Метраж — ручной ввод (авторасчёт отключён 2026-07-20).
   curtain_fabric_name?: string;
-  curtain_gathering?: number | string;
+  curtain_meters?: number | string;
   tulle_fabric_name?: string;
-  tulle_gathering?: number | string;
+  tulle_meters?: number | string;
 }
 
 export interface MeasurementsList {
@@ -119,7 +119,8 @@ export async function createMeasurement(orderId: string, payload: MeasurementPay
 
 /**
  * Правка замера идёт через MeasurementViewSet (поля модели, ткани по UUID),
- * а не через action создания (там ткани по имени). Метраж сервер считает сам.
+ * а не через action создания (там ткани по имени). Метраж — ручной ввод
+ * (авторасчёт отключён 2026-07-20); ключ не передан — значение не трогается.
  */
 export interface MeasurementUpdatePayload {
   room_name?: string;
@@ -128,9 +129,9 @@ export interface MeasurementUpdatePayload {
   height_cm?: number;
   mounting_type?: string;
   curtain_fabric?: string | null;
-  curtain_gathering?: number | string;
+  curtain_meters?: number | string;
   tulle_fabric?: string | null;
-  tulle_gathering?: number | string;
+  tulle_meters?: number | string;
   notes?: string;
   /** Склад: материалы по этому окну собраны. */
   materials_ready?: boolean;
@@ -149,10 +150,10 @@ export interface MeasurementDetail {
   mounting_type?: string;
   curtain_fabric?: string | null;
   curtain_fabric_details?: { id: string; name: string } | null;
-  curtain_gathering?: string;
+  curtain_meters?: string;
   tulle_fabric?: string | null;
   tulle_fabric_details?: { id: string; name: string } | null;
-  tulle_gathering?: string;
+  tulle_meters?: string;
   notes?: string;
 }
 

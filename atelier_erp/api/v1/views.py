@@ -1157,19 +1157,15 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        from atelier_erp.services.measurement_calc import compute_meters
-
         width_cm = int(data['width'])
 
-        # Обе ткани разрешаются по имени; метраж вычисляется сервером из
-        # ширины окна и коэффициента сборки (клиент метраж не задаёт).
+        # Обе ткани разрешаются по имени. Метраж — ручной ввод клиента
+        # (2026-07-20: авторасчёт из ширины/сборки отключён везде как сырой).
         def resolve_fabric(name):
             return Fabric.objects.filter(name__iexact=name).first() if name else None
 
         curtain_fabric = resolve_fabric(data.get('curtain_fabric_name', ''))
         tulle_fabric = resolve_fabric(data.get('tulle_fabric_name', ''))
-        curtain_gathering = data.get('curtain_gathering') or Decimal('2.2')
-        tulle_gathering = data.get('tulle_gathering') or Decimal('2.0')
 
         measurement = Measurement.objects.create(
             order=order,
@@ -1180,11 +1176,9 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
             mounting_type=data.get('mounting_type', ''),
             notes=data.get('comment', ''),
             curtain_fabric=curtain_fabric,
-            curtain_gathering=curtain_gathering,
-            curtain_meters=compute_meters(width_cm, curtain_gathering, has_fabric=curtain_fabric is not None),
+            curtain_meters=data.get('curtain_meters') or Decimal('0'),
             tulle_fabric=tulle_fabric,
-            tulle_gathering=tulle_gathering,
-            tulle_meters=compute_meters(width_cm, tulle_gathering, has_fabric=tulle_fabric is not None),
+            tulle_meters=data.get('tulle_meters') or Decimal('0'),
             measured_by=request.user if request.user.is_authenticated else None,
         )
 

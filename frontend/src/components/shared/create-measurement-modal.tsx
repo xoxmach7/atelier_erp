@@ -146,10 +146,9 @@ function CreateMeasurementModalInner({
       selected_fabric: null,
       selected_cornice_type: "",
       curtain_fabric: curtainFabricId || null,
-      // Метраж по умолчанию считает сервер (ширина × коэффициент сборки).
-      // Если поле оставлено пустым — ключ не отправляется вовсе, чтобы
-      // сервер не принял "не ввели" за "явно поставили 0" и не перезаписал
-      // свой расчёт нулём. Если ввели число — сервер сохраняет его как есть.
+      // Метраж — ручной ввод (авторасчёт из ширины и коэффициента сборки
+      // отключён 2026-07-20 как сырой). Пустое поле — ключ не отправляется,
+      // сервер оставит текущее значение при редактировании / 0 при создании.
       curtain_meters: curtainMeters.trim() ? parseFloat(curtainMeters) : undefined,
       tulle_fabric: tulleFabricId || null,
       tulle_meters: tulleMeters.trim() ? parseFloat(tulleMeters) : undefined,
@@ -275,8 +274,8 @@ function CreateMeasurementModalInner({
                   type="number"
                   min={0}
                   step={0.1}
-                  placeholder="авто"
-                  title="Пусто — метраж посчитает сервер (ширина × коэффициент сборки). Можно ввести число вручную."
+                  placeholder="0"
+                  title="Метраж вводится вручную. Пусто — 0 (при создании) или без изменений (при редактировании)."
                   value={curtainMeters}
                   onChange={(e) => setCurtainMeters(e.target.value)}
                 />
@@ -313,8 +312,8 @@ function CreateMeasurementModalInner({
                   type="number"
                   min={0}
                   step={0.1}
-                  placeholder="авто"
-                  title="Пусто — метраж посчитает сервер (ширина × коэффициент сборки). Можно ввести число вручную."
+                  placeholder="0"
+                  title="Метраж вводится вручную. Пусто — 0 (при создании) или без изменений (при редактировании)."
                   value={tulleMeters}
                   onChange={(e) => setTulleMeters(e.target.value)}
                 />

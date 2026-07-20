@@ -13,8 +13,8 @@ import { fetchFabricsList, type FabricLite } from '../../src/api/fabrics';
  *
  * Форма работает с тканями ПО ИМЕНИ (как на создании), а PATCH-эндпоинт
  * MeasurementViewSet принимает поля модели с UUID ткани — поэтому здесь
- * имя ↔ UUID переводится в обе стороны. Метраж не отправляем: сервер
- * считает его сам из ширины и коэффициента сборки.
+ * имя ↔ UUID переводится в обе стороны. Метраж — ручной ввод (авторасчёт
+ * отключён 2026-07-20), отправляем как обычное поле.
  */
 export default function EditMeasurementScreen() {
   const router = useRouter();
@@ -40,9 +40,9 @@ export default function EditMeasurementScreen() {
           width: m.width_cm != null ? String(m.width_cm) : '',
           height: m.height_cm != null ? String(m.height_cm) : '',
           curtainFabric: m.curtain_fabric_details?.name ?? '',
-          curtainGathering: m.curtain_gathering ? String(parseFloat(m.curtain_gathering)) : undefined,
+          curtainMeters: m.curtain_meters ? String(parseFloat(m.curtain_meters)) : undefined,
           tulleFabric: m.tulle_fabric_details?.name ?? '',
-          tulleGathering: m.tulle_gathering ? String(parseFloat(m.tulle_gathering)) : undefined,
+          tulleMeters: m.tulle_meters ? String(parseFloat(m.tulle_meters)) : undefined,
           mounting: m.mounting_type ?? '',
           comment: m.notes ?? '',
         });
@@ -71,8 +71,8 @@ export default function EditMeasurementScreen() {
         curtain_fabric: fabricIdByName(payload.curtain_fabric_name),
         tulle_fabric: fabricIdByName(payload.tulle_fabric_name),
       };
-      if (payload.curtain_gathering) body.curtain_gathering = payload.curtain_gathering;
-      if (payload.tulle_gathering) body.tulle_gathering = payload.tulle_gathering;
+      if (payload.curtain_meters !== undefined) body.curtain_meters = payload.curtain_meters;
+      if (payload.tulle_meters !== undefined) body.tulle_meters = payload.tulle_meters;
 
       await updateMeasurement(idStr, body);
       router.back();

@@ -9,24 +9,11 @@ import { fetchFabricsList, type FabricLite } from '../../api/fabrics';
 import type { MeasurementPayload } from '../../api/orders';
 
 const MOUNTING = ['Потолочный', 'Настенный', 'Профильный', 'Электрокарниз', 'Без карниза'];
-const GATHERING_PRESETS = ['1.5', '2.0', '2.2', '2.5'];
-const DEFAULT_CURTAIN_GATHERING = '2.2';
-const DEFAULT_TULLE_GATHERING = '2.0';
-
-// Живое превью метража: та же формула, что и на бэке (источник истины — сервер).
-// метраж = ceil_0.1(ширина_см × коэф_сборки / 100).
-export function previewMeters(widthCm: string, gathering: string): string {
-  const w = parseFloat(widthCm);
-  const g = parseFloat(gathering);
-  if (!w || !g) return '';
-  const meters = Math.ceil((w * g) / 100 * 10) / 10;
-  return meters.toFixed(1);
-}
 
 export interface MeasurementInitial {
   room?: string; window?: string; width?: string; height?: string;
-  curtainFabric?: string; curtainGathering?: string;
-  tulleFabric?: string; tulleGathering?: string;
+  curtainFabric?: string; curtainMeters?: string;
+  tulleFabric?: string; tulleMeters?: string;
   mounting?: string; comment?: string;
 }
 
@@ -75,9 +62,9 @@ export function MeasurementForm({
   const [width, setWidth] = useState(initial?.width ?? '');
   const [height, setHeight] = useState(initial?.height ?? '');
   const [curtain, setCurtain] = useState(initial?.curtainFabric ?? '');
-  const [curtainG, setCurtainG] = useState(initial?.curtainGathering ?? DEFAULT_CURTAIN_GATHERING);
+  const [curtainMeters, setCurtainMeters] = useState(initial?.curtainMeters ?? '');
   const [tulle, setTulle] = useState(initial?.tulleFabric ?? '');
-  const [tulleG, setTulleG] = useState(initial?.tulleGathering ?? DEFAULT_TULLE_GATHERING);
+  const [tulleMeters, setTulleMeters] = useState(initial?.tulleMeters ?? '');
   const [mounting, setMounting] = useState(initial?.mounting ?? '');
   const [comment, setComment] = useState(initial?.comment ?? '');
   const [fabrics, setFabrics] = useState<FabricLite[]>([]);
@@ -91,7 +78,7 @@ export function MeasurementForm({
   const submit = () => {
     setError('');
     if (!valid) { setError('Заполните комнату, окно, ширину и высоту'); return; }
-    // Обе ткани уходят в свои поля; метраж вычисляет сервер из ширины и сборки.
+    // Обе ткани уходят в свои поля; метраж — ручной ввод (авторасчёт отключён).
     const payload: MeasurementPayload = {
       room_name: room.trim(),
       window_number: windowName.trim(),
@@ -100,9 +87,9 @@ export function MeasurementForm({
       mounting_type: mounting || undefined,
       comment: comment.trim() || undefined,
       curtain_fabric_name: curtain || undefined,
-      curtain_gathering: curtain ? curtainG : undefined,
+      curtain_meters: curtainMeters.trim() || undefined,
       tulle_fabric_name: tulle || undefined,
-      tulle_gathering: tulle ? tulleG : undefined,
+      tulle_meters: tulleMeters.trim() || undefined,
     };
     onSubmit(payload);
   };
@@ -136,39 +123,47 @@ export function MeasurementForm({
           </View>
         </View>
 
-        {/* 5. Curtain fabric + gathering */}
+        {/* 5. Curtain fabric + meters (ручной ввод) */}
         <View style={s.fabricHead}>
           <Text style={[s.label, { marginTop: 22, marginBottom: 10 }]}>5.  Ткань штор</Text>
-          <Text style={s.metersLabel}>сборка</Text>
+          <Text style={s.metersLabel}>метры</Text>
         </View>
         <View style={s.fabricRow}>
           <View style={{ flex: 1 }}>
             <Select value={curtain} placeholder="Выберите ткань" options={fabricNames} onSelect={setCurtain} />
           </View>
           <View style={s.gatheringBox}>
-            <Select value={curtainG} placeholder="2.2" options={GATHERING_PRESETS} onSelect={setCurtainG} />
+            <TextInput
+              style={s.input}
+              value={curtainMeters}
+              onChangeText={setCurtainMeters}
+              keyboardType="numeric"
+              placeholder="0"
+              placeholderTextColor="#94A3B8"
+            />
           </View>
         </View>
-        {Boolean(curtain) && Boolean(previewMeters(width, curtainG)) && (
-          <Text style={s.metersHint}>≈ {previewMeters(width, curtainG)} м</Text>
-        )}
 
-        {/* 6. Tulle fabric + gathering */}
+        {/* 6. Tulle fabric + meters (ручной ввод) */}
         <View style={s.fabricHead}>
           <Text style={[s.label, { marginTop: 22, marginBottom: 10 }]}>6.  Ткань тюля</Text>
-          <Text style={s.metersLabel}>сборка</Text>
+          <Text style={s.metersLabel}>метры</Text>
         </View>
         <View style={s.fabricRow}>
           <View style={{ flex: 1 }}>
             <Select value={tulle} placeholder="Выберите ткань" options={fabricNames} onSelect={setTulle} />
           </View>
           <View style={s.gatheringBox}>
-            <Select value={tulleG} placeholder="2.0" options={GATHERING_PRESETS} onSelect={setTulleG} />
+            <TextInput
+              style={s.input}
+              value={tulleMeters}
+              onChangeText={setTulleMeters}
+              keyboardType="numeric"
+              placeholder="0"
+              placeholderTextColor="#94A3B8"
+            />
           </View>
         </View>
-        {Boolean(tulle) && Boolean(previewMeters(width, tulleG)) && (
-          <Text style={s.metersHint}>≈ {previewMeters(width, tulleG)} м</Text>
-        )}
 
         {/* 7. Mounting */}
         <Text style={[s.label, { marginTop: 22 }]}>7.  Тип крепления</Text>
@@ -207,7 +202,6 @@ const s = StyleSheet.create({
   metersLabel: { fontSize: 16, color: '#64748B', fontFamily: 'TTNormsPro-Regular', marginBottom: 12, marginRight: 4 },
   fabricRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   gatheringBox: { width: 84 },
-  metersHint: { fontSize: 15, color: '#60CCED', fontFamily: 'TTNormsPro-Medium', marginTop: 8, textAlign: 'right' },
 
   select: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#E9E9E9', borderRadius: 12, height: 50, paddingHorizontal: 16 },
   selectText: { fontSize: 16, color: '#0F172A', fontFamily: 'TTNormsPro-Regular', flex: 1 },
