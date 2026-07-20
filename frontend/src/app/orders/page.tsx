@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, X, ChevronDown, LogOut, ArrowLeft } from "lucide-react";
+import { Search, X, ChevronDown, LogOut } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useOrders } from "@/hooks/useOrders";
 import { useRole } from "@/hooks/useRole";
@@ -105,14 +105,6 @@ function OrdersContent() {
           {/* Top bar */}
           <div className="flex flex-wrap items-center justify-between gap-4 px-4 sm:px-[52px] py-5 sm:py-[30px]">
             <div className="flex items-center gap-4">
-              {isOwner && (
-                <button
-                  onClick={() => router.push("/dashboard")}
-                  className="text-[#475569] hover:text-[#0EA5E9] transition-colors"
-                >
-                  <ArrowLeft size={24} />
-                </button>
-              )}
               <h1 className="text-[26px] font-semibold text-[#0F172A] whitespace-nowrap">
                 Управление заказами
               </h1>
@@ -146,6 +138,14 @@ function OrdersContent() {
                     className="flex items-center gap-1.5 text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
                   >
                     Клиенты
+                  </Link>
+                )}
+                {canCreateOrder && (
+                  <Link
+                    href="/work/warehouse/materials"
+                    className="flex items-center gap-1.5 text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+                  >
+                    Материалы
                   </Link>
                 )}
               </div>

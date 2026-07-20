@@ -1169,26 +1169,27 @@ export default function OrderDetailPage() {
                 >
                   Редактировать информацию
                 </Link>
-                {role === "owner" && (
-                  <button
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="text-[15px] text-[#475569] hover:text-[#DC2626] transition-colors"
-                  >
-                    Удалить заказ
-                  </button>
-                )}
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="text-[15px] text-[#475569] hover:text-[#DC2626] transition-colors"
+                >
+                  Удалить заказ
+                </button>
               </div>
             )}
           </div>
 
           {/* ── Role view for non-owners ─────────────────────── */}
           {/*
-            Склад намеренно исключён: по макету у него только карточка
-            «Позиции» с чекбоксами по окнам — ничего сверху. MyTaskCard для
-            warehouse к тому же не была доведена до конца: getWarehouseTask
-            отдаёт кнопку без onAction/actionHref — она ничего не делает.
+            Показывается только установщику. Склад — по макету у него только
+            карточка «Позиции» с чекбоксами по окнам, ничего сверху
+            (MyTaskCard для warehouse к тому же не была доведена до конца:
+            getWarehouseTask отдаёт кнопку без onAction/actionHref). Дизайнер
+            и швейный цех исключены по прямому запросу владельца 2026-07-20 —
+            их экран заказа тоже сведён к одной карточке-чеклисту без
+            дублирующей карточки «задачи» сверху.
           */}
-          {role !== "owner" && role !== "warehouse" && (
+          {role === "installation" && (
             <div className="px-4 sm:px-[52px] pb-2">
               <MyTaskCard
                 order={order}

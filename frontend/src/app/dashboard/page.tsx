@@ -194,8 +194,10 @@ function DashboardContent() {
   const queue = useOwnerQueue(isOwner);
   const dashboard = useDashboard(isOwner);
 
-  // Не-владельцы не видят дашборд — уводим на их рабочий экран
+  // Дашборд временно скрыт для всех ролей, включая владельца (2026-07-20) —
+  // требует переработки, пока все роли уходят на список заказов/свой экран.
   const ROLE_LANDING: Record<string, string> = {
+    owner: "/orders",
     designer: "/orders",
     warehouse: "/work/warehouse",
     production: "/work/production",

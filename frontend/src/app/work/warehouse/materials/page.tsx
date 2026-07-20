@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Search, ArrowLeft, Plus, Loader2, X, HelpCircle, MoreVertical } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { useRole } from "@/hooks/useRole";
 import { ModalCloseX } from "@/components/shared/modal-close";
 import { fetchFabrics } from "@/services/http/fabrics";
 import {
@@ -65,6 +66,11 @@ const EMPTY_FORM = {
 
 function MaterialsContent() {
   const router = useRouter();
+  const { role } = useRole();
+  // Дизайнеру экран нужен только для справки (какие ткани доступны для КП),
+  // без права трогать склад — редактирование/удаление/добавление остаются
+  // за Owner и Warehouse (2026-07-20).
+  const canEdit = role === "owner" || role === "warehouse";
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
@@ -235,7 +241,7 @@ function MaterialsContent() {
     "w-full rounded-[10px] bg-[#E9E9E9] px-4 py-[14px] text-[15px] text-[#0F172A] outline-none placeholder:text-[#94A3B8]";
 
   const handleRowClick = (r: Row) => {
-    if (r.source !== "item" || !r.rawId) return;
+    if (!canEdit || r.source !== "item" || !r.rawId) return;
     const it = itemsById.get(r.rawId);
     if (it) openEdit(it);
   };
@@ -299,19 +305,21 @@ function MaterialsContent() {
         <div className="flex flex-wrap items-center justify-between gap-4 px-4 sm:px-[52px] py-5 sm:py-[30px]">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push("/work/warehouse")}
+              onClick={() => router.push(role === "warehouse" ? "/work/warehouse" : "/orders")}
               className="text-[#475569] hover:text-[#0EA5E9] transition-colors"
             >
               <ArrowLeft size={24} />
             </button>
             <h1 className="text-[26px] font-semibold text-[#0F172A] whitespace-nowrap">Материалы</h1>
             <div className="flex items-center gap-10 ml-[48px]">
-              <button
-                onClick={openAdd}
-                className="flex items-center gap-1.5 text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
-              >
-                <Plus size={16} /> Добавить позицию
-              </button>
+              {canEdit && (
+                <button
+                  onClick={openAdd}
+                  className="flex items-center gap-1.5 text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+                >
+                  <Plus size={16} /> Добавить позицию
+                </button>
+              )}
               <button
                 onClick={() => setLowOnly((v) => !v)}
                 className={`text-[15px] transition-colors ${
@@ -355,7 +363,7 @@ function MaterialsContent() {
                 <tr><td colSpan={6} className="px-[52px] py-10 text-center text-[#94A3B8]">Материалы не найдены</td></tr>
               ) : (
                 rows.map((r) => {
-                  const editable = r.source === "item";
+                  const editable = canEdit && r.source === "item";
                   const it = editable && r.rawId ? itemsById.get(r.rawId) : undefined;
                   return (
                     <tr

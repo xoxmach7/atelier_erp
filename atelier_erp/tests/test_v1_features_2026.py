@@ -101,11 +101,15 @@ class OrderDeleteRbacTests(FeatureTestsBase):
         self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Order.objects.filter(pk=self.order.pk).exists())
 
-    def test_designer_cannot_delete_order(self):
+    def test_designer_can_delete_order(self):
+        """
+        Веб-форма (2026-07-20) дала дизайнеру ту же кнопку «Удалить заказ»,
+        что и владельцу — designer получил ту же серверную роль на destroy.
+        """
         self._as(Roles.DESIGNER)
         resp = self.client.delete(self._order_detail_url())
-        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertTrue(Order.objects.filter(pk=self.order.pk).exists())
+        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Order.objects.filter(pk=self.order.pk).exists())
 
     def test_warehouse_cannot_delete_order(self):
         self._as(Roles.WAREHOUSE)

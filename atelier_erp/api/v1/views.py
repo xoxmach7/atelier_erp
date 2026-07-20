@@ -87,11 +87,9 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        """Create and update require Owner/Designer role; delete — owner only."""
-        if self.action in ['create', 'update', 'partial_update']:
+        """Create, update и delete — Owner/Designer (веб-форма 2026-07-20 дала дизайнеру ту же кнопку «Удалить заказ», что и владельцу)."""
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsOwnerOrDesigner()]
-        if self.action == 'destroy':
-            return [IsAuthenticated(), IsManagerOrAdmin()]
         return super().get_permissions()
 
     def get_queryset(self):

@@ -9,9 +9,9 @@ import { useAuth } from "@/contexts/auth-context";
 import { shortOrderNumber } from "@/lib/order-number";
 
 const STAGE: Record<string, { label: string; color: string }> = {
-  not_started: { label: "Не начато", color: "#DC2626" },
-  sewing:      { label: "Пошив",     color: "#D97706" },
-  done:        { label: "Готово",    color: "#16A34A" },
+  not_started: { label: "Собирается", color: "#D97706" },
+  sewing:      { label: "Пошив",      color: "#16A34A" },
+  done:        { label: "Готово",     color: "#64748B" },
 };
 function stageStatus(v?: string) {
   return STAGE[v ?? ""] ?? { label: "—", color: "#94A3B8" };
@@ -19,7 +19,7 @@ function stageStatus(v?: string) {
 
 const FILTERS = [
   { key: "",            label: "Все" },
-  { key: "not_started", label: "Не начато" },
+  { key: "not_started", label: "Собирается" },
   { key: "sewing",      label: "Пошив" },
   { key: "done",        label: "Готово" },
 ] as const;
@@ -41,7 +41,7 @@ function ProductionOrdersContent() {
         {/* Top bar */}
         <div className="flex flex-wrap items-center justify-between gap-4 px-4 sm:px-[52px] py-5 sm:py-[30px]">
           <div className="flex items-center gap-4">
-            <h1 className="text-[26px] font-semibold text-[#0F172A] whitespace-nowrap">Пошив</h1>
+            <h1 className="text-[26px] font-semibold text-[#0F172A] whitespace-nowrap">Заказы</h1>
             <div className="flex items-center gap-10 ml-[48px]">
               <button
                 onClick={() => setShowFilters((v) => !v)}
