@@ -70,20 +70,25 @@ class TestMeasurementRoleScope(TestCase):
         return f'/api/v1/measurements/{measurement.id}/'
 
     def test_seamstress_cannot_read_measurement_of_invisible_order(self):
+        """
+        Швея видит группу «В работе» (2026-07-20) — сюда входит и монтаж
+        (`on_installation`), поэтому невидим для неё остаётся только черновик
+        (`new`) без просрочки.
+        """
         client = _client_for(Roles.SEAMSTRESS, 'scope_seam')
         assert client.get(self._url(self.sewing_m)).status_code == 200
-        assert client.get(self._url(self.install_m)).status_code == 404
+        assert client.get(self._url(self.install_m)).status_code == 200
         assert client.get(self._url(self.new_m)).status_code == 404
 
     def test_seamstress_cannot_flag_measurement_of_invisible_order(self):
         """Главный кейс: галочка на чужом заказе двигала бы его статус."""
         client = _client_for(Roles.SEAMSTRESS, 'scope_seam2')
         resp = client.patch(
-            self._url(self.install_m), {'sewing_done': True}, format='json',
+            self._url(self.new_m), {'sewing_done': True}, format='json',
         )
         assert resp.status_code == 404, resp.content
-        self.install_m.refresh_from_db()
-        assert self.install_m.sewing_done is False
+        self.new_m.refresh_from_db()
+        assert self.new_m.sewing_done is False
 
     def test_installer_sees_in_work_group_but_not_waiting(self):
         """
@@ -114,7 +119,7 @@ class TestMeasurementRoleScope(TestCase):
         rows = body['results'] if isinstance(body, dict) and 'results' in body else body
         returned = {row['id'] for row in rows}
         assert str(self.sewing_m.id) in returned
-        assert str(self.install_m.id) not in returned
+        assert str(self.install_m.id) in returned
         assert str(self.new_m.id) not in returned
 
     def test_designer_still_sees_everything(self):

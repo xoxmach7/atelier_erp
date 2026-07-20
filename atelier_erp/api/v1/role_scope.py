@@ -19,44 +19,46 @@ from django.utils import timezone
 from ...models import Order
 from ...roles import Roles, user_in
 
-# Роль → статусы заказов, которые ей показываются.
+# Роль → статусы заказов, которые ей показываются (простые случаи).
 # Owner/Designer отсутствуют намеренно: у них полный доступ (см. ROLE_SEES_ALL).
-# Installer — не простой список статусов, см. `_installer_visible_q` ниже.
+# Seamstress/Installer — «В работе» + просроченные, см. `_ACTIVE_OR_OVERDUE_ROLES`
+# и `_active_or_overdue_q` ниже.
 ROLE_VISIBLE_STATUSES = {
     Roles.WAREHOUSE: (
         Order.Status.IN_WORK,
         Order.Status.IN_PRODUCTION,
         Order.Status.READY,
     ),
-    Roles.SEAMSTRESS: (
-        Order.Status.IN_PRODUCTION,
-    ),
 }
 
-# Статусы группы «В работе» для установщика (совпадает с IN_WORK-группой
-# из status_groups.py, минус ON_INSTALLATION погоды не делает — он там есть).
-_INSTALLER_ACTIVE_STATUSES = (
+# Статусы группы «В работе» (совпадает с IN_WORK-группой из status_groups.py).
+_ACTIVE_STATUSES = (
     Order.Status.IN_WORK,
     Order.Status.IN_PRODUCTION,
     Order.Status.READY,
     Order.Status.ON_INSTALLATION,
 )
 
+# Роли, у которых пилюли ровно «В работе»/«Просрочен» (2026-07-20, по прямому
+# запросу владельца — швея и установщик исторически видели только один узкий
+# статус/срез, из-за чего просроченные и уже принятые в работу заказы на
+# соседних стадиях выпадали из вида).
+_ACTIVE_OR_OVERDUE_ROLES = (Roles.SEAMSTRESS, Roles.INSTALLER)
 
-def _installer_visible_q(prefix=''):
+
+def _active_or_overdue_q(prefix=''):
     """
-    Установщик видит ровно то же, что показывают пилюли «В работе» и
-    «Просрочен» (2026-07-20, по прямому запросу владельца): свежий (`new`)
-    или ожидающий финальной оплаты заказ ему не нужен, ПОКА он не
-    просрочен — тогда он должен всплыть, иначе просроченный заказ
-    потеряется из виду для всех исполнителей разом.
+    «В работе» (in_work/in_production/ready/on_installation) плюс любой
+    просроченный заказ независимо от статуса — свежий (`new`) или ожидающий
+    финальной оплаты заказ роли не нужен, ПОКА он не просрочен, тогда он
+    должен всплыть, иначе потеряется из вида для всех исполнителей разом.
     """
     def f(name):
         return f'{prefix}{name}'
 
     today = timezone.localtime(timezone.now()).date()
     return (
-        Q(**{f('status__in'): _INSTALLER_ACTIVE_STATUSES})
+        Q(**{f('status__in'): _ACTIVE_STATUSES})
         | (
             Q(**{f('planned_completion__isnull'): False})
             & Q(**{f('planned_completion__lt'): today})
@@ -76,8 +78,8 @@ def scope_orders_for_role(queryset, user):
     if user_in(user, *Roles.FULL_ORDER_ACCESS):
         return queryset
 
-    if user_in(user, Roles.INSTALLER):
-        return queryset.filter(_installer_visible_q())
+    if user_in(user, *_ACTIVE_OR_OVERDUE_ROLES):
+        return queryset.filter(_active_or_overdue_q())
 
     for role, statuses in ROLE_VISIBLE_STATUSES.items():
         if user_in(user, role):
@@ -96,8 +98,8 @@ def filter_by_visible_orders(queryset, user, order_field='order'):
     if user_in(user, *Roles.FULL_ORDER_ACCESS):
         return queryset
 
-    if user_in(user, Roles.INSTALLER):
-        return queryset.filter(_installer_visible_q(prefix=f'{order_field}__'))
+    if user_in(user, *_ACTIVE_OR_OVERDUE_ROLES):
+        return queryset.filter(_active_or_overdue_q(prefix=f'{order_field}__'))
 
     for role, statuses in ROLE_VISIBLE_STATUSES.items():
         if user_in(user, role):

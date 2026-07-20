@@ -101,10 +101,32 @@ class OrderRoleAccessTests(APITestCase):
         self.assertTrue(set(statuses).issubset(allowed))
         self.assertEqual(len(statuses), 3)
 
-    def test_seamstress_sees_only_in_production(self):
+    def test_seamstress_sees_in_work_group(self):
+        """
+        Швея видит группу «В работе» (2026-07-20, ранее — только in_production),
+        не «Ожидание» и не «Завершён».
+        """
         user = self._user_with_role('sw1', Roles.SEAMSTRESS)
         _, statuses = self._list_statuses(user)
-        self.assertEqual(set(statuses), {Order.Status.IN_PRODUCTION})
+        allowed = {
+            Order.Status.IN_WORK, Order.Status.IN_PRODUCTION,
+            Order.Status.READY, Order.Status.ON_INSTALLATION,
+        }
+        self.assertEqual(set(statuses), allowed)
+
+    def test_seamstress_also_sees_overdue_orders_of_any_status(self):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        overdue_new = Order.objects.create(
+            order_number='О-2026-899', customer=self.customer,
+            status=Order.Status.NEW, total_amount=Decimal('10000.00'),
+            planned_completion=timezone.localtime(timezone.now()).date() - timedelta(days=1),
+        )
+        user = self._user_with_role('sw_overdue', Roles.SEAMSTRESS)
+        _, statuses = self._list_statuses(user)
+        self.assertIn(overdue_new.status, statuses)
+        self.assertEqual(len([s for s in statuses if s == Order.Status.NEW]), 1)
 
     def test_installer_sees_only_its_slice(self):
         """
