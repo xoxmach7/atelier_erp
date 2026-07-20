@@ -36,7 +36,7 @@ class TestMeasurementRoleScope(TestCase):
         self.customer = Customer.objects.create(full_name='S', phone='+70000000077')
 
         # Заказ в производстве — виден цеху; установщику тоже (2026-07-20:
-        # видимость установщика расширена до всего активного конвейера).
+        # видимость установщика включает группу «В работе», не только монтаж).
         self.sewing_order = Order.objects.create(
             customer=self.customer, order_number='О-2024-970',
             status=Order.Status.IN_PRODUCTION,
@@ -85,11 +85,24 @@ class TestMeasurementRoleScope(TestCase):
         self.install_m.refresh_from_db()
         assert self.install_m.sewing_done is False
 
-    def test_installer_sees_whole_active_pipeline(self):
-        """Установщик видит весь активный конвейер (2026-07-20), не только монтаж."""
+    def test_installer_sees_in_work_group_but_not_waiting(self):
+        """
+        Установщик видит группу «В работе» (2026-07-20), не только монтаж —
+        но черновик (`new`) без просрочки ему по-прежнему не нужен.
+        """
         client = _client_for(Roles.INSTALLER, 'scope_inst')
         assert client.get(self._url(self.install_m)).status_code == 200
         assert client.get(self._url(self.sewing_m)).status_code == 200
+        assert client.get(self._url(self.new_m)).status_code == 404
+
+    def test_installer_sees_overdue_draft_too(self):
+        """Просроченный черновик — исключение: должен всплыть даже установщику."""
+        from datetime import timedelta
+        from django.utils import timezone
+
+        self.new_order.planned_completion = timezone.localtime(timezone.now()).date() - timedelta(days=1)
+        self.new_order.save(update_fields=['planned_completion'])
+        client = _client_for(Roles.INSTALLER, 'scope_inst_overdue')
         assert client.get(self._url(self.new_m)).status_code == 200
 
     def test_list_is_narrowed_too(self):

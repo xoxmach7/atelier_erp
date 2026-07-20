@@ -107,15 +107,33 @@ class OrderRoleAccessTests(APITestCase):
         self.assertEqual(set(statuses), {Order.Status.IN_PRODUCTION})
 
     def test_installer_sees_only_its_slice(self):
+        """
+        Установщик видит группу «В работе» (in_work/in_production/ready/
+        on_installation) — не «Ожидание» (new/waiting_final_payment) и не
+        «Завершён». Просроченные заказы любого статуса дополнительно
+        всплывают через `test_installer_also_sees_overdue_orders_of_any_status`.
+        """
         user = self._user_with_role('inst1', Roles.INSTALLER)
         _, statuses = self._list_statuses(user)
         allowed = {
-            Order.Status.NEW, Order.Status.IN_WORK, Order.Status.IN_PRODUCTION,
-            Order.Status.READY, Order.Status.ON_INSTALLATION, Order.Status.WAITING_FINAL_PAYMENT,
+            Order.Status.IN_WORK, Order.Status.IN_PRODUCTION,
+            Order.Status.READY, Order.Status.ON_INSTALLATION,
         }
-        self.assertTrue(set(statuses).issubset(allowed))
-        self.assertNotIn(Order.Status.COMPLETED, statuses)
-        self.assertNotIn(Order.Status.CANCELLED, statuses)
+        self.assertEqual(set(statuses), allowed)
+
+    def test_installer_also_sees_overdue_orders_of_any_status(self):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        overdue_new = Order.objects.create(
+            order_number='О-2026-900', customer=self.customer,
+            status=Order.Status.NEW, total_amount=Decimal('10000.00'),
+            planned_completion=timezone.localtime(timezone.now()).date() - timedelta(days=1),
+        )
+        user = self._user_with_role('inst_overdue', Roles.INSTALLER)
+        _, statuses = self._list_statuses(user)
+        self.assertIn(overdue_new.status, statuses)
+        self.assertEqual(len([s for s in statuses if s == Order.Status.NEW]), 1)
 
     def test_user_without_role_sees_nothing(self):
         user = self._user_with_role('nobody', None)
