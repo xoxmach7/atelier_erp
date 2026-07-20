@@ -146,9 +146,13 @@ function CreateMeasurementModalInner({
       selected_fabric: null,
       selected_cornice_type: "",
       curtain_fabric: curtainFabricId || null,
-      curtain_meters: curtainMeters ? parseFloat(curtainMeters) : 0,
+      // Метраж по умолчанию считает сервер (ширина × коэффициент сборки).
+      // Если поле оставлено пустым — ключ не отправляется вовсе, чтобы
+      // сервер не принял "не ввели" за "явно поставили 0" и не перезаписал
+      // свой расчёт нулём. Если ввели число — сервер сохраняет его как есть.
+      curtain_meters: curtainMeters.trim() ? parseFloat(curtainMeters) : undefined,
       tulle_fabric: tulleFabricId || null,
-      tulle_meters: tulleMeters ? parseFloat(tulleMeters) : 0,
+      tulle_meters: tulleMeters.trim() ? parseFloat(tulleMeters) : undefined,
       cornice_item: corniceItemId || null,
       cornice_quantity: corniceQuantity ? parseFloat(corniceQuantity) : 0,
       hardware_item: hardwareItemId || null,
@@ -271,6 +275,8 @@ function CreateMeasurementModalInner({
                   type="number"
                   min={0}
                   step={0.1}
+                  placeholder="авто"
+                  title="Пусто — метраж посчитает сервер (ширина × коэффициент сборки). Можно ввести число вручную."
                   value={curtainMeters}
                   onChange={(e) => setCurtainMeters(e.target.value)}
                 />
@@ -307,6 +313,8 @@ function CreateMeasurementModalInner({
                   type="number"
                   min={0}
                   step={0.1}
+                  placeholder="авто"
+                  title="Пусто — метраж посчитает сервер (ширина × коэффициент сборки). Можно ввести число вручную."
                   value={tulleMeters}
                   onChange={(e) => setTulleMeters(e.target.value)}
                 />

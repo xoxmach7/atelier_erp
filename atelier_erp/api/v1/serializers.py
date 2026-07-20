@@ -289,10 +289,11 @@ class MeasurementWriteSerializer(serializers.ModelSerializer):
     tulle_fabric/...), сохраняет ОБЕ ткани. Лишние ключи в payload игнорируются.
     Используется MeasurementViewSet для create/update.
 
-    Метраж НЕ принимается от клиента — вычисляется сервером из ширины окна и
-    коэффициента сборки (та же формула, что в action orders/{id}/measurements/,
-    см. services.measurement_calc). Раньше этот путь принимал метраж вручную и
-    расходился с мобильным авторасчётом.
+    Метраж по умолчанию считается сервером из ширины окна и коэффициента
+    сборки (см. services.measurement_calc). Если клиент явно передал
+    curtain_meters/tulle_meters — используется как есть (ручной ввод,
+    2026-07-20): поле в форме выглядело редактируемым, но раньше значение
+    всегда молча перезаписывалось расчётом.
     """
     class Meta:
         model = Measurement
@@ -304,7 +305,6 @@ class MeasurementWriteSerializer(serializers.ModelSerializer):
             'cornice_item', 'cornice_quantity', 'hardware_item', 'hardware_quantity',
             'materials_ready', 'sewing_done', 'installation_done', 'quantity',
         ]
-        read_only_fields = ['curtain_meters', 'tulle_meters']
 
     def validate_cornice_item(self, value):
         if value is not None and value.category != InventoryItem.Category.CORNICE:
@@ -317,6 +317,15 @@ class MeasurementWriteSerializer(serializers.ModelSerializer):
         return value
 
     def _apply_meterage(self, validated_data, instance=None):
+        """
+        Метраж по умолчанию считается сервером (ширина × коэффициент сборки).
+        Если клиент явно передал curtain_meters/tulle_meters — используем
+        как есть (ручной ввод, 2026-07-20 по прямому запросу владельца:
+        поле выглядело редактируемым, но раньше всегда молча перезаписывалось
+        расчётом). Ключ должен отсутствовать в payload целиком, чтобы
+        получить автоrasчёт — прямая передача 0 воспринимается как "0 метров
+        вручную", а не как "посчитай сам".
+        """
         from atelier_erp.services.measurement_calc import compute_meters
 
         def resolved(field, default):
@@ -330,14 +339,16 @@ class MeasurementWriteSerializer(serializers.ModelSerializer):
         curtain_fabric = resolved('curtain_fabric', None)
         tulle_fabric = resolved('tulle_fabric', None)
 
-        validated_data['curtain_meters'] = compute_meters(
-            width, resolved('curtain_gathering', Decimal('2.2')),
-            has_fabric=curtain_fabric is not None,
-        )
-        validated_data['tulle_meters'] = compute_meters(
-            width, resolved('tulle_gathering', Decimal('2.0')),
-            has_fabric=tulle_fabric is not None,
-        )
+        if 'curtain_meters' not in validated_data:
+            validated_data['curtain_meters'] = compute_meters(
+                width, resolved('curtain_gathering', Decimal('2.2')),
+                has_fabric=curtain_fabric is not None,
+            )
+        if 'tulle_meters' not in validated_data:
+            validated_data['tulle_meters'] = compute_meters(
+                width, resolved('tulle_gathering', Decimal('2.0')),
+                has_fabric=tulle_fabric is not None,
+            )
         return validated_data
 
     def create(self, validated_data):

@@ -102,7 +102,13 @@ export interface MeasurementDTO {
   };
   curtain_fabric_hanger?: string; // For list view
   curtain_fabric_name?: string;   // For list view
-  curtain_meters: number;
+  /**
+   * По умолчанию считается сервером (ширина × коэффициент сборки). Можно
+   * задать вручную — тогда сервер использует переданное значение как есть.
+   * Опционально в DTO записи: чтобы явно НЕ передать поле (и получить
+   * автоrasчёт), payload должен не содержать ключ вовсе.
+   */
+  curtain_meters?: number;
   // Phase 3: Tulle fabric with meters
   tulle_fabric: string | null; // Fabric ID
   tulle_fabric_details?: {
@@ -112,7 +118,8 @@ export interface MeasurementDTO {
   };
   tulle_fabric_hanger?: string;   // For list view
   tulle_fabric_name?: string;     // For list view
-  tulle_meters: number;
+  /** Тот же принцип, что у curtain_meters — по умолчанию авторасчёт, можно переопределить вручную. */
+  tulle_meters?: number;
   /** Крепление — позиция склада категории «Карниз» (заменяет старый mounting_type). */
   cornice_item: string | null; // InventoryItem ID
   cornice_item_details?: { id: string; name: string; unit: string; unit_display: string };
