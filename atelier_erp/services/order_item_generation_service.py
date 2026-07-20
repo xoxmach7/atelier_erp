@@ -73,6 +73,33 @@ class OrderItemGenerationService:
         
         return None
 
+    def recalculate_order_total(self, order: Order) -> Decimal:
+        """
+        Единый пересчёт order.total_amount: сумма позиций + installation_cost/
+        delivery_cost/скидка исходного КП (позиции их не несут — это поля
+        уровня Quote, не QuoteItem). Единственное место, где считается эта
+        формула — используется и после генерации позиций, и после ручного
+        редактирования/удаления позиции (views.manage_item), иначе они бы
+        разошлись: сумма-без-услуг после правки позиции откатывала бы
+        total_amount ниже реальной суммы КП.
+        """
+        from django.db.models import Sum
+
+        items_sum = order.items.aggregate(s=Sum('total_price'))['s'] or Decimal('0')
+
+        quote = self._get_source_quote(order)
+        extras = Decimal('0')
+        if quote:
+            extras = (
+                (quote.installation_cost or Decimal('0'))
+                + (quote.delivery_cost or Decimal('0'))
+                - (quote.discount_amount or Decimal('0'))
+            )
+
+        order.total_amount = items_sum + extras
+        order.save(update_fields=['total_amount', 'updated_at'])
+        return order.total_amount
+
     def generate_order_items_from_quote(
         self,
         order: Order,
@@ -140,6 +167,14 @@ class OrderItemGenerationService:
                 order, quote_item
             )
             created_items.append(order_item)
+
+        # order.total_amount раньше не синхронизировался с суммой КП — заказ
+        # так и оставался должен 0 ₸, из-за чего "оплата закрыта" была
+        # тривиально истинной и заказ либо завершался без единой оплаты,
+        # либо навсегда зависал в on_installation (FSM не пускает туда, где
+        # оплата якобы не нужна, но и completed напрямую не даёт).
+        if created_items:
+            self.recalculate_order_total(order)
 
         # Позиции сформированы из одобренного КП — заказ перестал быть заявкой.
         # Момент выбран именно здесь: FSM пускает в in_work только когда есть

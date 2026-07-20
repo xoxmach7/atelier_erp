@@ -105,14 +105,20 @@ class TestMaterialsReadyStartsProduction(TestCase):
 
 @pytest.mark.django_db
 class TestProductionDoneMakesReady(TestCase):
-    def test_production_done_moves_to_ready(self):
+    def test_production_done_moves_straight_to_on_installation(self):
+        """
+        2026-07-20: ready -> on_installation тоже автоматизирован — раньше
+        требовал ручного клика владельца ("назначение бригады"), но никакого
+        решения там не было (монтажник уже мог действовать по заказу в ready).
+        Пошив закончен -> заказ сразу у монтажника, без промежуточного шага.
+        """
         customer = Customer.objects.create(full_name="C", phone="+70000000022")
         order = _order(customer, "О-2024-926", status=Order.Status.IN_PRODUCTION)
         OrderExecutionService().change_production_stage(
             order=order, production_stage=ProductionStage.DONE,
         )
         order.refresh_from_db()
-        assert order.status == Order.Status.READY
+        assert order.status == Order.Status.ON_INSTALLATION
 
 
 @pytest.mark.django_db
@@ -140,6 +146,37 @@ class TestItemsGeneratedStartsWork(TestCase):
 
         order.refresh_from_db()
         assert order.status == Order.Status.IN_WORK
+
+    def test_generating_items_syncs_order_total_amount(self):
+        """
+        2026-07-20: order.total_amount раньше не выставлялся при генерации
+        позиций и оставался 0 — заказ на 20000 не мог собрать оплату и
+        навсегда застревал в on_installation (FSM не пускает оттуда в
+        completed напрямую, а balance_due=0 не пускал в waiting_final_payment).
+        Берём quote.total (включает installation_cost/delivery/скидку), а не
+        сумму позиций — она их не содержит.
+        """
+        customer = Customer.objects.create(full_name="E", phone="+70000000028")
+        order = _order(customer, "О-2024-931", status=Order.Status.NEW)
+        quote = Quote.objects.create(
+            order=order, customer=customer, quote_number="КП-2024-931",
+            status=Quote.Status.APPROVED, subtotal=Decimal('15000'),
+            installation_cost=Decimal('5000'), total=Decimal('20000'),
+        )
+        fabric = Fabric.objects.create(
+            name="Бархат", hanger_number="H-931",
+            price_per_meter=Decimal('900'), width_cm=280,
+        )
+        QuoteItem.objects.create(
+            quote=quote, room_name="Зал", window_name="Окно 1",
+            window_width_cm=300, window_height_cm=250, fabric=fabric,
+            line_total=Decimal('15000'),
+        )
+
+        OrderItemGenerationService().generate_order_items_from_quote(order=order, quote=quote)
+
+        order.refresh_from_db()
+        assert order.total_amount == Decimal('20000')
 
     def test_history_marks_transition_as_automatic(self):
         """Автопереход должен быть отличим от ручного при разборе."""

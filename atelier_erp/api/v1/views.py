@@ -29,7 +29,7 @@ from atelier_erp.models import (
     Order, Task, Fabric, PhotoReport, OrderItem, OrderCompletionAct,
     Measurement, Quote, Payment, Customer, OrderMaterial, InventoryItem
 )
-from atelier_erp.services import OrderService, TaskService, UnitOfWork, QuoteService
+from atelier_erp.services import OrderService, TaskService, UnitOfWork, QuoteService, PaymentService
 from atelier_erp.services.inventory_fabric_sync import sync_fabric_from_inventory_item
 
 
@@ -50,7 +50,8 @@ def _safe_error(exc, context='request'):
     return UNEXPECTED_ERROR_MESSAGE
 from atelier_erp.services.exceptions import (
     OrderNotFoundError, InvalidOrderStatusTransition,
-    TaskNotFoundError, InvalidTaskStatusTransition
+    TaskNotFoundError, InvalidTaskStatusTransition,
+    PaymentServiceError, InvalidPaymentAmount, DuplicatePaymentError,
 )
 
 from .serializers import (
@@ -1015,8 +1016,8 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
         PATCH /api/v1/orders/{id}/items/{item_id}/  — частичное обновление позиции
         DELETE /api/v1/orders/{id}/items/{item_id}/ — удалить позицию
         """
-        from django.db.models import Sum
         from decimal import Decimal, InvalidOperation
+        from atelier_erp.services import OrderItemGenerationService
 
         order = self.get_object()
         try:
@@ -1026,9 +1027,12 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
 
         if request.method == "DELETE":
             item.delete()
-            total = order.items.aggregate(s=Sum("total_price"))["s"] or Decimal("0")
-            order.total_amount = total
-            order.save(update_fields=["total_amount"])
+            # Пересчёт через тот же сервис, что и генерация позиций из КП:
+            # сумма позиций сама по себе не включает installation_cost/
+            # delivery_cost/скидку КП — если считать total_amount отдельной
+            # формулой здесь, после правки позиции сумма заказа откатывалась
+            # бы ниже реальной суммы КП.
+            OrderItemGenerationService().recalculate_order_total(order)
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         # PATCH — partial update, any combination of fields
@@ -1085,9 +1089,7 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
 
         item.save(update_fields=update_fields)
 
-        total = order.items.aggregate(s=Sum("total_price"))["s"] or Decimal("0")
-        order.total_amount = total
-        order.save(update_fields=["total_amount"])
+        OrderItemGenerationService().recalculate_order_total(order)
 
         return Response({
             "id": str(item.id),
@@ -2391,6 +2393,39 @@ class PaymentViewSet(TenantViaOrderMixin, viewsets.ModelViewSet):
         # order__tenant. scope_to_tenant() здесь ЕДИНСТВЕННАЯ линия защиты,
         # а не вторая: удаление вызова полностью открывает кросс-тенантный доступ.
         return self.scope_to_tenant(Payment.objects.select_related('order').all())
+
+    def create(self, request, *args, **kwargs):
+        """
+        Приём платежа через PaymentService — раньше здесь был дефолтный
+        ModelViewSet.create, который просто писал строку Payment мимо
+        PaymentService.record_payment: order.paid_amount никогда не рос,
+        и заказ не мог доехать до completed (найдено при сквозном прогоне
+        воркфлоу new -> completed через реальные API 2026-07-20).
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        order = data['order']
+
+        service = PaymentService(unit_of_work=None)
+        try:
+            payment = service.record_payment(
+                order_id=order.id,
+                amount=data['amount'],
+                payment_type=data['payment_type'],
+                payment_method=data['payment_method'],
+                received_by=request.user.id if request.user.is_authenticated else None,
+                notes=data.get('notes', ''),
+            )
+        except DuplicatePaymentError as e:
+            return Response({'error': str(e), 'code': 'duplicate_payment'}, status=status.HTTP_409_CONFLICT)
+        except InvalidPaymentAmount as e:
+            return Response({'error': str(e), 'code': 'invalid_amount'}, status=status.HTTP_400_BAD_REQUEST)
+        except PaymentServiceError as e:
+            return Response({'error': _safe_error(e), 'code': 'payment_error'}, status=status.HTTP_400_BAD_REQUEST)
+
+        response_serializer = PaymentSerializer(payment)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
 
 # ---------------------------------------------------------------------------

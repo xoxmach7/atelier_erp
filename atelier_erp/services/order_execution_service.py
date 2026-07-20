@@ -1061,10 +1061,17 @@ class OrderExecutionService:
                 notes=f"Production stage changed: {old_value} -> {production_stage}. {notes}".strip()
             )
 
-        # Пошив завершён — заказ готов.
+        # Пошив завершён — заказ готов и сразу переходит к монтажнику.
+        # Раньше ready -> on_installation был осознанно ручным шагом владельца
+        # ("назначение бригады"), но по факту никакого решения там не
+        # принималось: монтажник и так уже видит и может действовать по
+        # заказу в статусе ready (change-handover-stage/фотоотчёт разрешены
+        # начиная с ready, не только с on_installation) — шаг владельца был
+        # чистой формальностью, которую попросили убрать 2026-07-20.
         if production_stage == ProductionStage.DONE:
             from .status_automation import auto_advance
             auto_advance(order, Order.Status.READY, "производство завершено", changed_by)
+            auto_advance(order, Order.Status.ON_INSTALLATION, "изделия готовы, передано на монтаж", changed_by)
 
         return order
     
