@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Search, User, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Search, UserPlus, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,7 @@ import { maskPhoneInput } from "@/lib/phone";
 /* ------------------------------------------------------------------ */
 
 function CustomerSearch({
+  value,
   onChange,
   onCreateNew,
 }: {
@@ -27,8 +28,17 @@ function CustomerSearch({
   onChange: (id: string, name: string) => void;
   onCreateNew: () => void;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(value);
   const [isOpen, setIsOpen] = useState(false);
+
+  // value — имя уже выбранного клиента (например, только что созданного
+  // через InlineNewCustomer). Раньше проп объявлялся в типе, но нигде не
+  // читался — после инлайн-создания клиента поле поиска оставалось пустым,
+  // хотя клиент реально выбирался (это показывала только мелкая зелёная
+  // подпись под полем) — выглядело как "добавляет, но не выбирает".
+  useEffect(() => {
+    setQuery(value);
+  }, [value]);
 
   const { data, isLoading } = useCustomers(query || undefined);
   const customers = data?.results ?? [];
@@ -63,7 +73,7 @@ function CustomerSearch({
           className="flex h-[46px] w-[46px] items-center justify-center rounded-[10px] bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors shrink-0"
           title="Новый клиент"
         >
-          <User size={20} />
+          <UserPlus size={20} />
         </button>
       </div>
 
@@ -110,6 +120,7 @@ function InlineNewCustomer({
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const createMutation = useCreateCustomer();
 
@@ -122,6 +133,7 @@ function InlineNewCustomer({
       const customer = await createMutation.mutateAsync({
         full_name: name.trim(),
         phone: phone.trim(),
+        email: email.trim() || undefined,
       });
       onCreated(customer);
     } catch (err) {
@@ -151,6 +163,13 @@ function InlineNewCustomer({
         value={phone}
         onChange={(e) => setPhone(maskPhoneInput(e.target.value))}
         inputMode="tel"
+        className="w-full rounded-[10px] border border-[#E2E8F0] bg-white px-4 py-2.5 text-[14px] outline-none focus:border-[#0EA5E9]"
+      />
+      <input
+        type="email"
+        placeholder="E-mail"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
         className="w-full rounded-[10px] border border-[#E2E8F0] bg-white px-4 py-2.5 text-[14px] outline-none focus:border-[#0EA5E9]"
       />
       {error && <p className="text-[13px] text-[#DC2626]">{error}</p>}
@@ -266,16 +285,13 @@ export function CreateOrderModal({ isOpen, onClose, onSuccess, prefillCustomer }
               <InlineNewCustomer onCreated={handleCustomerCreated} onCancel={() => setShowNewCustomer(false)} />
             ) : (
               <CustomerSearch
-                value={customerId}
+                value={customerName}
                 onChange={(id, name) => {
                   setCustomerId(id);
                   setCustomerName(name);
                 }}
                 onCreateNew={() => setShowNewCustomer(true)}
               />
-            )}
-            {customerId && customerName && (
-              <p className="mt-1.5 text-[13px] text-[#16A34A]">✓ {customerName}</p>
             )}
           </div>
 

@@ -131,3 +131,42 @@ class TestInventoryItemSyncsToFabric(TestCase):
         assert resp.status_code == 200, resp.content
         names = [f["name"] for f in resp.data.get("results", resp.data)]
         assert "Велюр зелёный" in names
+
+    def test_cyrillic_sku_items_do_not_collide_on_fabric_mirror(self):
+        """
+        Раньше нелатинский артикул после чистки давал пустую строку и
+        подставлялась константа 'MAT' — второй такой же материал затирал
+        Fabric-зеркало первого через update_or_create(hanger_number='MAT').
+        """
+        resp1 = self.client.post(
+            "/api/v1/inventory-items/",
+            {
+                "sku": "тест-1",
+                "name": "Ткань один",
+                "category": InventoryItem.Category.FABRIC,
+                "unit": InventoryItem.Unit.METER,
+                "quantity": "10",
+                "price_per_unit": "1000",
+            },
+            format="json",
+        )
+        assert resp1.status_code == 201, resp1.content
+
+        resp2 = self.client.post(
+            "/api/v1/inventory-items/",
+            {
+                "sku": "тест-2",
+                "name": "Ткань два",
+                "category": InventoryItem.Category.FABRIC,
+                "unit": InventoryItem.Unit.METER,
+                "quantity": "20",
+                "price_per_unit": "2000",
+            },
+            format="json",
+        )
+        assert resp2.status_code == 201, resp2.content
+
+        names = set(Fabric.objects.values_list("name", flat=True))
+        assert {"Ткань один", "Ткань два"}.issubset(names)
+        assert Fabric.objects.filter(name="Ткань один").exists()
+        assert Fabric.objects.filter(name="Ткань два").exists()

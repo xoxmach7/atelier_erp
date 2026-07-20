@@ -16,9 +16,20 @@ from ..models import Fabric, InventoryItem
 _HANGER_INVALID = re.compile(r'[^A-Z0-9-]')
 
 
-def _sanitize_hanger_number(raw: str) -> str:
+def _sanitize_hanger_number(raw: str, fallback_id) -> str:
+    """
+    hanger_number обязан быть [A-Z0-9-]+ — артикулы на нелатинице (кириллица
+    и т.п.) после чистки дают пустую строку. Раньше в этом случае всегда
+    подставлялась константа 'MAT': два разных тканевых InventoryItem с
+    нелатинскими артикулами схлопывались в один и тот же hanger_number, и
+    update_or_create() затирал Fabric-зеркало одного позицией другого.
+    Фолбэк на префикс id самой позиции — уникален и стабилен между вызовами
+    sync для одного и того же InventoryItem.
+    """
     cleaned = _HANGER_INVALID.sub('-', raw.upper()).strip('-')
-    return (cleaned or 'MAT')[:50]
+    if cleaned:
+        return cleaned[:50]
+    return f"ITM-{str(fallback_id).replace('-', '').upper()[:8]}"
 
 
 def sync_fabric_from_inventory_item(item: InventoryItem) -> None:
@@ -31,7 +42,7 @@ def sync_fabric_from_inventory_item(item: InventoryItem) -> None:
     if item.category not in (InventoryItem.Category.FABRIC, InventoryItem.Category.TULLE):
         return
 
-    hanger_number = _sanitize_hanger_number(item.sku or item.name)
+    hanger_number = _sanitize_hanger_number(item.sku or item.name, item.id)
     try:
         stock_meters = Decimal(item.quantity) if item.unit == InventoryItem.Unit.METER else Decimal('0')
     except InvalidOperation:
