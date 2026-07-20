@@ -19,9 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
 import { useFabrics } from "@/hooks/useFabrics";
 import { useCreateMeasurement, useUpdateMeasurement } from "@/hooks/useMeasurements";
-import { MOUNTING_OPTIONS } from "@/lib/mounting-types";
+import { fetchInventoryItems } from "@/services/http/inventory-items";
 import type { MeasurementDTO } from "@/types";
 
 /* ------------------------------------------------------------------ */
@@ -64,12 +65,34 @@ function CreateMeasurementModalInner({
   const [curtainMeters, setCurtainMeters] = useState(measurement?.curtain_meters ? String(measurement.curtain_meters) : "");
   const [tulleFabricId, setTulleFabricId] = useState(measurement?.tulle_fabric || "");
   const [tulleMeters, setTulleMeters] = useState(measurement?.tulle_meters ? String(measurement.tulle_meters) : "");
-  const [mountingType, setMountingType] = useState(measurement?.mounting_type || "");
+  const [corniceItemId, setCorniceItemId] = useState(measurement?.cornice_item || "");
+  const [corniceQuantity, setCorniceQuantity] = useState(measurement?.cornice_quantity ? String(measurement.cornice_quantity) : "");
+  const [hardwareItemId, setHardwareItemId] = useState(measurement?.hardware_item || "");
+  const [hardwareQuantity, setHardwareQuantity] = useState(measurement?.hardware_quantity ? String(measurement.hardware_quantity) : "");
   const [notes, setNotes] = useState(measurement?.notes || "");
 
   // Data hooks
   const { data: fabricsData } = useFabrics({ pageSize: 100, isActive: true });
   const fabrics = fabricsData?.results ?? [];
+
+  // Крепление — позиции склада категории «Карниз», фурнитура — категории «Фурнитура».
+  const { data: corniceItemsData } = useQuery({
+    queryKey: ["inventory", "items", "cornice"],
+    queryFn: () => fetchInventoryItems({ category: "cornice", page_size: 200, is_active: true }),
+    staleTime: 30 * 1000,
+  });
+  const corniceItems = corniceItemsData?.results ?? [];
+  const { data: hardwareItemsData } = useQuery({
+    queryKey: ["inventory", "items", "accessory"],
+    queryFn: () => fetchInventoryItems({ category: "accessory", page_size: 200, is_active: true }),
+    staleTime: 30 * 1000,
+  });
+  const hardwareItems = hardwareItemsData?.results ?? [];
+
+  const selectedCorniceItem = corniceItems.find((it) => it.id === corniceItemId);
+  const corniceUnitLabel = selectedCorniceItem?.unit_display || "шт";
+  const selectedHardwareItem = hardwareItems.find((it) => it.id === hardwareItemId);
+  const hardwareUnitLabel = selectedHardwareItem?.unit_display || "шт";
 
   const createMutation = useCreateMeasurement();
   const updateMutation = useUpdateMeasurement();
@@ -88,7 +111,10 @@ function CreateMeasurementModalInner({
     setCurtainMeters("");
     setTulleFabricId("");
     setTulleMeters("");
-    setMountingType("");
+    setCorniceItemId("");
+    setCorniceQuantity("");
+    setHardwareItemId("");
+    setHardwareQuantity("");
     setNotes("");
   };
 
@@ -105,7 +131,7 @@ function CreateMeasurementModalInner({
       height_cm: parseInt(heightCm),
       depth_cm: null,
       ceiling_height_cm: null,
-      mounting_type: mountingType || "",
+      mounting_type: "",
       window_type: "",
       has_radiator: false,
       has_slope: false,
@@ -116,6 +142,10 @@ function CreateMeasurementModalInner({
       curtain_meters: curtainMeters ? parseFloat(curtainMeters) : 0,
       tulle_fabric: tulleFabricId || null,
       tulle_meters: tulleMeters ? parseFloat(tulleMeters) : 0,
+      cornice_item: corniceItemId || null,
+      cornice_quantity: corniceQuantity ? parseFloat(corniceQuantity) : 0,
+      hardware_item: hardwareItemId || null,
+      hardware_quantity: hardwareQuantity ? parseFloat(hardwareQuantity) : 0,
       measured_by: null,
       notes: notes.trim(),
     };
@@ -288,29 +318,74 @@ function CreateMeasurementModalInner({
               </div>
             </div>
 
-            {/* 7. Тип крепления */}
+            {/* 7. Крепление */}
             <div className="space-y-1.5">
               <Label className="text-[13px] font-medium text-[var(--t1)]">
-                7. Тип крепления
+                7. Крепление
               </Label>
-              <Select value={mountingType} onValueChange={setMountingType}>
-                <SelectTrigger className={selectTriggerCls}>
-                  <SelectValue placeholder="Выберите крепление" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MOUNTING_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2.5">
+                <Select value={corniceItemId} onValueChange={setCorniceItemId}>
+                  <SelectTrigger className={`flex-1 ${selectTriggerCls}`}>
+                    <SelectValue placeholder="Выберите крепление" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {corniceItems.map((it) => (
+                      <SelectItem key={it.id} value={it.id}>
+                        {it.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-[13px] text-[var(--t3)] shrink-0">
+                  {corniceUnitLabel}
+                </span>
+                <Input
+                  className={`${inputCls} w-[72px] text-center shrink-0`}
+                  type="number"
+                  min={0}
+                  step={0.1}
+                  value={corniceQuantity}
+                  onChange={(e) => setCorniceQuantity(e.target.value)}
+                />
+              </div>
             </div>
 
-            {/* 8. Комментарии */}
+            {/* 8. Фурнитура */}
             <div className="space-y-1.5">
               <Label className="text-[13px] font-medium text-[var(--t1)]">
-                8. Комментарии по изделию
+                8. Фурнитура
+              </Label>
+              <div className="flex items-center gap-2.5">
+                <Select value={hardwareItemId} onValueChange={setHardwareItemId}>
+                  <SelectTrigger className={`flex-1 ${selectTriggerCls}`}>
+                    <SelectValue placeholder="Выберите фурнитуру" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {hardwareItems.map((it) => (
+                      <SelectItem key={it.id} value={it.id}>
+                        {it.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-[13px] text-[var(--t3)] shrink-0">
+                  {hardwareUnitLabel}
+                </span>
+                <Input
+                  className={`${inputCls} w-[72px] text-center shrink-0`}
+                  type="number"
+                  min={0}
+                  step={0.1}
+                  value={hardwareQuantity}
+                  onChange={(e) => setHardwareQuantity(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* 9. Комментарии */}
+            <div className="space-y-1.5">
+              <Label className="text-[13px] font-medium text-[var(--t1)]">
+                9. Комментарии по изделию
               </Label>
               <Input
                 className={inputCls}

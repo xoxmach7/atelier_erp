@@ -14,7 +14,6 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { LoadingState } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { getCoarseStatus } from "@/lib/list-status";
-import { getMountingTypeLabel } from "@/lib/mounting-types";
 import { formatPhone } from "@/lib/phone";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -304,6 +303,8 @@ function MeasurementRow({
     measurement.curtain_fabric_name || measurement.curtain_fabric_details?.name;
   const tulleName =
     measurement.tulle_fabric_name || measurement.tulle_fabric_details?.name;
+  const corniceName = measurement.cornice_item_details?.name;
+  const hardwareName = measurement.hardware_item_details?.name;
 
   return (
     <div className="border-b border-[#E2E8F0] last:border-0">
@@ -346,9 +347,15 @@ function MeasurementRow({
                 {tulleName ? `${tulleName}${measurement.tulle_meters ? ` (${measurement.tulle_meters} м)` : ""}` : "—"}
               </span>
               <span>
-                <span className="text-[#0F172A] font-medium">Тип крепления:</span>{" "}
-                {getMountingTypeLabel(measurement.mounting_type)}
+                <span className="text-[#0F172A] font-medium">Крепление:</span>{" "}
+                {corniceName ? `${corniceName}${measurement.cornice_quantity ? ` (${measurement.cornice_quantity} ${measurement.cornice_item_details?.unit_display || ""})` : ""}` : "—"}
               </span>
+              {hardwareName && (
+                <span>
+                  <span className="text-[#0F172A] font-medium">Фурнитура:</span>{" "}
+                  {hardwareName}{measurement.hardware_quantity ? ` (${measurement.hardware_quantity} ${measurement.hardware_item_details?.unit_display || ""})` : ""}
+                </span>
+              )}
             </div>
             {editable && (
               <div className="flex items-center gap-2 shrink-0">
@@ -1376,6 +1383,8 @@ export default function OrderDetailPage() {
                         const dims = m.width_cm && m.height_cm ? ` (${m.width_cm}×${m.height_cm})` : "";
                         const curtainName = m.curtain_fabric_name || m.curtain_fabric_details?.name;
                         const tulleName = m.tulle_fabric_name || m.tulle_fabric_details?.name;
+                        const corniceName = m.cornice_item_details?.name;
+                        const hardwareName = m.hardware_item_details?.name;
                         const saving = updateMeasurementMutation.isPending && updateMeasurementMutation.variables?.id === m.id;
                         return (
                           <div key={m.id} className="border-b border-[#E2E8F0] last:border-0">
@@ -1394,7 +1403,10 @@ export default function OrderDetailPage() {
                                   <div className="flex flex-wrap gap-x-8 gap-y-1.5 text-[13px] text-[#475569]">
                                     <span><span className="font-medium text-[#0F172A]">Шторы:</span> {curtainName ? `${curtainName}${m.curtain_meters ? ` (${m.curtain_meters} м)` : ""}` : "—"}</span>
                                     <span><span className="font-medium text-[#0F172A]">Тюль:</span> {tulleName ? `${tulleName}${m.tulle_meters ? ` (${m.tulle_meters} м)` : ""}` : "—"}</span>
-                                    <span><span className="font-medium text-[#0F172A]">Тип крепления:</span> {getMountingTypeLabel(m.mounting_type)}</span>
+                                    <span><span className="font-medium text-[#0F172A]">Крепление:</span> {corniceName ? `${corniceName}${m.cornice_quantity ? ` (${m.cornice_quantity} ${m.cornice_item_details?.unit_display || ""})` : ""}` : "—"}</span>
+                                    {hardwareName && (
+                                      <span><span className="font-medium text-[#0F172A]">Фурнитура:</span> {hardwareName}{m.hardware_quantity ? ` (${m.hardware_quantity} ${m.hardware_item_details?.unit_display || ""})` : ""}</span>
+                                    )}
                                   </div>
                                   {done ? (
                                     <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#16A34A] shrink-0">
@@ -1499,6 +1511,8 @@ export default function OrderDetailPage() {
                         const dims = m.width_cm && m.height_cm ? ` (${m.width_cm}×${m.height_cm})` : "";
                         const curtainName = m.curtain_fabric_name || m.curtain_fabric_details?.name;
                         const tulleName = m.tulle_fabric_name || m.tulle_fabric_details?.name;
+                        const corniceName = m.cornice_item_details?.name;
+                        const hardwareName = m.hardware_item_details?.name;
                         const saving = updateMeasurementMutation.isPending && updateMeasurementMutation.variables?.id === m.id;
                         return (
                           <div key={m.id} className="border-b border-[#E2E8F0] last:border-0">
@@ -1517,7 +1531,10 @@ export default function OrderDetailPage() {
                                   <div className="flex flex-wrap gap-x-8 gap-y-1.5 text-[13px] text-[#475569]">
                                     <span><span className="font-medium text-[#0F172A]">Шторы:</span> {curtainName ? `${curtainName}${m.curtain_meters ? ` (${m.curtain_meters} м)` : ""}` : "—"}</span>
                                     <span><span className="font-medium text-[#0F172A]">Тюль:</span> {tulleName ? `${tulleName}${m.tulle_meters ? ` (${m.tulle_meters} м)` : ""}` : "—"}</span>
-                                    <span><span className="font-medium text-[#0F172A]">Тип крепления:</span> {getMountingTypeLabel(m.mounting_type)}</span>
+                                    <span><span className="font-medium text-[#0F172A]">Крепление:</span> {corniceName ? `${corniceName}${m.cornice_quantity ? ` (${m.cornice_quantity} ${m.cornice_item_details?.unit_display || ""})` : ""}` : "—"}</span>
+                                    {hardwareName && (
+                                      <span><span className="font-medium text-[#0F172A]">Фурнитура:</span> {hardwareName}{m.hardware_quantity ? ` (${m.hardware_quantity} ${m.hardware_item_details?.unit_display || ""})` : ""}</span>
+                                    )}
                                   </div>
                                   {done ? (
                                     <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#16A34A] shrink-0">

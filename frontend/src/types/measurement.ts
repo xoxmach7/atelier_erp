@@ -113,6 +113,14 @@ export interface MeasurementDTO {
   tulle_fabric_hanger?: string;   // For list view
   tulle_fabric_name?: string;     // For list view
   tulle_meters: number;
+  /** Крепление — позиция склада категории «Карниз» (заменяет старый mounting_type). */
+  cornice_item: string | null; // InventoryItem ID
+  cornice_item_details?: { id: string; name: string; unit: string; unit_display: string };
+  cornice_quantity: number;
+  /** Фурнитура — позиция склада категории «Фурнитура». */
+  hardware_item: string | null; // InventoryItem ID
+  hardware_item_details?: { id: string; name: string; unit: string; unit_display: string };
+  hardware_quantity: number;
   notes: string;
   /** Сколько одинаковых изделий по этому окну (повторяющиеся окна). */
   quantity?: number;

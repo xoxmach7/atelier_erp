@@ -181,6 +181,15 @@ class PaymentSerializer(serializers.ModelSerializer):
         }
 
 
+class InventoryItemMiniSerializer(serializers.ModelSerializer):
+    """Лёгкое вложение InventoryItem (для крепления/фурнитуры на замере) — без цены/остатка."""
+    unit_display = serializers.CharField(source='get_unit_display', read_only=True)
+
+    class Meta:
+        model = InventoryItem
+        fields = ['id', 'name', 'unit', 'unit_display']
+
+
 class MeasurementSerializer(serializers.ModelSerializer):
     """Measurement serializer for embedding in order detail
     Phase 3: Includes curtain_fabric + tulle_fabric with meters
@@ -189,6 +198,10 @@ class MeasurementSerializer(serializers.ModelSerializer):
     # Phase 3: Curtain and tulle fabrics with meters
     curtain_fabric_details = FabricListSerializer(source='curtain_fabric', read_only=True)
     tulle_fabric_details = FabricListSerializer(source='tulle_fabric', read_only=True)
+    # Крепление (карниз со склада) и фурнитура — конкретные позиции InventoryItem,
+    # а не текстовые значения (см. Measurement.cornice_item в models.py).
+    cornice_item_details = InventoryItemMiniSerializer(source='cornice_item', read_only=True)
+    hardware_item_details = InventoryItemMiniSerializer(source='hardware_item', read_only=True)
     # Цена окна выводится из выбранных тканей (метраж × цена за метр) и считается
     # на сервере — см. services/quote_calc.py. Клиенты её только показывают,
     # своей копии формулы не держат, иначе веб и мобилка разойдутся в суммах.
@@ -203,6 +216,8 @@ class MeasurementSerializer(serializers.ModelSerializer):
             # Phase 3: Curtain and tulle fabrics
             'curtain_fabric', 'curtain_fabric_details', 'curtain_meters', 'curtain_gathering',
             'tulle_fabric', 'tulle_fabric_details', 'tulle_meters', 'tulle_gathering',
+            'cornice_item', 'cornice_item_details', 'cornice_quantity',
+            'hardware_item', 'hardware_item_details', 'hardware_quantity',
             'notes', 'materials_ready', 'sewing_done', 'installation_done', 'quantity',
             'calculated_price', 'price_breakdown',
         ]
@@ -286,9 +301,20 @@ class MeasurementWriteSerializer(serializers.ModelSerializer):
             'width_cm', 'height_cm', 'mounting_type',
             'curtain_fabric', 'curtain_meters', 'curtain_gathering',
             'tulle_fabric', 'tulle_meters', 'tulle_gathering', 'notes',
+            'cornice_item', 'cornice_quantity', 'hardware_item', 'hardware_quantity',
             'materials_ready', 'sewing_done', 'installation_done', 'quantity',
         ]
         read_only_fields = ['curtain_meters', 'tulle_meters']
+
+    def validate_cornice_item(self, value):
+        if value is not None and value.category != InventoryItem.Category.CORNICE:
+            raise serializers.ValidationError('Крепление должно быть позицией категории «Карниз».')
+        return value
+
+    def validate_hardware_item(self, value):
+        if value is not None and value.category != InventoryItem.Category.ACCESSORY:
+            raise serializers.ValidationError('Фурнитура должна быть позицией категории «Фурнитура».')
+        return value
 
     def _apply_meterage(self, validated_data, instance=None):
         from atelier_erp.services.measurement_calc import compute_meters

@@ -1003,6 +1003,29 @@ class Measurement(UUIDModel):
     # Коэффициент сборки тюля (настраиваемый на окно).
     tulle_gathering = models.DecimalField(max_digits=4, decimal_places=2, default=Decimal('2.0'))
 
+    # Крепление (2026-07-20): вместо абстрактного mounting_type (набор
+    # текстовых значений типа "карниз"/"жалюзи") — конкретная позиция склада
+    # категории «Карниз». mounting_type оставлен как legacy-поле для старых
+    # записей, новая форма замера его больше не пишет.
+    cornice_item = models.ForeignKey(
+        'InventoryItem',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cornice_measurements',
+    )
+    cornice_quantity = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('0'))
+
+    # Фурнитура (2026-07-20): позиция склада категории «Фурнитура», количество в штуках.
+    hardware_item = models.ForeignKey(
+        'InventoryItem',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='hardware_measurements',
+    )
+    hardware_quantity = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal('0'))
+
     notes = models.TextField(blank=True)
     # Склад отмечает по каждому окну, что материалы под него собраны
     # (галочка в складской версии экрана заказа).
