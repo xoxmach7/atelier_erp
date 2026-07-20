@@ -73,7 +73,7 @@ function CustomerSearch({
           className="flex h-[46px] w-[46px] items-center justify-center rounded-[10px] bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors shrink-0"
           title="Новый клиент"
         >
-          <UserPlus size={20} />
+          <UserPlus size={22} strokeWidth={2.5} />
         </button>
       </div>
 

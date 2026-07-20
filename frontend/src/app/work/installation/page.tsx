@@ -42,7 +42,7 @@ function InstallationOrdersContent() {
         {/* Top bar */}
         <div className="flex flex-wrap items-center justify-between gap-4 px-4 sm:px-[52px] py-5 sm:py-[30px]">
           <div className="flex items-center gap-4">
-            <h1 className="text-[26px] font-semibold text-[#0F172A] whitespace-nowrap">Установка</h1>
+            <h1 className="text-[26px] font-semibold text-[#0F172A] whitespace-nowrap">Заказы</h1>
             <div className="flex items-center gap-10 ml-[48px]">
               <button
                 onClick={() => setShowFilters((v) => !v)}
