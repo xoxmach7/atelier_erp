@@ -178,20 +178,35 @@ function MaterialsContent() {
     setModalOpen(true);
   };
 
-  const fabricRows: Row[] = (fabricsData?.results ?? []).map((f) => {
-    const avail = parseFloat(f.available_meters);
-    return {
-      id: `f-${f.id}`,
-      source: "fabric",
-      sku: f.hanger_number || "—",
-      name: f.name,
-      category: "Ткань",
-      price: f.price_per_meter,
-      available: Number.isNaN(avail) ? 0 : avail,
-      unit: "м",
-      low: avail < LOW_STOCK,
-    };
-  });
+  // Каждая позиция склада с категорией «ткань»/«тюль» зеркалится в Fabric
+  // сервисом sync_fabric_from_inventory_item (нужно для выпадашки тканей на
+  // замере — Measurement ссылается на Fabric, не на InventoryItem). Без этой
+  // фильтрации один и тот же материал показывался бы в таблице ДВАЖДЫ: раз
+  // редактируемой строкой InventoryItem, раз "призрачной" строкой-зеркалом
+  // Fabric без меню «⋮» — выглядело как «у одной и той же ткани нет
+  // действий», хотя редактировать её и так можно через строку InventoryItem.
+  const itemFabricNames = new Set(
+    (itemsData?.results ?? [])
+      .filter((it) => it.category === "fabric" || it.category === "tulle")
+      .map((it) => it.name.trim().toLowerCase()),
+  );
+
+  const fabricRows: Row[] = (fabricsData?.results ?? [])
+    .filter((f) => !itemFabricNames.has(f.name.trim().toLowerCase()))
+    .map((f) => {
+      const avail = parseFloat(f.available_meters);
+      return {
+        id: `f-${f.id}`,
+        source: "fabric",
+        sku: f.hanger_number || "—",
+        name: f.name,
+        category: "Ткань",
+        price: f.price_per_meter,
+        available: Number.isNaN(avail) ? 0 : avail,
+        unit: "м",
+        low: avail < LOW_STOCK,
+      };
+    });
 
   const itemRows: Row[] = (itemsData?.results ?? []).map((it) => {
     const q = parseFloat(it.quantity);
