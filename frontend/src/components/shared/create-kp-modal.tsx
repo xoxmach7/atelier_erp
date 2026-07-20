@@ -220,7 +220,8 @@ export function CreateKPModal({ isOpen, onClose, orderId, order: orderProp, onSu
                   <div key={line.key} className="flex items-start justify-between border-b border-[#E2E8F0] py-4">
                     <div className="text-[15px] text-[#0F172A]">
                       <div>{line.room}</div>
-                      <div>{line.window + dims}</div>
+                      {/* Окно слито с комнатой в форме замера (2026-07-20) — не дублируем подпись. */}
+                      <div>{(line.window !== line.room ? line.window : "") + dims || "—"}</div>
                     </div>
                     {/*
                       Сводка, а не форма. Цена окна считается сервером из

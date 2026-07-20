@@ -81,6 +81,17 @@ function fmtCurrency(v: string | number | null | undefined): string {
   return n.toLocaleString("ru-RU") + " ₸";
 }
 
+/**
+ * Комната + окно для заголовков строк замера/позиции. Поле «Окно/изделие»
+ * слито с «Комнатой» в форме создания замера (2026-07-20) — новые записи
+ * пишут одно и то же значение в оба поля, поэтому окно не дублируется в
+ * подписи, если оно совпадает с комнатой. У старых замеров, где значения
+ * ещё различаются, показываются оба через разделитель.
+ */
+function roomWindowLabel(room: string | undefined, window: string | undefined, sep: string): string {
+  return [room, window && window !== room ? window : undefined].filter(Boolean).join(sep);
+}
+
 function getCustomerName(order: OrderDetailDTO): string {
   if (typeof order.customer === "object" && order.customer)
     return order.customer.full_name || "—";
@@ -315,8 +326,14 @@ function MeasurementRow({
       >
         <div className="min-w-0">
           <div className="text-[14px] text-[#0F172A]">{measurement.room_name || "Комната"}</div>
+          {/* «Окно» — то же значение, что и «Комната» (поля слиты в форме
+              создания замера, 2026-07-20) — вторая строка не дублирует его,
+              показывает только размеры. У старых замеров, где значения ещё
+              различаются, показывается настоящее название окна. */}
           <div className="text-[13px] text-[#475569]">
-            {(measurement.window_name || "Окно") + dims}
+            {measurement.window_name && measurement.window_name !== measurement.room_name
+              ? measurement.window_name + dims
+              : dims.trim() || "—"}
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
@@ -451,7 +468,7 @@ function ItemRow({
   const corniceName = matchedMeasurement?.cornice_item_details?.name;
   const hardwareName = matchedMeasurement?.hardware_item_details?.name;
 
-  const roomLabel = [item.room_name, item.window_name].filter(Boolean).join(" / ");
+  const roomLabel = roomWindowLabel(item.room_name, item.window_name, " / ");
   const unitPrice = item.unit_price ? parseFloat(item.unit_price) : 0;
   const displayTotal = unitPrice > 0
     ? (unitPrice * localQty).toLocaleString("ru-RU") + " ₸"
@@ -1425,7 +1442,7 @@ export default function OrderDetailPage() {
                       {(order.measurements ?? []).map((m) => {
                         const done = !!m.materials_ready;
                         const open = !!matExpanded[m.id];
-                        const roomLabel = [m.room_name, m.window_name].filter(Boolean).join(" — ");
+                        const roomLabel = roomWindowLabel(m.room_name, m.window_name, " — ");
                         const dims = m.width_cm && m.height_cm ? ` (${m.width_cm}×${m.height_cm})` : "";
                         const curtainName = m.curtain_fabric_name || m.curtain_fabric_details?.name;
                         const tulleName = m.tulle_fabric_name || m.tulle_fabric_details?.name;
@@ -1553,7 +1570,7 @@ export default function OrderDetailPage() {
                       {(order.measurements ?? []).map((m) => {
                         const done = !!m.sewing_done;
                         const open = !!sewExpanded[m.id];
-                        const roomLabel = [m.room_name, m.window_name].filter(Boolean).join(" — ");
+                        const roomLabel = roomWindowLabel(m.room_name, m.window_name, " — ");
                         const dims = m.width_cm && m.height_cm ? ` (${m.width_cm}×${m.height_cm})` : "";
                         const curtainName = m.curtain_fabric_name || m.curtain_fabric_details?.name;
                         const tulleName = m.tulle_fabric_name || m.tulle_fabric_details?.name;

@@ -56,9 +56,13 @@ function CreateMeasurementModalInner({
   measurement,
   onSuccess,
 }: CreateMeasurementModalProps) {
-  // Form state
+  // Form state. Поле «Окно/изделие» слито с «Комнатой» (2026-07-20, по
+  // запросу владельца): раздельные текстовые поля путали пользователей и
+  // легко расходились (опечатка в одном из двух — и сопоставление
+  // замер↔позиция после КП переставало работать). window_name на бэке
+  // остался (участвует в сопоставлении), но заполняется тем же текстом,
+  // что и room_name — отдельно его больше никто не вводит.
   const [roomName, setRoomName] = useState(measurement?.room_name || "");
-  const [windowName, setWindowName] = useState(measurement?.window_name || "");
   const [widthCm, setWidthCm] = useState(measurement?.width_cm != null ? String(measurement.width_cm) : "");
   const [heightCm, setHeightCm] = useState(measurement?.height_cm != null ? String(measurement.height_cm) : "");
   const [curtainFabricId, setCurtainFabricId] = useState(measurement?.curtain_fabric || "");
@@ -103,12 +107,11 @@ function CreateMeasurementModalInner({
   const isEdit = !!measurement;
 
   // Validation
-  const isValid = roomName.trim() && windowName.trim() && widthCm && heightCm;
+  const isValid = roomName.trim() && widthCm && heightCm;
 
   // Reset form
   const resetForm = () => {
     setRoomName("");
-    setWindowName("");
     setWidthCm("");
     setHeightCm("");
     setCurtainFabricId("");
@@ -130,7 +133,7 @@ function CreateMeasurementModalInner({
     const payload = {
       order: orderId,
       room_name: roomName.trim(),
-      window_name: windowName.trim(),
+      window_name: roomName.trim(),
       width_cm: parseInt(widthCm),
       height_cm: parseInt(heightCm),
       depth_cm: null,
@@ -206,25 +209,11 @@ function CreateMeasurementModalInner({
               />
             </div>
 
-            {/* 2. Окно/изделие */}
-            <div className="space-y-1.5">
-              <Label className="text-[13px] font-medium text-[var(--t1)]">
-                2. Окно/изделие <span className="text-[#DC2626]">*</span>
-              </Label>
-              <Input
-                className={inputCls}
-                placeholder="Например: Окно 1"
-                value={windowName}
-                onChange={(e) => setWindowName(e.target.value)}
-                required
-              />
-            </div>
-
-            {/* 3 & 4. Ширина / Высота */}
+            {/* 2 & 3. Ширина / Высота */}
             <div className="grid grid-cols-2 gap-3.5">
               <div className="space-y-1.5">
                 <Label className="text-[13px] font-medium text-[var(--t1)]">
-                  3. Ширина (см) <span className="text-[#DC2626]">*</span>
+                  2. Ширина (см) <span className="text-[#DC2626]">*</span>
                 </Label>
                 <Input
                   className={inputCls}
@@ -237,7 +226,7 @@ function CreateMeasurementModalInner({
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[13px] font-medium text-[var(--t1)]">
-                  4. Высота (см) <span className="text-[#DC2626]">*</span>
+                  3. Высота (см) <span className="text-[#DC2626]">*</span>
                 </Label>
                 <Input
                   className={inputCls}
@@ -250,10 +239,10 @@ function CreateMeasurementModalInner({
               </div>
             </div>
 
-            {/* 5. Ткань штор */}
+            {/* 4. Ткань штор */}
             <div className="space-y-1.5">
               <Label className="text-[13px] font-medium text-[var(--t1)]">
-                5. Ткань штор
+                4. Ткань штор
               </Label>
               <div className="flex items-center gap-2.5">
                 <Select
@@ -286,10 +275,10 @@ function CreateMeasurementModalInner({
               </div>
             </div>
 
-            {/* 6. Ткань тюля */}
+            {/* 5. Ткань тюля */}
             <div className="space-y-1.5">
               <Label className="text-[13px] font-medium text-[var(--t1)]">
-                6. Ткань тюля
+                5. Ткань тюля
               </Label>
               <div className="flex items-center gap-2.5">
                 <Select
@@ -322,10 +311,10 @@ function CreateMeasurementModalInner({
               </div>
             </div>
 
-            {/* 7. Крепление */}
+            {/* 6. Крепление */}
             <div className="space-y-1.5">
               <Label className="text-[13px] font-medium text-[var(--t1)]">
-                7. Крепление
+                6. Крепление
               </Label>
               <div className="flex items-center gap-2.5">
                 <Select value={corniceItemId} onValueChange={setCorniceItemId}>
@@ -354,10 +343,10 @@ function CreateMeasurementModalInner({
               </div>
             </div>
 
-            {/* 8. Фурнитура */}
+            {/* 7. Фурнитура */}
             <div className="space-y-1.5">
               <Label className="text-[13px] font-medium text-[var(--t1)]">
-                8. Фурнитура
+                7. Фурнитура
               </Label>
               <div className="flex items-center gap-2.5">
                 <Select value={hardwareItemId} onValueChange={setHardwareItemId}>
@@ -386,10 +375,10 @@ function CreateMeasurementModalInner({
               </div>
             </div>
 
-            {/* 9. Комментарии */}
+            {/* 8. Комментарии */}
             <div className="space-y-1.5">
               <Label className="text-[13px] font-medium text-[var(--t1)]">
-                9. Комментарии по изделию
+                8. Комментарии по изделию
               </Label>
               <Input
                 className={inputCls}
