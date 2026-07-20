@@ -422,16 +422,34 @@ function ItemRow({
   item,
   orderId,
   editable = false,
+  measurements,
+  onEditMeasurement,
 }: {
   item: OrderItemDTO;
   orderId: string;
   editable?: boolean;
+  measurements: MeasurementDTO[];
+  onEditMeasurement: (measurement: MeasurementDTO) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [localQty, setLocalQty] = useState(Math.round(Number(item.quantity ?? 1)));
   const deleteMutation = useDeleteOrderItem(orderId);
   const updateQtyMutation = useUpdateOrderItemQuantity(orderId);
+
+  // Позиция генерируется ИЗ замера при утверждении КП (совпадение по
+  // комната+окно) — редактируем исходные данные окна (ткань/крепление/
+  // фурнитура) там же, одной формой замера, а не отдельной урезанной формой
+  // позиции, которая физически не знает про эти поля.
+  const matchedMeasurement = measurements.find(
+    (m) => m.room_name === item.room_name && m.window_name === item.window_name
+  );
+  const curtainName = matchedMeasurement
+    ? matchedMeasurement.curtain_fabric_name || matchedMeasurement.curtain_fabric_details?.name
+    : item.fabric_name;
+  const tulleName = matchedMeasurement?.tulle_fabric_name || matchedMeasurement?.tulle_fabric_details?.name;
+  const corniceName = matchedMeasurement?.cornice_item_details?.name;
+  const hardwareName = matchedMeasurement?.hardware_item_details?.name;
 
   const roomLabel = [item.room_name, item.window_name].filter(Boolean).join(" / ");
   const unitPrice = item.unit_price ? parseFloat(item.unit_price) : 0;
@@ -496,18 +514,32 @@ function ItemRow({
           {/* Fabric details row — with edit/delete on the right */}
           <div className="flex items-start justify-between gap-2">
             <div className="space-y-1 min-w-0">
-              {item.fabric_name && (
+              {curtainName && (
                 <div>
-                  <span className="text-[#94A3B8]">Ткань:</span> {item.fabric_name}
-                  {item.sewing_type && ` (${item.sewing_type})`}
+                  <span className="text-[#94A3B8]">Шторы:</span> {curtainName}
+                  {matchedMeasurement?.curtain_meters ? ` (${matchedMeasurement.curtain_meters} м)` : ""}
+                  {!matchedMeasurement && item.sewing_type && ` (${item.sewing_type})`}
                 </div>
               )}
-              {item.notes && (
+              {tulleName && (
                 <div>
-                  <span className="text-[#94A3B8]">Тюль:</span> {item.notes}
+                  <span className="text-[#94A3B8]">Тюль:</span> {tulleName}
+                  {matchedMeasurement?.tulle_meters ? ` (${matchedMeasurement.tulle_meters} м)` : ""}
                 </div>
               )}
-              {item.folds_count && (
+              {corniceName && (
+                <div>
+                  <span className="text-[#94A3B8]">Крепление:</span> {corniceName}
+                  {matchedMeasurement?.cornice_quantity ? ` (${matchedMeasurement.cornice_quantity} ${matchedMeasurement.cornice_item_details?.unit_display || ""})` : ""}
+                </div>
+              )}
+              {hardwareName && (
+                <div>
+                  <span className="text-[#94A3B8]">Фурнитура:</span> {hardwareName}
+                  {matchedMeasurement?.hardware_quantity ? ` (${matchedMeasurement.hardware_quantity} ${matchedMeasurement.hardware_item_details?.unit_display || ""})` : ""}
+                </div>
+              )}
+              {!matchedMeasurement && item.folds_count && (
                 <div>
                   <span className="text-[#94A3B8]">Тип крепления:</span> {item.folds_count} складок
                 </div>
@@ -516,7 +548,11 @@ function ItemRow({
             {editable && (
               <div className="flex items-center gap-[20px] shrink-0">
                 <button
-                  onClick={(e) => { e.stopPropagation(); setEditOpen(true); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (matchedMeasurement) onEditMeasurement(matchedMeasurement);
+                    else setEditOpen(true);
+                  }}
                   className="opacity-90 hover:opacity-100 transition-opacity"
                   title="Редактировать"
                 >
@@ -1327,7 +1363,17 @@ export default function OrderDetailPage() {
                 ) : (
                   <>
                     {items.map((item) => (
-                      <ItemRow key={item.id} item={item} orderId={orderId} editable={isOwnerOrDesigner} />
+                      <ItemRow
+                        key={item.id}
+                        item={item}
+                        orderId={orderId}
+                        editable={isOwnerOrDesigner}
+                        measurements={order.measurements ?? []}
+                        onEditMeasurement={(m) => {
+                          setEditingMeasurement(m);
+                          setMeasurementModalOpen(true);
+                        }}
+                      />
                     ))}
                     <div className="flex items-center justify-between pt-4 mt-2 pl-1 pr-[32px]">
                       <span className="text-[16px] font-bold text-[#0F172A]">ИТОГО</span>
