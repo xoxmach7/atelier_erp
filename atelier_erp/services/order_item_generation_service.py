@@ -192,22 +192,23 @@ class OrderItemGenerationService:
     ) -> OrderItem:
         """
         Create a single OrderItem from QuoteItem.
-        
+
         Maps fields from QuoteItem to OrderItem (snapshot).
         """
-        # Build description from available data
+        # room_name/window_name раньше НЕ копировались в свои поля модели —
+        # оседали только внутри составной строки notes ("комната / окно /
+        # тип пошива"). Из-за этого веб не мог сопоставить позицию с исходным
+        # замером (сопоставление идёт по room_name+window_name — см.
+        # ItemRow.matchedMeasurement), и заголовок позиции в «Позициях» не
+        # показывал комнату/окно вовсе (пусто у `item.room_name`/`window_name`).
         description_parts = []
-        if getattr(quote_item, 'room_name', None):
-            description_parts.append(quote_item.room_name)
-        if getattr(quote_item, 'window_name', None):
-            description_parts.append(quote_item.window_name)
         if quote_item.sewing_type:
             description_parts.append(quote_item.sewing_type)
         if quote_item.complexity:
             description_parts.append(f"Сложность: {quote_item.complexity}")
-        
-        description = " / ".join(description_parts) if description_parts else "Пошив изделия"
-        
+
+        description = " / ".join(description_parts)
+
         # Create OrderItem
         # Only use fields that exist in the OrderItem model
         from decimal import Decimal
@@ -216,7 +217,7 @@ class OrderItemGenerationService:
         # Calculate pricing from line_total or use defaults
         line_total = getattr(quote_item, 'line_total', None) or getattr(quote_item, 'total_price', None) or Decimal("0.00")
 
-        item_type, reference = self._resolve_item_reference(quote_item, description)
+        item_type, reference = self._resolve_item_reference(quote_item, description or "Пошив изделия")
 
         order_item = OrderItem.objects.create(
             order=order,
@@ -224,10 +225,12 @@ class OrderItemGenerationService:
             quantity=1,
             unit_price=line_total,
             total_price=line_total,
+            room_name=getattr(quote_item, 'room_name', None) or '',
+            window_name=getattr(quote_item, 'window_name', None) or '',
             sewing_type=getattr(quote_item, 'sewing_type', None) or '',
             window_width_cm=getattr(quote_item, 'window_width_cm', None),
             window_height_cm=getattr(quote_item, 'window_height_cm', None),
-            notes=description,  # Store description in notes field
+            notes=description,
             **reference,
         )
 
