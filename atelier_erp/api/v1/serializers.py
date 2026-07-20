@@ -16,7 +16,7 @@ class FabricListSerializer(serializers.ModelSerializer):
     available_meters = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     class Meta:
         model = _Fabric
-        fields = ['id', 'hanger_number', 'name', 'available_meters', 'price_per_meter', 'is_active']
+        fields = ['id', 'hanger_number', 'name', 'category', 'available_meters', 'price_per_meter', 'is_active']
 
 class RelatedQuoteSerializer(serializers.ModelSerializer):
     """Serializer for quotes linked to an order"""
@@ -806,7 +806,7 @@ class FabricAvailabilitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Fabric
         fields = [
-            'id', 'hanger_number', 'name', 'color', 'pattern',
+            'id', 'hanger_number', 'name', 'category', 'color', 'pattern',
             'stock_meters', 'reserved_meters', 'available_meters',
             'price_per_meter', 'is_active'
         ]

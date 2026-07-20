@@ -14,6 +14,7 @@ interface FabricsListResponse {
 }
 
 interface FabricsFilter extends Record<string, string | number | boolean | undefined> {
+  category?: "fabric" | "tulle";
   color?: string;
   pattern?: string;
   supplier?: string;

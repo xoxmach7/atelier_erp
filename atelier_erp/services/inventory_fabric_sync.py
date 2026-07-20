@@ -35,9 +35,17 @@ def _sanitize_hanger_number(raw: str, fallback_id) -> str:
 def sync_fabric_from_inventory_item(item: InventoryItem) -> None:
     """Отражает InventoryItem категории «ткань»/«тюль» в Fabric.
 
-    Сопоставление — по (tenant, hanger_number), где hanger_number выводится
-    из артикула (sku) позиции склада. Остальные категории (карниз,
-    фурнитура, прочее) не участвуют — у них нет аналога в Measurement.
+    Сопоставление — по `source_item` (прямая ссылка на позицию склада), а не
+    по hanger_number: sku позиции может измениться, из-за чего пересчитанный
+    hanger_number перестаёт совпадать со старым — раньше это создавало ВТОРУЮ
+    Fabric-запись вместо обновления первой (осиротевший дубликат-«призрак»,
+    видимый в выпадашке замера, но не на экране «Материалы»). Для записей,
+    заведённых до появления `source_item` (легаси-синк по hanger_number),
+    первый вызов после апдейта доматчивает их по старому ключу и проставляет
+    `source_item`, чтобы не расплодить дубли повторно.
+
+    Остальные категории (карниз, фурнитура, прочее) не участвуют — у них нет
+    аналога в Measurement.
     """
     if item.category not in (InventoryItem.Category.FABRIC, InventoryItem.Category.TULLE):
         return
@@ -52,13 +60,30 @@ def sync_fabric_from_inventory_item(item: InventoryItem) -> None:
     except InvalidOperation:
         price_per_meter = Decimal('0')
 
-    Fabric.objects.update_or_create(
-        tenant=item.tenant,
-        hanger_number=hanger_number,
-        defaults={
-            'name': item.name,
-            'stock_meters': stock_meters,
-            'price_per_meter': price_per_meter,
-            'is_active': item.is_active,
-        },
+    category = (
+        Fabric.Category.TULLE if item.category == InventoryItem.Category.TULLE
+        else Fabric.Category.FABRIC
     )
+    defaults = {
+        'tenant': item.tenant,
+        'hanger_number': hanger_number,
+        'name': item.name,
+        'category': category,
+        'stock_meters': stock_meters,
+        'price_per_meter': price_per_meter,
+        'is_active': item.is_active,
+    }
+
+    fabric = Fabric.objects.filter(source_item=item).first()
+    if fabric is None:
+        # Легаси-путь: запись существует, но ещё не привязана к своему
+        # source_item (заведена до этого поля) — доматчиваем по старому ключу.
+        fabric = Fabric.objects.filter(tenant=item.tenant, hanger_number=hanger_number, source_item__isnull=True).first()
+
+    if fabric is not None:
+        for field, value in defaults.items():
+            setattr(fabric, field, value)
+        fabric.source_item = item
+        fabric.save()
+    else:
+        Fabric.objects.create(source_item=item, **defaults)

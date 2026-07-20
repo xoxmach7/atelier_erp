@@ -14,6 +14,7 @@ interface FabricsListResponse {
 }
 
 interface UseFabricsOptions {
+  category?: "fabric" | "tulle";
   color?: string;
   pattern?: string;
   supplier?: string;
@@ -29,12 +30,13 @@ const FABRICS_QUERY_KEY = "fabrics";
  * Hook for fetching paginated fabrics list
  */
 export function useFabrics(options: UseFabricsOptions = {}) {
-  const { color, pattern, supplier, isActive, search, page = 1, pageSize = 20 } = options;
+  const { category, color, pattern, supplier, isActive, search, page = 1, pageSize = 20 } = options;
 
   return useQuery<FabricsListResponse, Error>({
-    queryKey: [FABRICS_QUERY_KEY, { color, pattern, supplier, isActive, search, page, pageSize }],
+    queryKey: [FABRICS_QUERY_KEY, { category, color, pattern, supplier, isActive, search, page, pageSize }],
     queryFn: () =>
       fetchFabrics({
+        category,
         color,
         pattern,
         supplier,

@@ -170,3 +170,77 @@ class TestInventoryItemSyncsToFabric(TestCase):
         assert {"Ткань один", "Ткань два"}.issubset(names)
         assert Fabric.objects.filter(name="Ткань один").exists()
         assert Fabric.objects.filter(name="Ткань два").exists()
+
+    def test_fabric_category_matches_source_item_category(self):
+        self.client.post(
+            "/api/v1/inventory-items/",
+            {
+                "sku": "fab-cat-1", "name": "Ткань категорийная",
+                "category": InventoryItem.Category.FABRIC,
+                "unit": InventoryItem.Unit.METER, "quantity": "5", "price_per_unit": "100",
+            },
+            format="json",
+        )
+        self.client.post(
+            "/api/v1/inventory-items/",
+            {
+                "sku": "tul-cat-1", "name": "Тюль категорийный",
+                "category": InventoryItem.Category.TULLE,
+                "unit": InventoryItem.Unit.METER, "quantity": "5", "price_per_unit": "100",
+            },
+            format="json",
+        )
+        assert Fabric.objects.get(hanger_number="FAB-CAT-1").category == Fabric.Category.FABRIC
+        assert Fabric.objects.get(hanger_number="TUL-CAT-1").category == Fabric.Category.TULLE
+
+    def test_measurement_fabric_list_filters_by_category(self):
+        self.client.post(
+            "/api/v1/inventory-items/",
+            {
+                "sku": "fab-filt-1", "name": "Только ткань",
+                "category": InventoryItem.Category.FABRIC,
+                "unit": InventoryItem.Unit.METER, "quantity": "5", "price_per_unit": "100",
+            },
+            format="json",
+        )
+        self.client.post(
+            "/api/v1/inventory-items/",
+            {
+                "sku": "tul-filt-1", "name": "Только тюль",
+                "category": InventoryItem.Category.TULLE,
+                "unit": InventoryItem.Unit.METER, "quantity": "5", "price_per_unit": "100",
+            },
+            format="json",
+        )
+        resp = self.client.get("/api/v1/inventory/", {"category": "fabric"})
+        names = [f["name"] for f in resp.data.get("results", resp.data)]
+        assert "Только ткань" in names
+        assert "Только тюль" not in names
+
+    def test_sku_change_updates_hanger_number_without_duplicate(self):
+        """
+        Раньше синк матчился по hanger_number: смена sku пересчитывала
+        hanger_number и update_or_create() заводил ВТОРУЮ Fabric-запись
+        вместо обновления первой — старая оставалась осиротевшим дублем.
+        Прямая ссылка source_item держит связь стабильной при смене sku.
+        """
+        resp = self.client.post(
+            "/api/v1/inventory-items/",
+            {
+                "sku": "old-sku", "name": "Меняющийся артикул",
+                "category": InventoryItem.Category.FABRIC,
+                "unit": InventoryItem.Unit.METER, "quantity": "5", "price_per_unit": "100",
+            },
+            format="json",
+        )
+        item_id = resp.data["id"]
+        assert Fabric.objects.filter(name="Меняющийся артикул").count() == 1
+
+        resp2 = self.client.patch(
+            f"/api/v1/inventory-items/{item_id}/", {"sku": "new-sku"}, format="json",
+        )
+        assert resp2.status_code == 200, resp2.content
+
+        matching = Fabric.objects.filter(name="Меняющийся артикул")
+        assert matching.count() == 1
+        assert matching.first().hanger_number == "NEW-SKU"

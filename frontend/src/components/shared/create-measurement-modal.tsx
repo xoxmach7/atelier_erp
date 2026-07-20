@@ -71,9 +71,13 @@ function CreateMeasurementModalInner({
   const [hardwareQuantity, setHardwareQuantity] = useState(measurement?.hardware_quantity ? String(measurement.hardware_quantity) : "");
   const [notes, setNotes] = useState(measurement?.notes || "");
 
-  // Data hooks
-  const { data: fabricsData } = useFabrics({ pageSize: 100, isActive: true });
-  const fabrics = fabricsData?.results ?? [];
+  // Data hooks. Ткань штор и ткань тюля — раздельные категории склада, иначе
+  // в обоих выпадашках показывался один общий список (включая тюль в поле
+  // «Ткань штор» и наоборот).
+  const { data: curtainFabricsData } = useFabrics({ category: "fabric", pageSize: 100, isActive: true });
+  const curtainFabrics = curtainFabricsData?.results ?? [];
+  const { data: tulleFabricsData } = useFabrics({ category: "tulle", pageSize: 100, isActive: true });
+  const tulleFabrics = tulleFabricsData?.results ?? [];
 
   // Крепление — позиции склада категории «Карниз», фурнитура — категории «Фурнитура».
   const { data: corniceItemsData } = useQuery({
@@ -260,7 +264,7 @@ function CreateMeasurementModalInner({
                     <SelectValue placeholder="Выберите ткань" />
                   </SelectTrigger>
                   <SelectContent>
-                    {fabrics.map((f) => (
+                    {curtainFabrics.map((f) => (
                       <SelectItem key={f.id} value={f.id}>
                         {f.name}
                         {f.hanger_number ? ` (${f.hanger_number})` : ""}
@@ -296,7 +300,7 @@ function CreateMeasurementModalInner({
                     <SelectValue placeholder="Выберите тюль" />
                   </SelectTrigger>
                   <SelectContent>
-                    {fabrics.map((f) => (
+                    {tulleFabrics.map((f) => (
                       <SelectItem key={f.id} value={f.id}>
                         {f.name}
                         {f.hanger_number ? ` (${f.hanger_number})` : ""}

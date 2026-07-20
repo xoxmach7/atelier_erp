@@ -2091,7 +2091,7 @@ class InventoryAvailabilityViewSet(TenantModelMixin, viewsets.ReadOnlyModelViewS
     serializer_class = FabricAvailabilitySerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['color', 'pattern', 'supplier', 'is_active']
+    filterset_fields = ['color', 'pattern', 'supplier', 'is_active', 'category']
     search_fields = ['hanger_number', 'name', 'color', 'pattern']
     ordering_fields = ['hanger_number', 'available_meters', 'price_per_meter']
 

@@ -280,6 +280,8 @@ export interface FabricDTO {
   id: string;
   hanger_number: string;
   name: string;
+  /** Ткань или тюль — заполняется синком из InventoryItem, у старых записей может быть пустым. */
+  category?: "fabric" | "tulle" | "";
   composition: string;
   width_cm: number;
   stock_meters: string; // Decimal as string from Django

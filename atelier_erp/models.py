@@ -138,6 +138,29 @@ class Fabric(TenantManagerMixin, UUIDModel, AuditedModel):
     )
     name = models.CharField(max_length=255, db_index=True)
     composition = models.CharField(max_length=255, blank=True)
+
+    class Category(models.TextChoices):
+        FABRIC = 'fabric', _('Ткань')
+        TULLE = 'tulle', _('Тюль')
+
+    # Заполняется синком из InventoryItem (см. services/inventory_fabric_sync.py) —
+    # раньше «Ткань штор»/«Ткань тюля» на замере показывали ОДИН общий список
+    # без разделения, потому что Fabric не различал ткань/тюль. Пусто у
+    # старых записей каталога, заведённых до появления InventoryItem-синка.
+    category = models.CharField(max_length=10, choices=Category.choices, blank=True, default='', db_index=True)
+
+    # Позиция склада (InventoryItem), из которой синкается эта запись.
+    # Раньше синк матчился по hanger_number — при смене sku пересчитанный
+    # hanger_number переставал совпадать со старым, и update_or_create()
+    # создавал ВТОРУЮ Fabric-запись вместо обновления первой (осиротевший
+    # дубликат). Прямая ссылка на источник делает связь стабильной.
+    source_item = models.OneToOneField(
+        'InventoryItem',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='synced_fabric',
+    )
     width_cm = models.PositiveIntegerField(null=True, blank=True, validators=[MaxValueValidator(500)])
     
     # Stock tracking
