@@ -28,6 +28,13 @@ ROLE_VISIBLE_STATUSES = {
         Order.Status.IN_PRODUCTION,
     ),
     Roles.INSTALLER: (
+        # Расширено 2026-07-20 по запросу владельца: установщик должен видеть
+        # весь конвейер (включая замер/пошив и просроченные на этих стадиях),
+        # чтобы планировать монтаж заранее — права на действия при этом не
+        # меняются, они остаются завязаны на статус в другом месте.
+        Order.Status.NEW,
+        Order.Status.IN_WORK,
+        Order.Status.IN_PRODUCTION,
         Order.Status.READY,
         Order.Status.ON_INSTALLATION,
         Order.Status.WAITING_FINAL_PAYMENT,

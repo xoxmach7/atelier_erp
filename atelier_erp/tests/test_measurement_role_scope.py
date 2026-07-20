@@ -35,7 +35,8 @@ class TestMeasurementRoleScope(TestCase):
     def setUp(self):
         self.customer = Customer.objects.create(full_name='S', phone='+70000000077')
 
-        # Заказ в производстве — виден цеху, не виден установщику.
+        # Заказ в производстве — виден цеху; установщику тоже (2026-07-20:
+        # видимость установщика расширена до всего активного конвейера).
         self.sewing_order = Order.objects.create(
             customer=self.customer, order_number='О-2024-970',
             status=Order.Status.IN_PRODUCTION,
@@ -84,10 +85,12 @@ class TestMeasurementRoleScope(TestCase):
         self.install_m.refresh_from_db()
         assert self.install_m.sewing_done is False
 
-    def test_installer_scope_is_its_own(self):
+    def test_installer_sees_whole_active_pipeline(self):
+        """Установщик видит весь активный конвейер (2026-07-20), не только монтаж."""
         client = _client_for(Roles.INSTALLER, 'scope_inst')
         assert client.get(self._url(self.install_m)).status_code == 200
-        assert client.get(self._url(self.sewing_m)).status_code == 404
+        assert client.get(self._url(self.sewing_m)).status_code == 200
+        assert client.get(self._url(self.new_m)).status_code == 200
 
     def test_list_is_narrowed_too(self):
         """Не только доступ по id — список тоже не должен показывать лишнее."""

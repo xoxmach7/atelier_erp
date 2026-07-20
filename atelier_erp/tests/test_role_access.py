@@ -109,9 +109,13 @@ class OrderRoleAccessTests(APITestCase):
     def test_installer_sees_only_its_slice(self):
         user = self._user_with_role('inst1', Roles.INSTALLER)
         _, statuses = self._list_statuses(user)
-        allowed = {Order.Status.READY, Order.Status.ON_INSTALLATION, Order.Status.WAITING_FINAL_PAYMENT}
+        allowed = {
+            Order.Status.NEW, Order.Status.IN_WORK, Order.Status.IN_PRODUCTION,
+            Order.Status.READY, Order.Status.ON_INSTALLATION, Order.Status.WAITING_FINAL_PAYMENT,
+        }
         self.assertTrue(set(statuses).issubset(allowed))
-        self.assertEqual(len(statuses), 3)
+        self.assertNotIn(Order.Status.COMPLETED, statuses)
+        self.assertNotIn(Order.Status.CANCELLED, statuses)
 
     def test_user_without_role_sees_nothing(self):
         user = self._user_with_role('nobody', None)
