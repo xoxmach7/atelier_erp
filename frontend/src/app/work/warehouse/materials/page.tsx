@@ -474,12 +474,12 @@ function MaterialsContent() {
       {/* Create / edit inventory item modal */}
       {modalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-6"
           style={{ background: "rgba(15,23,42,.35)", backdropFilter: "blur(4px)" }}
           onClick={() => !saving && closeModal()}
         >
           <div
-            className="relative w-full max-w-[480px] rounded-[14px] bg-white shadow-2xl"
+            className="relative my-auto max-h-[90vh] w-full max-w-[480px] overflow-y-auto rounded-[14px] bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <ModalCloseX onClose={() => !saving && closeModal()} />
