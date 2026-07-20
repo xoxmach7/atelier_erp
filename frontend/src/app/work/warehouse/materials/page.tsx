@@ -264,11 +264,6 @@ function MaterialsContent() {
     else createMutation.mutate(payload);
   };
 
-  const handleDelete = () => {
-    if (!editingId) return;
-    deleteMutation.mutate(editingId);
-  };
-
   // «•••»: те же три действия, что в мобильном меню (Добавить количество /
   // Редактировать / Удалить) — на вебе редактирование раньше открывалось
   // только кликом по строке, без явного меню, а «Добавить количество»
@@ -623,16 +618,6 @@ function MaterialsContent() {
                 {(createMutation.isPending || updateMutation.isPending) && <Loader2 size={16} className="animate-spin" />}
                 {editingId ? "Сохранить" : "Создать"}
               </button>
-
-              {editingId && (
-                <button
-                  onClick={handleDelete}
-                  disabled={saving}
-                  className="mt-4 w-full text-center text-[14px] text-[#DC2626] hover:underline disabled:opacity-50"
-                >
-                  Удалить позицию
-                </button>
-              )}
             </div>
           </div>
         </div>

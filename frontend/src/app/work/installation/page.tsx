@@ -7,6 +7,7 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useOrders } from "@/hooks/useOrders";
 import { useAuth } from "@/contexts/auth-context";
 import { shortOrderNumber } from "@/lib/order-number";
+import { getCoarseStatus } from "@/lib/list-status";
 
 const STAGE: Record<string, { label: string; color: string }> = {
   pending:     { label: "Ожидает",     color: "#DC2626" },
@@ -120,7 +121,10 @@ function InstallationOrdersContent() {
                 <tr><td colSpan={5} className="px-4 sm:px-[52px] py-10 text-center text-[#94A3B8]">Заказы не найдены</td></tr>
               ) : (
                 orders.map((order, i) => {
-                  const st = stageStatus(order.handover_stage);
+                  // Статус в таблице — общий укрупнённый статус (В работе/Просрочен/...),
+                  // а не handover_stage: у заказа, ещё не дошедшего до монтажа, стадии нет,
+                  // и колонка показывала бы «—» на пустом месте.
+                  const st = getCoarseStatus(order.status, order.is_overdue);
                   return (
                     <tr
                       key={order.id}
