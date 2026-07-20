@@ -195,14 +195,16 @@ function CreateMeasurementModalInner({
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-[18px]">
-            {/* 1. Комната */}
+            {/* 1. Наименование изделия (было «Комната» — после слияния с
+                бывшим полем «Окно/изделие» название комнаты уже не точно
+                описывает содержимое поля). */}
             <div className="space-y-1.5">
               <Label className="text-[13px] font-medium text-[var(--t1)]">
-                1. Комната <span className="text-[#DC2626]">*</span>
+                1. Наименование изделия <span className="text-[#DC2626]">*</span>
               </Label>
               <Input
                 className={inputCls}
-                placeholder="Например: Гостиная"
+                placeholder="Например: Гостиная 1"
                 value={roomName}
                 onChange={(e) => setRoomName(e.target.value)}
                 required
