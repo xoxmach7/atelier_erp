@@ -399,10 +399,14 @@ function CreateMeasurementModalInner({
                 : (isEdit ? "Сохранить" : "Создать")}
             </Button>
 
-            {/* Error */}
-            {createMutation.isError && (
+            {/* Error — раньше здесь проверялась только createMutation.isError,
+                поэтому ошибка сохранения РЕДАКТИРОВАНИЯ (400 от бэка — например,
+                несовпадение категории у крепления/фурнитуры) проходила молча:
+                модалка не закрывалась, но пользователь не видел, что и почему
+                не сохранилось. */}
+            {(createMutation.isError || updateMutation.isError) && (
               <p className="text-[13px] text-[#DC2626] text-center">
-                {createMutation.error?.message || "Не удалось создать замер"}
+                {(createMutation.error || updateMutation.error)?.message || "Не удалось сохранить замер"}
               </p>
             )}
           </form>
