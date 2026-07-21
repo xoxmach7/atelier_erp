@@ -179,8 +179,8 @@ function MaterialsContent() {
       category: it.category,
       unit: it.unit,
       quantity: it.quantity,
-      price_per_unit: it.price_per_unit,
-      low_stock_threshold: it.low_stock_threshold,
+      price_per_unit: String(Math.round(parseFloat(it.price_per_unit) || 0)),
+      low_stock_threshold: String(Math.round(parseFloat(String(it.low_stock_threshold)) || 0)),
       sku: it.sku,
       supplier: it.supplier,
     });
@@ -246,6 +246,10 @@ function MaterialsContent() {
 
   const inputCls =
     "w-full rounded-[10px] bg-[#E9E9E9] px-4 py-[14px] text-[15px] text-[#0F172A] outline-none placeholder:text-[#94A3B8]";
+  /* type="text" + фильтр не-цифр вместо type="number": заодно убирает
+     нативные стрелочки инкремента/декремента, которые «только мешают». */
+  /* Только целые числа — копейки/дробный остаток тут не нужны (см. скриншот владельца) */
+  const onlyIntegerDigits = (raw: string): string => raw.replace(/[^\d]/g, "");
 
   const handleRowClick = (r: Row) => {
     if (!canEdit || r.source !== "item" || !r.rawId) return;
@@ -608,9 +612,9 @@ function MaterialsContent() {
                 <label className="block text-[15px] text-[#0F172A] mb-2">5. Стоимость за м/шт.</label>
                 <div className="flex items-center gap-3">
                   <input
-                    type="number" min="0" step="0.01"
+                    type="text" inputMode="numeric" pattern="[0-9]*"
                     value={form.price_per_unit}
-                    onChange={(e) => setForm({ ...form, price_per_unit: e.target.value })}
+                    onChange={(e) => setForm({ ...form, price_per_unit: onlyIntegerDigits(e.target.value) })}
                     placeholder="0"
                     className={`${inputCls} flex-1`}
                   />
@@ -627,9 +631,9 @@ function MaterialsContent() {
                   </span>
                 </label>
                 <input
-                  type="number" min="0" step="0.01"
+                  type="text" inputMode="numeric" pattern="[0-9]*"
                   value={form.low_stock_threshold}
-                  onChange={(e) => setForm({ ...form, low_stock_threshold: e.target.value })}
+                  onChange={(e) => setForm({ ...form, low_stock_threshold: onlyIntegerDigits(e.target.value) })}
                   placeholder="0"
                   className={inputCls}
                 />
