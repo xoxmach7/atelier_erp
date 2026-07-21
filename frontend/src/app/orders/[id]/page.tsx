@@ -1545,27 +1545,43 @@ export default function OrderDetailPage() {
                         </div>
                       );
                     }
+                    // Отметка окна «Собрано» (materials_ready на Measurement) и
+                    // сама кнопка ниже — два РАЗНЫХ действия: галочка по окну
+                    // не двигает статус заказа в общем списке (material_readiness
+                    // на Order) сама по себе, это делает только нажатие кнопки.
+                    // Раньше это было неочевидно — владелец отмечал окна и не
+                    // понимал, почему статус в списке заказов не поменялся.
+                    const allChecked = total > 0 && cnt === total;
                     return (
-                      <button
-                        onClick={async () => {
-                          if (cnt === 0) return;
-                          try {
-                            await changeMaterialMutation.mutateAsync({ orderId, data: { material_readiness: "ready" } });
-                            await refetchOrder();
-                          } catch (e) {
-                            setActionError((e as Error)?.message ?? "Не удалось передать в цех");
-                          }
-                        }}
-                        disabled={cnt === 0 || changeMaterialMutation.isPending}
-                        className="w-full py-3 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-2 transition-all disabled:cursor-not-allowed"
-                        style={{
-                          background: cnt > 0 ? "#60CCED" : "#F1F5F9",
-                          color: cnt > 0 ? "#fff" : "#94A3B8",
-                        }}
-                      >
-                        <Scissors size={14} />
-                        {changeMaterialMutation.isPending ? "Передаём…" : `Передать в цех на пошив (${cnt}/${total})`}
-                      </button>
+                      <>
+                        <button
+                          onClick={async () => {
+                            if (cnt === 0) return;
+                            try {
+                              await changeMaterialMutation.mutateAsync({ orderId, data: { material_readiness: "ready" } });
+                              await refetchOrder();
+                            } catch (e) {
+                              setActionError((e as Error)?.message ?? "Не удалось передать в цех");
+                            }
+                          }}
+                          disabled={cnt === 0 || changeMaterialMutation.isPending}
+                          className={`w-full py-3 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-2 transition-all disabled:cursor-not-allowed ${
+                            allChecked ? "ring-2 ring-offset-2 ring-[#60CCED] animate-pulse" : ""
+                          }`}
+                          style={{
+                            background: cnt > 0 ? "#60CCED" : "#F1F5F9",
+                            color: cnt > 0 ? "#fff" : "#94A3B8",
+                          }}
+                        >
+                          <Scissors size={14} />
+                          {changeMaterialMutation.isPending ? "Передаём…" : `Передать в цех на пошив (${cnt}/${total})`}
+                        </button>
+                        {allChecked && (
+                          <p className="mt-2 text-[12px] text-[#94A3B8] text-center">
+                            Все окна отмечены — нажмите кнопку, чтобы статус заказа в общем списке тоже стал «Собран»
+                          </p>
+                        )}
+                      </>
                     );
                   })()}
                 </div>
