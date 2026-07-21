@@ -13,11 +13,19 @@
 копию раскладки ролей.
 """
 
+from datetime import timedelta
+
 from django.db.models import Q
 from django.utils import timezone
 
 from ...models import Order
 from ...roles import Roles, user_in
+
+# Сколько дней завершённый заказ ещё виден исполнителям после завершения —
+# чтобы швея/склад/установщик видели подтверждение, что их работа закрыта,
+# а не теряли заказ из вида в тот же момент (по прямому запросу владельца
+# 2026-07-21).
+_COMPLETED_GRACE_DAYS = 2
 
 # Роль → статусы заказов, которые ей показываются (простые случаи).
 # Owner/Designer отсутствуют намеренно: у них полный доступ (см. ROLE_SEES_ALL).
@@ -46,17 +54,26 @@ def _active_or_overdue_q(prefix=''):
     просроченный заказ независимо от статуса — свежий (`new`) или ожидающий
     финальной оплаты заказ роли не нужен, ПОКА он не просрочен, тогда он
     должен всплыть, иначе потеряется из вида для всех исполнителей разом.
+
+    Плюс грейс-период: завершённый заказ ещё `_COMPLETED_GRACE_DAYS` дней
+    остаётся виден — исполнитель должен успеть увидеть подтверждение, что
+    его часть работы закрыта, а не терять заказ из списка в момент завершения.
     """
     def f(name):
         return f'{prefix}{name}'
 
     today = timezone.localtime(timezone.now()).date()
+    grace_cutoff = today - timedelta(days=_COMPLETED_GRACE_DAYS)
     return (
         Q(**{f('status__in'): _ACTIVE_STATUSES})
         | (
             Q(**{f('planned_completion__isnull'): False})
             & Q(**{f('planned_completion__lt'): today})
             & ~Q(**{f('status__in'): [Order.Status.COMPLETED, Order.Status.CANCELLED]})
+        )
+        | (
+            Q(**{f('status'): Order.Status.COMPLETED})
+            & Q(**{f('actual_completion__gte'): grace_cutoff})
         )
     )
 

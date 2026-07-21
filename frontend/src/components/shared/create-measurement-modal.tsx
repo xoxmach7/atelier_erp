@@ -189,12 +189,14 @@ function CreateMeasurementModalInner({
     "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
   /* HTML max сам по себе не мешает набрать 4444 руками (браузер лишь помечает
      поле невалидным) — обрезаем значение на вводе, чтобы реально нельзя было
-     ввести больше 100. */
-  const clampTo100 = (raw: string): string => {
+     ввести больше лимита. Ткань/тюль/крепление — метры, разумный потолок 100;
+     фурнитура считается в штуках (крючки, кольца) — потолок выше, 10000. */
+  const clampTo = (max: number, raw: string): string => {
     const n = parseFloat(raw);
     if (Number.isNaN(n)) return raw;
-    return n > 100 ? "100" : raw;
+    return n > max ? String(max) : raw;
   };
+  const clampTo100 = (raw: string): string => clampTo(100, raw);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -391,10 +393,10 @@ function CreateMeasurementModalInner({
                   className={`${inputCls} ${noSpinnerCls} w-[72px] text-center shrink-0`}
                   type="number"
                   min={0}
-                  max={100}
+                  max={10000}
                   step={0.1}
                   value={hardwareQuantity}
-                  onChange={(e) => setHardwareQuantity(clampTo100(e.target.value))}
+                  onChange={(e) => setHardwareQuantity(clampTo(10000, e.target.value))}
                 />
               </div>
             </div>

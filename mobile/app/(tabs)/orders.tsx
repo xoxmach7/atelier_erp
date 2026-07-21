@@ -13,6 +13,7 @@ import { useAuthContext } from '../../src/context/AuthContext';
 import {
   getStatusDotColor, getOrderIndicator, getWarehouseLabel, getWarehouseColor,
   EXECUTION_SUBSTATUS_LABEL, EXECUTION_SUBSTATUS_COLOR,
+  INSTALLER_SUBSTATUS_LABEL, INSTALLER_SUBSTATUS_COLOR,
   type IndicatorVariant,
 } from '../../src/utils/orderLabels';
 import type { Order } from '../../src/types/order';
@@ -99,10 +100,16 @@ function OrderCard({ order, warehouse, onPress }: {
   return (
     <TouchableOpacity style={card.wrap} onPress={onPress} activeOpacity={0.6}>
       <View style={card.content}>
-        {/* Подстатус «Исполнение» — только у цеха и установщика, приходит с бэка.
-            Это не замена статусу справа, а пометка «заказ сейчас на мне». */}
+        {/* Подстатус — приходит с бэка, не замена статусу справа, а пометка
+            «заказ сейчас на мне». У цеха — бинарный «Исполнение»/ничего.
+            У установщика — всегда одна из трёх стадий (2026-07-21). */}
         {order.execution_substatus === 'execution' && (
           <Text style={card.substatus}>{EXECUTION_SUBSTATUS_LABEL}</Text>
+        )}
+        {order.execution_substatus && order.execution_substatus in INSTALLER_SUBSTATUS_LABEL && (
+          <Text style={[card.substatus, { color: INSTALLER_SUBSTATUS_COLOR[order.execution_substatus] }]}>
+            {INSTALLER_SUBSTATUS_LABEL[order.execution_substatus]}
+          </Text>
         )}
         <Text style={card.title}>№{orderNum(order)} | {order.customer_name}</Text>
         <Text style={card.line}><Text style={card.lineLabel}>Создан: </Text>{fmtDate(order.created_at)}</Text>

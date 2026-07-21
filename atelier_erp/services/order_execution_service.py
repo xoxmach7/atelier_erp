@@ -1235,7 +1235,13 @@ class OrderExecutionService:
             'cancel_reason', 'cancelled_at', 'cancelled_by',
             'status', 'updated_at'
         ])
-        
+
+        # Возвращаем на склад материалы, списанные при формировании позиций
+        # (по прямому запросу владельца, 2026-07-21) — иначе отменённый заказ
+        # навсегда «съедал» остаток без физической причины.
+        from .material_deduction_service import return_materials_for_order
+        return_materials_for_order(order)
+
         # Create history entry if order_service available
         if self.order_service:
             from ..models import OrderStatusHistory

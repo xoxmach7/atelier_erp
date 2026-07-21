@@ -176,6 +176,16 @@ class OrderItemGenerationService:
         if created_items:
             self.recalculate_order_total(order)
 
+        # Списываем со склада материалы по замерам заказа — момент выбран
+        # здесь же (формирование позиций), а не при одобрении КП: до этого
+        # момента остаток вообще не двигался, хотя владелец видел «Свободно»
+        # на экране «Материалы» неизменным после каждого принятого КП.
+        # Идемпотентно (см. material_deduction_service) — повторный вызов
+        # (force=True) не спишет ещё раз.
+        if created_items:
+            from .material_deduction_service import deduct_materials_for_order
+            deduct_materials_for_order(order)
+
         # Позиции сформированы из одобренного КП — заказ перестал быть заявкой.
         # Момент выбран именно здесь: FSM пускает в in_work только когда есть
         # и одобренное КП, и позиции, так что раньше переход всё равно не прошёл бы.

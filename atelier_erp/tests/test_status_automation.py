@@ -19,6 +19,7 @@ from atelier_erp.services.status_automation import auto_advance
 from atelier_erp.services.order_execution_service import OrderExecutionService
 from atelier_erp.services.payment_service import PaymentService
 from atelier_erp.services.order_item_generation_service import OrderItemGenerationService
+from atelier_erp.services.order_service import OrderService
 
 
 def _order(customer, number, **kwargs):
@@ -273,3 +274,23 @@ class TestFinalPaymentCompletesOrder(TestCase):
         )
         order.refresh_from_db()
         assert order.status == Order.Status.IN_WORK
+
+    def test_completing_order_sets_actual_completion(self):
+        """
+        2026-07-21: actual_completion объявлялся на модели, но реально
+        проставлялся только в неиспользуемом legacy-методе complete_order —
+        нужен для грейс-периода видимости завершённого заказа у исполнителей
+        (role_scope._active_or_overdue_q). transition_status — единственное
+        реальное место, где статус меняется на completed.
+        """
+        order = _order(
+            self.customer, "О-2024-932",
+            status=Order.Status.WAITING_FINAL_PAYMENT,
+        )
+        assert order.actual_completion is None
+
+        OrderService(unit_of_work=None).transition_status(
+            order_id=order.id, new_status=Order.Status.COMPLETED,
+        )
+        order.refresh_from_db()
+        assert order.actual_completion is not None

@@ -179,6 +179,40 @@ class OrderRoleAccessTests(APITestCase):
         _, statuses = self._list_statuses(user)
         self.assertEqual(statuses, [])
 
+    def test_installer_sees_recently_completed_order_within_grace_period(self):
+        """
+        2026-07-21, по прямому запросу владельца: завершённый заказ должен
+        оставаться виден исполнителям ещё ~2 дня после завершения — иначе
+        роль теряет подтверждение, что её часть работы закрыта, в тот же
+        момент, когда заказ переходит в «Завершён».
+        """
+        from datetime import timedelta
+        from django.utils import timezone
+
+        recently_completed = Order.objects.create(
+            order_number='О-2026-901', customer=self.customer,
+            status=Order.Status.COMPLETED, total_amount=Decimal('10000.00'),
+            actual_completion=timezone.localtime(timezone.now()).date() - timedelta(days=1),
+        )
+        user = self._user_with_role('inst_grace', Roles.INSTALLER)
+        resp, _ = self._list_statuses(user)
+        order_ids = {o['id'] for o in _results(resp)}
+        self.assertIn(str(recently_completed.id), order_ids)
+
+    def test_installer_does_not_see_order_completed_beyond_grace_period(self):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        old_completed = Order.objects.create(
+            order_number='О-2026-902', customer=self.customer,
+            status=Order.Status.COMPLETED, total_amount=Decimal('10000.00'),
+            actual_completion=timezone.localtime(timezone.now()).date() - timedelta(days=3),
+        )
+        user = self._user_with_role('inst_grace_expired', Roles.INSTALLER)
+        resp, _ = self._list_statuses(user)
+        order_ids = {o['id'] for o in _results(resp)}
+        self.assertNotIn(str(old_completed.id), order_ids)
+
     def test_warehouse_does_not_see_financial_fields(self):
         user = self._user_with_role('wh2', Roles.WAREHOUSE)
         resp, _ = self._list_statuses(user)

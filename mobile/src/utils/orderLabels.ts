@@ -32,11 +32,27 @@ export const STATUS_GROUP_LABELS: Record<string, string> = {
  * Ролевой подстатус: «этот заказ сейчас на мне».
  * Считается на бэке (atelier_erp/api/v1/substatus.py) и приходит в поле
  * `execution_substatus` — здесь только подпись и цвет.
- *   швейный цех — от «материалы готовы» до «все изделия сшиты»
- *   установщик  — от «все изделия сшиты» до загрузки АВР
+ *   швейный цех — 'execution' от «материалы готовы» до «все изделия сшиты»,
+ *                 иначе null (подстатус не показывается вообще)
+ *   установщик  — всегда одно из трёх (2026-07-21, по прямому запросу
+ *                 владельца — раньше был такой же бинарный флаг, как у цеха):
+ *                 'preparation' (заказ ещё у швеи/склада) → 'installation'
+ *                 (швея дошила всё) → 'done' (загружен АВР+фото)
  */
 export const EXECUTION_SUBSTATUS_LABEL = 'Исполнение';
 export const EXECUTION_SUBSTATUS_COLOR = '#EBDD1D';
+
+export const INSTALLER_SUBSTATUS_LABEL: Record<string, string> = {
+  preparation: 'Подготовка',
+  installation: 'Установка',
+  done: 'Готово',
+};
+
+export const INSTALLER_SUBSTATUS_COLOR: Record<string, string> = {
+  preparation: '#EAB308', // жёлтый
+  installation: '#22C55E', // зелёный
+  done: '#94A3B8', // серый
+};
 
 /**
  * Складская формулировка поля material_readiness (обеспечение материалами).

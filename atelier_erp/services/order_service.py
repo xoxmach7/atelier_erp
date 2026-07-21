@@ -411,15 +411,25 @@ class OrderService:
         Use for simpler transitions without business logic.
         """
         order = self._get_order_for_update(order_id)
-        
+
         # Validate transition
         self._validate_transition(order, new_status)
-        
+
         old_status = order.status
-        
+
         order.status = new_status
-        order.save(update_fields=['status', 'updated_at'])
-        
+        update_fields = ['status', 'updated_at']
+        # actual_completion существовал на модели, но реально проставлялся
+        # только в неиспользуемом legacy-методе complete_order (ни один
+        # эндпоинт его не вызывает — см. CLAUDE.md, класс "мёртвая
+        # возможность"); реальный путь завершения — transition_status_mvp,
+        # который сюда и приводит. Нужен для грейс-периода видимости
+        # завершённого заказа у исполнителей (role_scope._active_or_overdue_q).
+        if new_status == Order.Status.COMPLETED and not order.actual_completion:
+            order.actual_completion = timezone.localtime(timezone.now()).date()
+            update_fields.append('actual_completion')
+        order.save(update_fields=update_fields)
+
         self._create_status_history(order, old_status, new_status, changed_by, notes)
         
         

@@ -438,6 +438,40 @@ class InventoryItem(TenantManagerMixin, UUIDModel, AuditedModel):
         return self.low_stock_threshold > 0 and self.quantity < self.low_stock_threshold
 
 
+class MaterialDeduction(UUIDModel):
+    """
+    Списание позиции склада под конкретный заказ (2026-07-21).
+
+    Раньше в системе не было НИКАКОГО реального списания материалов при
+    формировании позиций заказа — единственный код, похожий на это
+    (`services/inventory_service.py`, работает со старым Fabric.stock_meters),
+    никогда не вызывался ни из одного эндпоинта («мёртвая возможность»).
+    Остаток на складе (InventoryItem.quantity) не уменьшался вообще.
+
+    Ledger, а не просто вычитание из quantity: нужен для (1) идемпотентности —
+    повторная генерация позиций (force=True) не должна списать материал
+    дважды, (2) возврата на склад при отмене заказа — без записи о том, что
+    именно и сколько списано, откатить нечем.
+    """
+    order = models.ForeignKey(
+        'Order', on_delete=models.CASCADE, related_name='material_deductions', db_index=True,
+    )
+    inventory_item = models.ForeignKey(
+        'InventoryItem', on_delete=models.PROTECT, related_name='deductions',
+    )
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+    reversed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'material_deductions'
+        indexes = [
+            Index(fields=['order', 'reversed_at'], name='idx_matded_order_reversed'),
+        ]
+        verbose_name = 'Material Deduction'
+        verbose_name_plural = 'Material Deductions'
+
+
 # ============================================
 # ORDER CONTEXT (Core Domain)
 # ============================================

@@ -6,10 +6,14 @@
 подстатус для швейного цеха и не имеет для установщика (или наоборот).
 
 Правила (со слов владельца):
-  - Швейный цех: появляется, когда склад отметил материалы готовыми, и
-    пропадает, когда цех сшил все изделия по заказу.
-  - Установщик: появляется, когда цех сшил все изделия, и пропадает после
-    загрузки АВР (акта выполненных работ).
+  - Швейный цех: появляется (`EXECUTION`), когда склад отметил материалы
+    готовыми, и пропадает, когда цех сшил все изделия по заказу.
+  - Установщик (2026-07-21, по прямому запросу — раньше был такой же бинарный
+    флаг «в исполнении/нет», разбит на 3 стадии): всегда одна из трёх, пока
+    заказ вообще виден установщику (видимость сужает role_scope):
+      `PREPARATION` — заказ ещё у швеи/склада (не все изделия сшиты),
+      `INSTALLATION` — швея отметила все изделия, монтаж можно начинать,
+      `DONE` — загружен подписанный АВР.
 
 Считается на бэке, а не в мобилке: зависит от агрегата по замерам и от наличия
 акта, которых нет в списочном ответе — на клиенте это стоило бы N+1 запросов.
@@ -21,9 +25,12 @@ from ...models import Measurement, OrderCompletionAct
 from ...constants import MaterialReadiness
 from ...roles import Roles, user_in
 
-# Значение, которое уходит на клиент. Подпись живёт в UI
-# (mobile/src/utils/orderLabels.ts, EXECUTION_SUBSTATUS_LABEL).
+# Значения, уходящие на клиент. Подписи живут в UI
+# (mobile/src/utils/orderLabels.ts).
 EXECUTION = 'execution'
+PREPARATION = 'preparation'
+INSTALLATION = 'installation'
+DONE = 'done'
 
 
 def execution_substatus_annotations() -> dict:
@@ -66,18 +73,21 @@ def get_execution_substatus(order, user) -> str | None:
         total = order.measurements.count()
         sewn = order.measurements.filter(sewing_done=True).count()
 
-    # Заказ без замеров не может быть «в исполнении»: шить нечего.
-    if total == 0:
-        return None
-
-    all_sewn = sewn >= total
+    all_sewn = total > 0 and sewn >= total
 
     if is_seamstress:
+        # Заказ без замеров не может быть «в исполнении»: шить нечего.
+        if total == 0:
+            return None
         materials_ready = order.material_readiness == MaterialReadiness.READY
         return EXECUTION if materials_ready and not all_sewn else None
 
-    # Установщик
+    # Установщик: всегда одна из трёх стадий — заказ без замеров тоже «в
+    # подготовке» (ещё не начат монтаж), а не «нет подстатуса», в отличие от
+    # швеи (для неё пустой заказ вообще не в работе).
     has_act = getattr(order, 'has_completion_act', None)
     if has_act is None:
         has_act = OrderCompletionAct.objects.filter(order=order, is_active=True).exists()
-    return EXECUTION if all_sewn and not has_act else None
+    if has_act:
+        return DONE
+    return INSTALLATION if all_sewn else PREPARATION

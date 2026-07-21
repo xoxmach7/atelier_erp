@@ -1182,6 +1182,19 @@ export default function OrderDetailPage() {
   // Предытог — сумма окон, у которых цена уже известна.
   const measurementsSubtotal = measurementLines.reduce((s, l) => s + (l.price ?? 0), 0);
 
+  // Замер, добавленный ПОСЛЕ утверждения КП, не попадает ни в один OrderItem —
+  // позиции формируются один раз при утверждении. Без этого «Позиции» после
+  // принятия КП выглядели так, будто новый замер вообще нельзя добавить —
+  // он создавался успешно, но нигде не появлялся. Показываем такие замеры
+  // без цены (как до КП) — цена появится, когда будет создано новое КП
+  // с этим окном.
+  const itemMatchedKeys = new Set(
+    items.map((it) => `${it.room_name}||${it.window_name}`)
+  );
+  const orphanMeasurementLines = measurementLines.filter(
+    (l) => !itemMatchedKeys.has(`${l.measurement.room_name}||${l.measurement.window_name}`)
+  );
+
   const total = parseFloat(order.total_amount || "0");
   const paid = parseFloat(order.paid_amount || "0");
   const prepayPercent = total > 0 ? Math.round((paid / total) * 100) : 0;
@@ -1345,6 +1358,18 @@ export default function OrderDetailPage() {
                   </div>
                 )}
 
+                {/* КП уже принято — позиции (OrderItem) сформированы один раз и
+                    не пересчитываются сами при добавлении нового замера. Без
+                    этого предупреждения новое окно тихо не попадало бы ни в
+                    ИТОГО, ни в КП — выглядело бы так, будто добавить замер
+                    вообще нельзя. */}
+                {items.length > 0 && orphanMeasurementLines.length > 0 && (
+                  <div className="mb-4 rounded-lg bg-[#FEF3C7] border border-[#FDE68A] px-4 py-3 text-[13px] text-[#92400E]">
+                    Добавлено новое окно без цены — оно не входит в ИТОГО и в текущее КП.
+                    Создайте новое КП, чтобы включить его в стоимость заказа.
+                  </div>
+                )}
+
                 {items.length === 0 && measurementLines.length > 0 ? (
                   /* Позиции заказа генерируются ИЗ утверждённого КП, поэтому до
                      него их нет — а замеры уже есть, и блок выглядел пустым.
@@ -1390,6 +1415,21 @@ export default function OrderDetailPage() {
                           setEditingMeasurement(m);
                           setMeasurementModalOpen(true);
                         }}
+                      />
+                    ))}
+                    {orphanMeasurementLines.map((line) => (
+                      <MeasurementRow
+                        key={line.id}
+                        measurement={line.measurement}
+                        price={line.price}
+                        editable={isOwnerOrDesigner}
+                        onEdit={() => {
+                          setEditingMeasurement(line.measurement);
+                          setMeasurementModalOpen(true);
+                        }}
+                        onDelete={() => handleDeleteMeasurement(line.id)}
+                        onQuantityChange={(next) => handleMeasurementQty(line.id, next)}
+                        savingQty={updateMeasurementMutation.isPending}
                       />
                     ))}
                     <div className="flex items-center justify-between pt-4 mt-2 pl-1 pr-[32px]">

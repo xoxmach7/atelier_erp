@@ -18,7 +18,8 @@ from django.contrib.auth import get_user_model
 from atelier_erp.models import Order, Customer, Measurement, OrderCompletionAct
 from atelier_erp.constants import MaterialReadiness
 from atelier_erp.api.v1.substatus import (
-    get_execution_substatus, execution_substatus_annotations, EXECUTION,
+    get_execution_substatus, execution_substatus_annotations,
+    EXECUTION, PREPARATION, INSTALLATION, DONE,
 )
 from atelier_erp.roles import Roles
 
@@ -79,45 +80,46 @@ class TestExecutionSubstatus(TestCase):
         Measurement.objects.filter(order=self.order).update(sewing_done=True)
         assert get_execution_substatus(self._fresh(), self.seamstress) is None
 
-    # ── Установщик ───────────────────────────────────────────────────────────
+    # ── Установщик: 3 стадии, всегда одна из них (2026-07-21) ───────────────
 
-    def test_installer_no_execution_until_everything_sewn(self):
+    def test_installer_preparation_while_not_everything_sewn(self):
         self.w1.sewing_done = True
         self.w1.save(update_fields=['sewing_done'])
-        assert get_execution_substatus(self._fresh(), self.installer) is None
+        assert get_execution_substatus(self._fresh(), self.installer) == PREPARATION
 
-    def test_installer_gets_execution_when_all_sewn(self):
+    def test_installer_installation_when_all_sewn(self):
         Measurement.objects.filter(order=self.order).update(sewing_done=True)
-        assert get_execution_substatus(self._fresh(), self.installer) == EXECUTION
+        assert get_execution_substatus(self._fresh(), self.installer) == INSTALLATION
 
-    def test_installer_execution_gone_after_act_uploaded(self):
+    def test_installer_done_after_act_uploaded(self):
         Measurement.objects.filter(order=self.order).update(sewing_done=True)
         OrderCompletionAct.objects.create(order=self.order, is_active=True)
-        assert get_execution_substatus(self._fresh(), self.installer) is None
+        assert get_execution_substatus(self._fresh(), self.installer) == DONE
 
     # ── Разграничение ────────────────────────────────────────────────────────
 
     def test_handoff_between_roles_is_exclusive(self):
-        """Пока шьют — исполнение у цеха; дошили — уходит к установщику."""
+        """Пока шьют — исполнение у цеха, установщик в «Подготовке»; дошили — установщик переходит в «Установку»."""
         order = self._fresh()
         assert get_execution_substatus(order, self.seamstress) == EXECUTION
-        assert get_execution_substatus(order, self.installer) is None
+        assert get_execution_substatus(order, self.installer) == PREPARATION
 
         Measurement.objects.filter(order=self.order).update(sewing_done=True)
 
         order = self._fresh()
         assert get_execution_substatus(order, self.seamstress) is None
-        assert get_execution_substatus(order, self.installer) == EXECUTION
+        assert get_execution_substatus(order, self.installer) == INSTALLATION
 
     def test_other_roles_never_get_substatus(self):
         order = self._fresh()
         for role in (Roles.OWNER, Roles.DESIGNER, Roles.WAREHOUSE):
             assert get_execution_substatus(order, _user(role)) is None
 
-    def test_order_without_windows_has_no_substatus(self):
+    def test_order_without_windows_seamstress_has_no_substatus_installer_is_preparation(self):
+        """Швея: без замеров шить нечего — None. Установщик: всё ещё «Подготовка», монтаж не начат."""
         Measurement.objects.filter(order=self.order).delete()
         assert get_execution_substatus(self._fresh(), self.seamstress) is None
-        assert get_execution_substatus(self._fresh(), self.installer) is None
+        assert get_execution_substatus(self._fresh(), self.installer) == PREPARATION
 
     def test_works_without_annotations(self):
         """Фолбэк-путь: объект получен в обход аннотированного queryset."""
