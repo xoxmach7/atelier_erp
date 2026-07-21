@@ -1035,7 +1035,19 @@ class OrderExecutionService:
                 f"Cannot change production stage in status {order.status}. "
                 "Must be in 'in_production' status."
             )
-        
+
+        # Раньше это было гейтом только на мобилке (кнопка «Завершить пошив»
+        # отключена, пока не отмечены все окна) — сам API это принимал,
+        # так что вызов эндпоинта напрямую (веб/curl) мог закрыть пошив, даже
+        # если швея не отметила ни одного изделия. Дублируем проверку на
+        # сервере, чтобы бизнес-инвариант не зависел от конкретного клиента.
+        if production_stage == ProductionStage.DONE:
+            unfinished = order.measurements.filter(sewing_done=False).exists()
+            if unfinished:
+                raise OrderValidationError(
+                    "Нельзя завершить пошив: не все изделия отмечены как сшитые"
+                )
+
         # Update order
         old_value = order.production_stage
         from django.utils import timezone

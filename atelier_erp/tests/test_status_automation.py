@@ -12,7 +12,8 @@ import pytest
 from decimal import Decimal
 from django.test import TestCase
 
-from atelier_erp.models import Order, Customer, Quote, QuoteItem, OrderItem, Fabric, OrderStatusHistory
+from atelier_erp.models import Order, Customer, Quote, QuoteItem, OrderItem, Fabric, OrderStatusHistory, Measurement
+from atelier_erp.services.exceptions import OrderValidationError
 from atelier_erp.constants import MaterialReadiness, ProductionStage
 from atelier_erp.services.status_automation import auto_advance
 from atelier_erp.services.order_execution_service import OrderExecutionService
@@ -119,6 +120,50 @@ class TestProductionDoneMakesReady(TestCase):
         )
         order.refresh_from_db()
         assert order.status == Order.Status.ON_INSTALLATION
+
+
+@pytest.mark.django_db
+class TestProductionDoneRequiresAllWindowsSewn(TestCase):
+    """
+    2026-07-21: раньше «все окна отмечены швеёй» проверялось только на
+    мобилке (кнопка «Завершить пошив» отключена, пока не отмечены все
+    изделия) — сам API это принимал без проверки. Дублируем инвариант на
+    сервере, чтобы он не зависел от конкретного клиента (веб/curl могли
+    закрыть пошив в обход мобильного гейта).
+    """
+
+    def setUp(self):
+        self.customer = Customer.objects.create(full_name="E", phone="+70000000030")
+        self.order = _order(self.customer, "О-2024-930", status=Order.Status.IN_PRODUCTION)
+
+    def test_blocks_when_not_all_windows_sewn(self):
+        Measurement.objects.create(order=self.order, room_name="Зал", width_cm=300, height_cm=250, sewing_done=True)
+        Measurement.objects.create(order=self.order, room_name="Спальня", width_cm=200, height_cm=220, sewing_done=False)
+
+        with self.assertRaises(OrderValidationError):
+            OrderExecutionService().change_production_stage(
+                order=self.order, production_stage=ProductionStage.DONE,
+            )
+        self.order.refresh_from_db()
+        assert self.order.status == Order.Status.IN_PRODUCTION
+
+    def test_allows_when_all_windows_sewn(self):
+        Measurement.objects.create(order=self.order, room_name="Зал", width_cm=300, height_cm=250, sewing_done=True)
+        Measurement.objects.create(order=self.order, room_name="Спальня", width_cm=200, height_cm=220, sewing_done=True)
+
+        OrderExecutionService().change_production_stage(
+            order=self.order, production_stage=ProductionStage.DONE,
+        )
+        self.order.refresh_from_db()
+        assert self.order.status == Order.Status.ON_INSTALLATION
+
+    def test_no_measurements_does_not_block(self):
+        """Заказ без замеров (услуги без окон) — гейт применять не к чему."""
+        OrderExecutionService().change_production_stage(
+            order=self.order, production_stage=ProductionStage.DONE,
+        )
+        self.order.refresh_from_db()
+        assert self.order.status == Order.Status.ON_INSTALLATION
 
 
 @pytest.mark.django_db
