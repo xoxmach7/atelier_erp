@@ -529,59 +529,61 @@ function ItemRow({
       {open && (
         <div className="px-1 pb-3 text-[13px] text-[#475569] space-y-1">
           {/* Fabric details row — with edit/delete on the right */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="space-y-1 min-w-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-2 min-w-0">
               {curtainName && (
-                <div>
+                <span>
                   <span className="text-[#94A3B8]">Шторы:</span> {curtainName}
                   {matchedMeasurement?.curtain_meters ? ` (${matchedMeasurement.curtain_meters} м)` : ""}
                   {!matchedMeasurement && item.sewing_type && ` (${item.sewing_type})`}
-                </div>
+                </span>
               )}
               {tulleName && (
-                <div>
+                <span>
                   <span className="text-[#94A3B8]">Тюль:</span> {tulleName}
                   {matchedMeasurement?.tulle_meters ? ` (${matchedMeasurement.tulle_meters} м)` : ""}
-                </div>
+                </span>
               )}
               {corniceName && (
-                <div>
+                <span>
                   <span className="text-[#94A3B8]">Крепление:</span> {corniceName}
                   {matchedMeasurement?.cornice_quantity ? ` (${matchedMeasurement.cornice_quantity} ${matchedMeasurement.cornice_item_details?.unit_display || ""})` : ""}
-                </div>
+                </span>
               )}
               {hardwareName && (
-                <div>
+                <span>
                   <span className="text-[#94A3B8]">Фурнитура:</span> {hardwareName}
                   {matchedMeasurement?.hardware_quantity ? ` (${matchedMeasurement.hardware_quantity} ${matchedMeasurement.hardware_item_details?.unit_display || ""})` : ""}
-                </div>
+                </span>
               )}
               {!matchedMeasurement && item.folds_count && (
-                <div>
+                <span>
                   <span className="text-[#94A3B8]">Тип крепления:</span> {item.folds_count} складок
-                </div>
+                </span>
               )}
             </div>
             {editable && (
-              <div className="flex items-center gap-[20px] shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (matchedMeasurement) onEditMeasurement(matchedMeasurement);
                     else setEditOpen(true);
                   }}
-                  className="opacity-90 hover:opacity-100 transition-opacity"
                   title="Редактировать"
+                  className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors"
                 >
-                  <img src="/icons/edit.png" width={22} height={22} alt="Редактировать" />
+                  <Pencil size={16} />
                 </button>
                 <button
+                  type="button"
                   onClick={(e) => { e.stopPropagation(); handleDelete(); }}
                   disabled={deleteMutation.isPending}
-                  className="opacity-90 hover:opacity-100 disabled:opacity-40 transition-opacity"
                   title="Удалить"
+                  className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#60CCED] text-white hover:bg-[#4DBCE0] transition-colors disabled:opacity-40"
                 >
-                  <img src="/icons/delete.png" width={22} height={22} alt="Удалить" />
+                  <Trash2 size={16} />
                 </button>
               </div>
             )}
@@ -1184,16 +1186,18 @@ export default function OrderDetailPage() {
 
   // Замер, добавленный ПОСЛЕ утверждения КП, не попадает ни в один OrderItem —
   // позиции формируются один раз при утверждении. Без этого «Позиции» после
-  // принятия КП выглядели так, будто новый замер вообще нельзя добавить —
-  // он создавался успешно, но нигде не появлялся. Показываем такие замеры
-  // без цены (как до КП) — цена появится, когда будет создано новое КП
-  // с этим окном.
+  // принятия КП выглядели так, будто новый замер вообще нельзя добавить — он
+  // создавался успешно, но нигде не появлялся. Показываем такие замеры сразу
+  // в общем списке с расчётной ценой (как до КП — window_price с бэка); в
+  // текущее КП они не входят, поэтому сумма внизу подписана «Предытог», а
+  // не «ИТОГО» (то, что реально утверждено в КП), пока не создано новое КП.
   const itemMatchedKeys = new Set(
     items.map((it) => `${it.room_name}||${it.window_name}`)
   );
   const orphanMeasurementLines = measurementLines.filter(
     (l) => !itemMatchedKeys.has(`${l.measurement.room_name}||${l.measurement.window_name}`)
   );
+  const orphanMeasurementsSubtotal = orphanMeasurementLines.reduce((s, l) => s + (l.price ?? 0), 0);
 
   const total = parseFloat(order.total_amount || "0");
   const paid = parseFloat(order.paid_amount || "0");
@@ -1358,18 +1362,6 @@ export default function OrderDetailPage() {
                   </div>
                 )}
 
-                {/* КП уже принято — позиции (OrderItem) сформированы один раз и
-                    не пересчитываются сами при добавлении нового замера. Без
-                    этого предупреждения новое окно тихо не попадало бы ни в
-                    ИТОГО, ни в КП — выглядело бы так, будто добавить замер
-                    вообще нельзя. */}
-                {items.length > 0 && orphanMeasurementLines.length > 0 && (
-                  <div className="mb-4 rounded-lg bg-[#FEF3C7] border border-[#FDE68A] px-4 py-3 text-[13px] text-[#92400E]">
-                    Добавлено новое окно без цены — оно не входит в ИТОГО и в текущее КП.
-                    Создайте новое КП, чтобы включить его в стоимость заказа.
-                  </div>
-                )}
-
                 {items.length === 0 && measurementLines.length > 0 ? (
                   /* Позиции заказа генерируются ИЗ утверждённого КП, поэтому до
                      него их нет — а замеры уже есть, и блок выглядел пустым.
@@ -1433,9 +1425,11 @@ export default function OrderDetailPage() {
                       />
                     ))}
                     <div className="flex items-center justify-between pt-4 mt-2 pl-1 pr-[32px]">
-                      <span className="text-[16px] font-bold text-[#0F172A]">ИТОГО</span>
                       <span className="text-[16px] font-bold text-[#0F172A]">
-                        {fmtCurrency(order.total_amount)}
+                        {orphanMeasurementLines.length > 0 ? "Предытог" : "ИТОГО"}
+                      </span>
+                      <span className="text-[16px] font-bold text-[#0F172A]">
+                        {fmtCurrency(parseFloat(order.total_amount || "0") + orphanMeasurementsSubtotal)}
                       </span>
                     </div>
 
