@@ -769,14 +769,22 @@ class TaskStatusUpdateSerializer(serializers.Serializer):
 class FabricAvailabilitySerializer(serializers.ModelSerializer):
     """Inventory availability - read only"""
     available_meters = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
-    
+    # is_orphan: у записи нет живой позиции склада за спиной (source_item
+    # пуст) — экран «Материалы» использует это, чтобы дать удалить именно
+    # осиротевшие Fabric-строки, не имеющие своего «⋮» в принципе, потому что
+    # обычно Fabric — только зеркало InventoryItem. См. delete_orphan ниже.
+    is_orphan = serializers.SerializerMethodField()
+
     class Meta:
         model = Fabric
         fields = [
             'id', 'hanger_number', 'name', 'category', 'color', 'pattern',
             'stock_meters', 'reserved_meters', 'available_meters',
-            'price_per_meter', 'is_active'
+            'price_per_meter', 'is_active', 'is_orphan',
         ]
+
+    def get_is_orphan(self, obj: Fabric) -> bool:
+        return obj.source_item_id is None
 
 
 class InventoryItemSerializer(serializers.ModelSerializer):

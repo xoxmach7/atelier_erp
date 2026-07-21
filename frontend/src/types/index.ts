@@ -295,6 +295,8 @@ export interface FabricDTO {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  /** Нет живой позиции склада за спиной (source_item пуст на бэке) — только такие Fabric-строки можно удалить с экрана «Материалы». */
+  is_orphan?: boolean;
 }
 
 // ============================================================================

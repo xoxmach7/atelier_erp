@@ -244,3 +244,60 @@ class TestInventoryItemSyncsToFabric(TestCase):
         matching = Fabric.objects.filter(name="Меняющийся артикул")
         assert matching.count() == 1
         assert matching.first().hanger_number == "NEW-SKU"
+
+
+@pytest.mark.django_db
+class TestDeleteOrphanFabric(TestCase):
+    """
+    Осиротевшая Fabric-запись (source_item пуст, живой InventoryItem за ней
+    не стоит) не имеет своего write-API вообще — раньше её можно было убрать
+    только руками из БД (см. CLAUDE.md, запись про 'йцуйцу (MAT)'). Экран
+    «Материалы» получил кнопку удаления именно для таких строк.
+    """
+
+    def setUp(self):
+        group, _ = Group.objects.get_or_create(name=Roles.WAREHOUSE)
+        self.user = User.objects.create_user(username="wh_orphan", password="pwd12345")
+        self.user.groups.add(group)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_deletes_orphan_without_source_item(self):
+        fabric = Fabric.objects.create(
+            name="йцуйцу", hanger_number="MAT",
+            price_per_meter=Decimal("25000"), is_active=True,
+        )
+        resp = self.client.delete(f"/api/v1/inventory/{fabric.id}/delete-orphan/")
+        assert resp.status_code == 204, resp.content
+        fabric.refresh_from_db()
+        assert fabric.is_active is False
+
+    def test_refuses_to_delete_fabric_with_live_source_item(self):
+        resp = self.client.post(
+            "/api/v1/inventory-items/",
+            {
+                "sku": "56446", "name": "Тюль 1",
+                "category": InventoryItem.Category.TULLE,
+                "unit": InventoryItem.Unit.METER, "quantity": "30", "price_per_unit": "5000",
+            },
+            format="json",
+        )
+        assert resp.status_code == 201, resp.content
+        fabric = Fabric.objects.get(name="Тюль 1")
+        resp = self.client.delete(f"/api/v1/inventory/{fabric.id}/delete-orphan/")
+        assert resp.status_code == 400, resp.content
+        assert resp.data["code"] == "fabric_has_source_item"
+        fabric.refresh_from_db()
+        assert fabric.is_active is True
+
+    def test_forbidden_for_seamstress(self):
+        seamstress_group, _ = Group.objects.get_or_create(name=Roles.SEAMSTRESS)
+        seamstress = User.objects.create_user(username="seam_orphan", password="pwd12345")
+        seamstress.groups.add(seamstress_group)
+        self.client.force_authenticate(user=seamstress)
+
+        fabric = Fabric.objects.create(
+            name="йцуйцу2", hanger_number="MAT2", price_per_meter=Decimal("10000"), is_active=True,
+        )
+        resp = self.client.delete(f"/api/v1/inventory/{fabric.id}/delete-orphan/")
+        assert resp.status_code == 403

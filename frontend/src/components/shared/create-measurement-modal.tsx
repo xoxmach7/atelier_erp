@@ -184,6 +184,17 @@ function CreateMeasurementModalInner({
     "h-11 border-none bg-[#E9E9E9] rounded-[var(--r)] text-[14px] text-[var(--t1)] placeholder:text-[var(--t3)] focus-visible:ring-[var(--a)]/30";
   const selectTriggerCls =
     "h-11 border-none bg-[#E9E9E9] rounded-[var(--r)] text-[14px] text-[var(--t1)] focus:ring-[var(--a)]/30";
+  /* Убирает нативные стрелочки inc/dec у number-инпутов — только мешают на узких полях метража/количества */
+  const noSpinnerCls =
+    "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
+  /* HTML max сам по себе не мешает набрать 4444 руками (браузер лишь помечает
+     поле невалидным) — обрезаем значение на вводе, чтобы реально нельзя было
+     ввести больше 100. */
+  const clampTo100 = (raw: string): string => {
+    const n = parseFloat(raw);
+    if (Number.isNaN(n)) return raw;
+    return n > 100 ? "100" : raw;
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -270,14 +281,15 @@ function CreateMeasurementModalInner({
                   метры
                 </span>
                 <Input
-                  className={`${inputCls} w-[72px] text-center shrink-0`}
+                  className={`${inputCls} ${noSpinnerCls} w-[72px] text-center shrink-0`}
                   type="number"
                   min={0}
+                  max={100}
                   step={0.1}
                   placeholder="0"
                   title="Метраж вводится вручную. Пусто — 0 (при создании) или без изменений (при редактировании)."
                   value={curtainMeters}
-                  onChange={(e) => setCurtainMeters(e.target.value)}
+                  onChange={(e) => setCurtainMeters(clampTo100(e.target.value))}
                 />
               </div>
             </div>
@@ -308,14 +320,15 @@ function CreateMeasurementModalInner({
                   метры
                 </span>
                 <Input
-                  className={`${inputCls} w-[72px] text-center shrink-0`}
+                  className={`${inputCls} ${noSpinnerCls} w-[72px] text-center shrink-0`}
                   type="number"
                   min={0}
+                  max={100}
                   step={0.1}
                   placeholder="0"
                   title="Метраж вводится вручную. Пусто — 0 (при создании) или без изменений (при редактировании)."
                   value={tulleMeters}
-                  onChange={(e) => setTulleMeters(e.target.value)}
+                  onChange={(e) => setTulleMeters(clampTo100(e.target.value))}
                 />
               </div>
             </div>
@@ -342,12 +355,13 @@ function CreateMeasurementModalInner({
                   {corniceUnitLabel}
                 </span>
                 <Input
-                  className={`${inputCls} w-[72px] text-center shrink-0`}
+                  className={`${inputCls} ${noSpinnerCls} w-[72px] text-center shrink-0`}
                   type="number"
                   min={0}
+                  max={100}
                   step={0.1}
                   value={corniceQuantity}
-                  onChange={(e) => setCorniceQuantity(e.target.value)}
+                  onChange={(e) => setCorniceQuantity(clampTo100(e.target.value))}
                 />
               </div>
             </div>
@@ -374,12 +388,13 @@ function CreateMeasurementModalInner({
                   {hardwareUnitLabel}
                 </span>
                 <Input
-                  className={`${inputCls} w-[72px] text-center shrink-0`}
+                  className={`${inputCls} ${noSpinnerCls} w-[72px] text-center shrink-0`}
                   type="number"
                   min={0}
+                  max={100}
                   step={0.1}
                   value={hardwareQuantity}
-                  onChange={(e) => setHardwareQuantity(e.target.value)}
+                  onChange={(e) => setHardwareQuantity(clampTo100(e.target.value))}
                 />
               </div>
             </div>

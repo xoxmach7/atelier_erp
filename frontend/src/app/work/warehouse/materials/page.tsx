@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Search, ArrowLeft, Plus, Loader2, X, HelpCircle, MoreVertical } from "lucide-react";
+import { Search, ArrowLeft, Plus, Loader2, X, HelpCircle, MoreVertical, Trash2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useRole } from "@/hooks/useRole";
 import { ModalCloseX } from "@/components/shared/modal-close";
-import { fetchFabrics } from "@/services/http/fabrics";
+import { fetchFabrics, deleteOrphanFabric } from "@/services/http/fabrics";
 import {
   fetchInventoryItems,
   createInventoryItem,
@@ -44,6 +44,7 @@ type Row = {
   id: string;
   source: "fabric" | "item";
   rawId?: string; // id позиции InventoryItem (без префикса) — для редактирования
+  isOrphan?: boolean; // Fabric без InventoryItem за спиной — можно удалить саму запись
   sku: string;
   name: string;
   category: string;
@@ -147,6 +148,10 @@ function MaterialsContent() {
     onSuccess: onMutationSuccess,
     onError: onMutationError,
   });
+  const deleteOrphanMutation = useMutation({
+    mutationFn: deleteOrphanFabric,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["inventory", "fabrics"] }),
+  });
   const addQtyMutation = useMutation({
     mutationFn: ({ item, delta }: { item: InventoryItemDTO; delta: number }) =>
       addInventoryQuantity(item, delta),
@@ -204,6 +209,8 @@ function MaterialsContent() {
       return {
         id: `f-${f.id}`,
         source: "fabric",
+        rawId: f.id,
+        isOrphan: Boolean(f.is_orphan),
         sku: f.hanger_number || "—",
         name: f.name,
         category: "Ткань",
@@ -273,6 +280,12 @@ function MaterialsContent() {
     setMenu(null);
     if (!confirm(`Удалить позицию «${it.name}»?`)) return;
     deleteMutation.mutate(it.id);
+  };
+
+  const handleDeleteOrphanFabric = (r: Row) => {
+    if (!r.rawId) return;
+    if (!confirm(`Удалить материал «${r.name}»? У записи нет позиции склада — действие необратимо.`)) return;
+    deleteOrphanMutation.mutate(r.rawId);
   };
 
   const openAddQty = (it: InventoryItemDTO) => {
@@ -390,6 +403,20 @@ function MaterialsContent() {
                             title="Действия"
                           >
                             <MoreVertical size={18} />
+                          </button>
+                        )}
+                        {/* Fabric-строка без InventoryItem за спиной (осиротевшая после
+                            переименования/удаления sku или старой коллизии кириллических
+                            артикулов) — своего «⋮» у неё нет, потому что Fabric обычно
+                            только зеркало склада. Даём удалить именно её саму. */}
+                        {canEdit && r.source === "fabric" && r.isOrphan && (
+                          <button
+                            onClick={() => handleDeleteOrphanFabric(r)}
+                            disabled={deleteOrphanMutation.isPending}
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-[#94A3B8] hover:bg-[#FEF2F2] hover:text-[#DC2626] transition-colors disabled:opacity-50"
+                            title="Удалить (запись без позиции склада)"
+                          >
+                            <Trash2 size={18} />
                           </button>
                         )}
                       </td>

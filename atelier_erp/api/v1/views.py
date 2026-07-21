@@ -2089,6 +2089,39 @@ class InventoryAvailabilityViewSet(TenantModelMixin, viewsets.ReadOnlyModelViewS
     search_fields = ['hanger_number', 'name', 'color', 'pattern']
     ordering_fields = ['hanger_number', 'available_meters', 'price_per_meter']
 
+    def get_permissions(self):
+        if self.action == 'delete_orphan':
+            return [IsAuthenticated(), IsWarehouseOrOwner()]
+        return [IsAuthenticated()]
+
+    @action(detail=True, methods=['delete'], url_path='delete-orphan')
+    def delete_orphan(self, request, pk=None):
+        """
+        DELETE /api/v1/inventory/{id}/delete-orphan/
+
+        Fabric — обычно только зеркало InventoryItem (см.
+        services/inventory_fabric_sync.py), поэтому у него нет полноценного
+        write-API: удаление живой позиции идёт через InventoryItemViewSet.
+        Но исторически (SKU-коллизия на кириллице, ручные .delete() мимо API
+        при чистке демо-данных — см. CLAUDE.md 2026-07-20) в БД остаются
+        Fabric-строки без InventoryItem за спиной — экран «Материалы» их
+        показывает, а удалить нечем: своего «⋮» у них нет, потому что обычно
+        Fabric и не должен управляться напрямую. Разрешаем деактивировать
+        именно такие осиротевшие записи (source_item пуст), а не любые.
+        """
+        fabric = self.get_object()
+        if fabric.source_item_id is not None:
+            return Response(
+                {
+                    'detail': 'Материал привязан к позиции склада — удалите её, а не эту запись каталога',
+                    'code': 'fabric_has_source_item',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        fabric.is_active = False
+        fabric.save(update_fields=['is_active'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=False, methods=['post'])
     def check(self, request):
         """
