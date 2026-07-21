@@ -1031,6 +1031,16 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
             # формулой здесь, после правки позиции сумма заказа откатывалась
             # бы ниже реальной суммы КП.
             OrderItemGenerationService().recalculate_order_total(order)
+
+            # Удалили последнюю позицию — заказ снова без единого изделия,
+            # значит списанный под него материал больше не расходуется.
+            # Ledger привязан к заказу целиком (MaterialDeduction), а не к
+            # отдельной позиции, поэтому частичное удаление (остались другие
+            # позиции) материал пока не возвращает — только полное обнуление.
+            if not order.items.exists():
+                from atelier_erp.services.material_deduction_service import return_materials_for_order
+                return_materials_for_order(order)
+
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         # PATCH — partial update, any combination of fields

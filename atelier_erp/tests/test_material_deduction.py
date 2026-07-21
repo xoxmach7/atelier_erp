@@ -24,6 +24,7 @@ from atelier_erp.services.material_deduction_service import (
     deduct_materials_for_order, return_materials_for_order,
 )
 from atelier_erp.services.inventory_fabric_sync import sync_fabric_from_inventory_item
+from rest_framework.test import APIClient
 
 User = get_user_model()
 
@@ -164,3 +165,63 @@ class TestMaterialReturnOnCancellation(TestCase):
 
         curtain_stock.refresh_from_db()
         assert curtain_stock.quantity == Decimal('50.00')
+
+
+@pytest.mark.django_db
+class TestMaterialReturnOnLastItemDeletion(TestCase):
+    """
+    2026-07-21: владелец удалил все позиции заказа вручную (не через отмену
+    заказа) — материал должен вернуться на склад, но не возвращался вообще,
+    manage_item DELETE не знал ни про какое списание.
+    """
+
+    def setUp(self):
+        self.customer = Customer.objects.create(full_name="MatDelLast", phone="+70000000042")
+        self.owner = User.objects.create_user(username="owner_matdel", password="x")
+        group, _ = Group.objects.get_or_create(name=Roles.OWNER)
+        self.owner.groups.add(group)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.owner)
+
+    def test_deleting_last_item_returns_stock(self):
+        order, quote, measurement, curtain_stock, cornice_stock, hardware_stock = (
+            _setup_order_with_measurement(self.customer, "О-2026-947")
+        )
+        OrderItemGenerationService().generate_order_items_from_quote(order, quote)
+        curtain_stock.refresh_from_db()
+        assert curtain_stock.quantity == Decimal('42.00')
+
+        item = order.items.get()
+        resp = self.client.delete(f'/api/v1/orders/{order.id}/items/{item.id}/')
+        assert resp.status_code == 204, resp.content
+
+        curtain_stock.refresh_from_db()
+        cornice_stock.refresh_from_db()
+        hardware_stock.refresh_from_db()
+        assert curtain_stock.quantity == Decimal('50.00')
+        assert cornice_stock.quantity == Decimal('20.00')
+        assert hardware_stock.quantity == Decimal('30.00')
+        assert not MaterialDeduction.objects.filter(order=order, reversed_at__isnull=True).exists()
+
+    def test_deleting_one_of_several_items_does_not_return_stock(self):
+        """Пока в заказе остаются другие позиции — материал не трогаем."""
+        order, quote, measurement, curtain_stock, cornice_stock, hardware_stock = (
+            _setup_order_with_measurement(self.customer, "О-2026-948")
+        )
+        # Вторая позиция без своих материалов — просто чтобы после удаления
+        # первой у заказа осталась хотя бы одна.
+        QuoteItem.objects.create(
+            quote=quote, room_name="Спальня", window_name="Спальня",
+            window_width_cm=200, window_height_cm=200,
+            fabric=None, line_total=Decimal('5000'), sewing_type='service',
+        )
+        OrderItemGenerationService().generate_order_items_from_quote(order, quote)
+        curtain_stock.refresh_from_db()
+        assert curtain_stock.quantity == Decimal('42.00')
+
+        item = order.items.filter(room_name="Гостиная").get()
+        resp = self.client.delete(f'/api/v1/orders/{order.id}/items/{item.id}/')
+        assert resp.status_code == 204, resp.content
+
+        curtain_stock.refresh_from_db()
+        assert curtain_stock.quantity == Decimal('42.00')  # не вернулось — заказ ещё не пуст
