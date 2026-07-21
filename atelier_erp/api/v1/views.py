@@ -1024,6 +1024,15 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
             return Response({"detail": "Позиция не найдена."}, status=status.HTTP_404_NOT_FOUND)
 
         if request.method == "DELETE":
+            # Возвращаем на склад материал, списанный именно под эту позицию —
+            # ДО удаления (order_item на MaterialDeduction — SET_NULL, после
+            # delete() связь потерялась бы). Раньше материал возвращался,
+            # только когда позиций не оставалось вообще ни одной — удаление
+            # одной из нескольких позиций молча оставляло материал списанным.
+            from atelier_erp.services.material_deduction_service import (
+                return_materials_for_item, return_materials_for_order,
+            )
+            return_materials_for_item(item)
             item.delete()
             # Пересчёт через тот же сервис, что и генерация позиций из КП:
             # сумма позиций сама по себе не включает installation_cost/
@@ -1032,13 +1041,10 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
             # бы ниже реальной суммы КП.
             OrderItemGenerationService().recalculate_order_total(order)
 
-            # Удалили последнюю позицию — заказ снова без единого изделия,
-            # значит списанный под него материал больше не расходуется.
-            # Ledger привязан к заказу целиком (MaterialDeduction), а не к
-            # отдельной позиции, поэтому частичное удаление (остались другие
-            # позиции) материал пока не возвращает — только полное обнуление.
+            # Подчищаем и списания без order_item (легаси-записи, сделанные до
+            # появления этой привязки) — return_materials_for_order трогает
+            # только ещё не возвращённые, поэтому не задвоит уже возвращённое.
             if not order.items.exists():
-                from atelier_erp.services.material_deduction_service import return_materials_for_order
                 return_materials_for_order(order)
 
             return Response(status=status.HTTP_204_NO_CONTENT)
@@ -1047,6 +1053,7 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
         data = request.data
         update_fields = []
         errors = {}
+        old_quantity = item.quantity
 
         # quantity
         if "quantity" in data:
@@ -1096,6 +1103,13 @@ class OrderViewSet(TenantModelMixin, viewsets.ModelViewSet):
                 update_fields.append("total_price")
 
         item.save(update_fields=update_fields)
+
+        # Количество позиции изменилось — списание материала под неё было
+        # рассчитано на старое количество и никак не следило за изменением
+        # (см. material_deduction_service.adjust_deduction_for_item_quantity).
+        if "quantity" in update_fields and old_quantity != item.quantity:
+            from atelier_erp.services.material_deduction_service import adjust_deduction_for_item_quantity
+            adjust_deduction_for_item_quantity(item, old_quantity, item.quantity)
 
         OrderItemGenerationService().recalculate_order_total(order)
 

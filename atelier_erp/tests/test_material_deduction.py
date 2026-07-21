@@ -29,7 +29,9 @@ from rest_framework.test import APIClient
 User = get_user_model()
 
 
-def _setup_order_with_measurement(customer, number, curtain_qty=None, cornice_qty=None, hardware_qty=None):
+def _setup_order_with_measurement(
+    customer, number, curtain_qty=None, cornice_qty=None, hardware_qty=None, measurement_quantity=None,
+):
     order = Order.objects.create(customer=customer, order_number=number)
 
     curtain_stock = InventoryItem.objects.create(
@@ -54,6 +56,7 @@ def _setup_order_with_measurement(customer, number, curtain_qty=None, cornice_qt
         curtain_fabric=curtain_fabric, curtain_meters=curtain_qty or Decimal('8'),
         cornice_item=cornice_stock, cornice_quantity=cornice_qty or Decimal('3'),
         hardware_item=hardware_stock, hardware_quantity=hardware_qty or Decimal('10'),
+        quantity=measurement_quantity or 1,
     )
 
     quote = Quote.objects.create(
@@ -106,6 +109,25 @@ class TestMaterialDeductionOnItemGeneration(TestCase):
 
         curtain_stock.refresh_from_db()
         assert curtain_stock.quantity == Decimal('0.00')
+
+    def test_deduction_scales_with_measurement_quantity(self):
+        """
+        2026-07-21: Measurement.quantity — сколько одинаковых изделий по
+        этому окну; curtain_meters/cornice_quantity/hardware_quantity — расход
+        на ОДНО изделие. Списание обязано умножаться на quantity, как и цена
+        (window_price_breakdown) — раньше не умножалось вообще.
+        """
+        order, quote, measurement, curtain_stock, cornice_stock, hardware_stock = (
+            _setup_order_with_measurement(self.customer, "О-2026-949", measurement_quantity=2)
+        )
+        OrderItemGenerationService().generate_order_items_from_quote(order, quote)
+
+        curtain_stock.refresh_from_db()
+        cornice_stock.refresh_from_db()
+        hardware_stock.refresh_from_db()
+        assert curtain_stock.quantity == Decimal('34.00')   # 50 - 8*2
+        assert cornice_stock.quantity == Decimal('14.00')   # 20 - 3*2
+        assert hardware_stock.quantity == Decimal('10.00')  # 30 - 10*2
 
     def test_fabric_without_source_item_is_skipped(self):
         """Каталожная запись без живой позиции склада — списывать нечего."""
@@ -203,8 +225,13 @@ class TestMaterialReturnOnLastItemDeletion(TestCase):
         assert hardware_stock.quantity == Decimal('30.00')
         assert not MaterialDeduction.objects.filter(order=order, reversed_at__isnull=True).exists()
 
-    def test_deleting_one_of_several_items_does_not_return_stock(self):
-        """Пока в заказе остаются другие позиции — материал не трогаем."""
+    def test_deleting_one_of_several_items_returns_only_its_own_stock(self):
+        """
+        2026-07-21: списание теперь привязано к конкретной позиции
+        (MaterialDeduction.order_item) — удаление ОДНОЙ позиции возвращает
+        именно её долю, даже если в заказе остаются другие. Раньше возврат
+        срабатывал только когда позиций не оставалось вообще.
+        """
         order, quote, measurement, curtain_stock, cornice_stock, hardware_stock = (
             _setup_order_with_measurement(self.customer, "О-2026-948")
         )
@@ -224,4 +251,80 @@ class TestMaterialReturnOnLastItemDeletion(TestCase):
         assert resp.status_code == 204, resp.content
 
         curtain_stock.refresh_from_db()
-        assert curtain_stock.quantity == Decimal('42.00')  # не вернулось — заказ ещё не пуст
+        assert curtain_stock.quantity == Decimal('50.00')  # вернулось, хотя вторая позиция осталась
+        assert order.items.count() == 1
+
+
+@pytest.mark.django_db
+class TestMaterialDeductionFollowsItemQuantityChange(TestCase):
+    """
+    2026-07-21: владелец увеличил количество позиции через степпер в карточке
+    заказа (PATCH .../items/{id}/ quantity) — материал списался только на
+    старое количество и никак не подстраивался под новое.
+    """
+
+    def setUp(self):
+        self.customer = Customer.objects.create(full_name="MatQtyChange", phone="+70000000043")
+        self.owner = User.objects.create_user(username="owner_matqty", password="x")
+        group, _ = Group.objects.get_or_create(name=Roles.OWNER)
+        self.owner.groups.add(group)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.owner)
+
+    def test_increasing_item_quantity_deducts_more_stock(self):
+        order, quote, measurement, curtain_stock, cornice_stock, hardware_stock = (
+            _setup_order_with_measurement(self.customer, "О-2026-950")
+        )
+        OrderItemGenerationService().generate_order_items_from_quote(order, quote)
+        curtain_stock.refresh_from_db()
+        assert curtain_stock.quantity == Decimal('42.00')  # 50 - 8
+
+        item = order.items.get()
+        resp = self.client.patch(
+            f'/api/v1/orders/{order.id}/items/{item.id}/', {'quantity': 2}, format='json',
+        )
+        assert resp.status_code == 200, resp.content
+
+        curtain_stock.refresh_from_db()
+        cornice_stock.refresh_from_db()
+        hardware_stock.refresh_from_db()
+        assert curtain_stock.quantity == Decimal('34.00')   # 50 - 8*2
+        assert cornice_stock.quantity == Decimal('14.00')   # 20 - 3*2
+        assert hardware_stock.quantity == Decimal('10.00')  # 30 - 10*2
+
+    def test_decreasing_item_quantity_returns_stock(self):
+        order, quote, measurement, curtain_stock, cornice_stock, hardware_stock = (
+            _setup_order_with_measurement(self.customer, "О-2026-951", measurement_quantity=2)
+        )
+        OrderItemGenerationService().generate_order_items_from_quote(order, quote)
+        curtain_stock.refresh_from_db()
+        assert curtain_stock.quantity == Decimal('34.00')  # 50 - 8*2
+
+        item = order.items.get()
+        assert item.quantity == 1  # OrderItem.quantity не связан с Measurement.quantity при генерации
+        # Эмулируем реальный сценарий: сначала подняли до 2 (как в замере), потом откатили на 1.
+        self.client.patch(f'/api/v1/orders/{order.id}/items/{item.id}/', {'quantity': 2}, format='json')
+        self.client.patch(f'/api/v1/orders/{order.id}/items/{item.id}/', {'quantity': 1}, format='json')
+
+        curtain_stock.refresh_from_db()
+        assert curtain_stock.quantity == Decimal('34.00')  # вернулись туда же, откуда начали
+
+    def test_item_without_matching_deduction_does_not_crash(self):
+        """Позиция без списанного материала (услуга без ткани) — PATCH quantity не должен падать."""
+        order = Order.objects.create(customer=self.customer, order_number="О-2026-952")
+        quote = Quote.objects.create(
+            order=order, customer=self.customer, quote_number="КП-2026-952",
+            status=Quote.Status.APPROVED, total=Decimal('5000'),
+        )
+        QuoteItem.objects.create(
+            quote=quote, room_name="Прихожая", window_name="Прихожая",
+            window_width_cm=100, window_height_cm=100,
+            fabric=None, line_total=Decimal('5000'), sewing_type='service',
+        )
+        OrderItemGenerationService().generate_order_items_from_quote(order, quote)
+        item = order.items.get()
+
+        resp = self.client.patch(
+            f'/api/v1/orders/{order.id}/items/{item.id}/', {'quantity': 3}, format='json',
+        )
+        assert resp.status_code == 200, resp.content

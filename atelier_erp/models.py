@@ -456,6 +456,16 @@ class MaterialDeduction(UUIDModel):
     order = models.ForeignKey(
         'Order', on_delete=models.CASCADE, related_name='material_deductions', db_index=True,
     )
+    # Привязка к конкретной позиции (2026-07-21) — нужна, чтобы при изменении
+    # OrderItem.quantity (степпер «Количество» после КП) пересчитать именно
+    # ЕЁ долю списания, а не всё списание заказа целиком. До этого поля
+    # изменение количества позиции никак не влияло на остаток склада —
+    # списание было привязано только к заказу и происходило один раз при
+    # генерации позиций.
+    order_item = models.ForeignKey(
+        'OrderItem', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='material_deductions',
+    )
     inventory_item = models.ForeignKey(
         'InventoryItem', on_delete=models.PROTECT, related_name='deductions',
     )

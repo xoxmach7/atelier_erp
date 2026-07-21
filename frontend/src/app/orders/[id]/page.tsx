@@ -506,9 +506,13 @@ function ItemRow({
           <div className="text-[14px] text-[#0F172A]">
             {roomLabel || item.fabric_name || "Позиция"}
           </div>
-          {item.window_name && item.room_name && (
+          {(item.room_name || item.window_name) && (
             <div className="text-[13px] text-[#94A3B8]">
-              {item.window_name}{" "}
+              {/* Окно — то же значение, что и комната (поля слиты в форме
+                  замера, 2026-07-20) — вторая строка не дублирует название,
+                  показывает только размеры. У старых позиций, где значения
+                  ещё различаются, показывается настоящее название окна. */}
+              {item.window_name && item.window_name !== item.room_name ? `${item.window_name} ` : ""}
               {item.window_width_cm && item.window_height_cm
                 ? `(${item.window_width_cm}×${item.window_height_cm})`
                 : ""}
