@@ -191,7 +191,10 @@ function EditItemModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 pt-[68px]">
         <ModalCloseX onClose={onClose} />
         <div className="mb-6">

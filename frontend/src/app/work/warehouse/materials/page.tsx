@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Search, ArrowLeft, Plus, Loader2, X, HelpCircle, MoreVertical, Trash2 } from "lucide-react";
+import { Search, ArrowLeft, Loader2, X, HelpCircle, MoreVertical, Trash2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useRole } from "@/hooks/useRole";
@@ -40,6 +40,15 @@ function fmtNum(v: string | number) {
   return Math.round(n).toLocaleString("ru-RU");
 }
 
+/* Остаток на складе — в отличие от цены (fmtNum, целые), сохраняет дробную
+   часть: количество в штуках/метрах может быть нецелым (10.10 шт и т.п.),
+   округление до целого в столбце «Свободно» скрывало реальный остаток. */
+function fmtQty(v: string | number) {
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  if (Number.isNaN(n)) return "—";
+  return n.toLocaleString("ru-RU", { maximumFractionDigits: 2 });
+}
+
 type Row = {
   id: string;
   source: "fabric" | "item";
@@ -48,6 +57,7 @@ type Row = {
   sku: string;
   name: string;
   category: string;
+  categoryValue: InventoryCategory;
   price: string;
   available: number;
   unit: string;
@@ -75,6 +85,9 @@ function MaterialsContent() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<InventoryCategory | "all">("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersRef = useRef<HTMLDivElement>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
@@ -101,6 +114,15 @@ function MaterialsContent() {
       window.removeEventListener("resize", close);
     };
   }, [menu]);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const close = (e: MouseEvent) => {
+      if (filtersRef.current && !filtersRef.current.contains(e.target as Node)) setFiltersOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [filtersOpen]);
 
   const { data: fabricsData, isLoading: fabricsLoading } = useQuery({
     queryKey: ["inventory", "fabrics", search],
@@ -206,6 +228,7 @@ function MaterialsContent() {
     .filter((f) => !itemFabricNames.has(f.name.trim().toLowerCase()))
     .map((f) => {
       const avail = parseFloat(f.available_meters);
+      const catValue: InventoryCategory = f.category === "tulle" ? "tulle" : "fabric";
       return {
         id: `f-${f.id}`,
         source: "fabric",
@@ -213,7 +236,8 @@ function MaterialsContent() {
         isOrphan: Boolean(f.is_orphan),
         sku: f.hanger_number || "—",
         name: f.name,
-        category: "Ткань",
+        category: catValue === "tulle" ? "Тюль" : "Ткань",
+        categoryValue: catValue,
         price: f.price_per_meter,
         available: Number.isNaN(avail) ? 0 : avail,
         unit: "м",
@@ -230,6 +254,7 @@ function MaterialsContent() {
       sku: it.sku || "—",
       name: it.name,
       category: it.category_display,
+      categoryValue: it.category,
       price: it.price_per_unit,
       available: Number.isNaN(q) ? 0 : q,
       unit: it.unit_display,
@@ -238,7 +263,9 @@ function MaterialsContent() {
   });
 
   const all = [...fabricRows, ...itemRows];
-  const rows = lowOnly ? all.filter((r) => r.low) : all;
+  const rows = all
+    .filter((r) => (lowOnly ? r.low : true))
+    .filter((r) => (categoryFilter === "all" ? true : r.categoryValue === categoryFilter));
   const isLoading = fabricsLoading || itemsLoading;
 
   const submitDisabled =
@@ -327,19 +354,57 @@ function MaterialsContent() {
               {canEdit && (
                 <button
                   onClick={openAdd}
-                  className="flex items-center gap-1.5 text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+                  className="text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
                 >
-                  <Plus size={16} /> Добавить позицию
+                  Добавить позицию
                 </button>
               )}
-              <button
-                onClick={() => setLowOnly((v) => !v)}
-                className={`text-[15px] transition-colors ${
-                  lowOnly ? "text-[#0EA5E9]" : "text-[#475569] hover:text-[#0EA5E9]"
-                }`}
-              >
-                {lowOnly ? "Показать все" : "Только на исходе"}
-              </button>
+              <div className="relative" ref={filtersRef}>
+                <button
+                  onClick={() => setFiltersOpen((v) => !v)}
+                  className={`text-[15px] transition-colors ${
+                    filtersOpen || lowOnly || categoryFilter !== "all"
+                      ? "text-[#0EA5E9]"
+                      : "text-[#475569] hover:text-[#0EA5E9]"
+                  }`}
+                >
+                  Фильтры
+                </button>
+                {filtersOpen && (
+                  <div className="absolute left-0 top-[calc(100%+10px)] z-20 w-64 rounded-[10px] border border-[#E2E8F0] bg-white p-4 shadow-2xl">
+                    <label className="flex items-center gap-2 text-[14px] text-[#0F172A] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={lowOnly}
+                        onChange={(e) => setLowOnly(e.target.checked)}
+                        className="h-4 w-4 rounded border-[#CBD5E1] accent-[#0EA5E9]"
+                      />
+                      Только на исходе
+                    </label>
+                    <div className="mt-4">
+                      <label className="block text-[13px] text-[#475569] mb-1.5">Категория</label>
+                      <div className="relative">
+                        <select
+                          value={categoryFilter}
+                          onChange={(e) => setCategoryFilter(e.target.value as InventoryCategory | "all")}
+                          className="w-full appearance-none rounded-[8px] bg-[#F1F5F9] px-3 py-2 text-[14px] text-[#0F172A] outline-none pr-8"
+                        >
+                          <option value="all">Все</option>
+                          {CATEGORIES.map((c) => (
+                            <option key={c.value} value={c.value}>{c.label}</option>
+                          ))}
+                        </select>
+                        <svg
+                          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#475569]"
+                          width="12" height="12" viewBox="0 0 24 24" fill="currentColor"
+                        >
+                          <path d="M12 16 6 9h12z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -389,7 +454,7 @@ function MaterialsContent() {
                       <td className="px-6 py-4 text-[14px] text-[#475569] whitespace-nowrap">{r.category}</td>
                       <td className="px-6 py-4 text-[14px] text-[#0F172A] whitespace-nowrap">{fmtNum(r.price)}</td>
                       <td className="px-6 py-4 text-[14px] text-[#0F172A] whitespace-nowrap">
-                        <span className={r.low ? "text-[#D97706]" : ""}>{fmtNum(r.available)} {r.unit}</span>
+                        <span className={r.low ? "text-[#D97706]" : ""}>{fmtQty(r.available)} {r.unit}</span>
                         {r.low && <span className="ml-2 text-[12px] font-medium text-[#D97706]">(На исходе)</span>}
                       </td>
                       <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
@@ -609,7 +674,7 @@ function MaterialsContent() {
 
               {/* 5. Стоимость */}
               <div className="mb-6">
-                <label className="block text-[15px] text-[#0F172A] mb-2">5. Стоимость за м/шт.</label>
+                <label className="block text-[15px] text-[#0F172A] mb-2">5. Стоимость за м/шт./упак.</label>
                 <div className="flex items-center gap-3">
                   <input
                     type="text" inputMode="numeric" pattern="[0-9]*"
