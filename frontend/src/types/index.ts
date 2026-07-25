@@ -338,6 +338,45 @@ export interface InventoryItemCreateInput {
 }
 
 // ============================================================================
+// Staff DTOs — управление сотрудниками (CRUD, только Owner)
+// ============================================================================
+
+export type StaffRole = "Owner" | "Designer" | "Warehouse" | "Seamstress" | "Installer";
+
+export interface StaffMemberDTO {
+  id: number;
+  username: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  email: string;
+  role: StaffRole | null;
+  is_active: boolean;
+  date_joined: string;
+}
+
+/** Ответ на создание сотрудника — сгенерированный пароль отдаётся один раз. */
+export interface StaffCreatedDTO extends StaffMemberDTO {
+  generated_password: string;
+}
+
+export interface StaffCreateInput {
+  username: string;
+  role: StaffRole;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+}
+
+export interface StaffUpdateInput {
+  role?: StaffRole;
+  is_active?: boolean;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+}
+
+// ============================================================================
 // Payment DTOs - API Response Types
 // ============================================================================
 

@@ -6,7 +6,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from .views import (
-    StaffListView,
+    StaffListView, StaffManagementViewSet,
     OrderViewSet, TaskViewSet, InventoryAvailabilityViewSet, InventoryItemViewSet, QuoteViewSet,
     CustomerViewSet, PaymentViewSet, MeasurementViewSet,
     DesignerWorkQueueView, QuotesWorkQueueView, WarehouseWorkQueueView,
@@ -23,6 +23,7 @@ router.register(r'quotes', QuoteViewSet, basename='v1-quote')
 router.register(r'customers', CustomerViewSet, basename='v1-customer')
 router.register(r'payments', PaymentViewSet, basename='v1-payment')
 router.register(r'measurements', MeasurementViewSet, basename='v1-measurement')
+router.register(r'staff-management', StaffManagementViewSet, basename='v1-staff-management')
 
 urlpatterns = [
     path('work/designer/', DesignerWorkQueueView.as_view(), name='v1-work-designer'),

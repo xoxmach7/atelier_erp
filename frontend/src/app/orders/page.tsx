@@ -148,6 +148,14 @@ function OrdersContent() {
                     Материалы
                   </Link>
                 )}
+                {isOwner && (
+                  <Link
+                    href="/staff"
+                    className="flex items-center gap-1.5 text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+                  >
+                    Сотрудники
+                  </Link>
+                )}
               </div>
             </div>
 

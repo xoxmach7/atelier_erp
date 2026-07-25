@@ -2558,3 +2558,149 @@ class StaffListView(APIView):
             for u in users
         ]
         return Response(data)
+
+
+def _user_role(user):
+    """Каноническое имя роли пользователя (одна группа = одна роль).
+
+    Легаси-пользователи, заведённые до единого реестра ролей, могут состоять
+    сразу в нескольких/устаревших группах — берём первую каноническую,
+    остальное не наше дело в рамках экрана "Сотрудники".
+    """
+    names = set(user.groups.values_list('name', flat=True))
+    for canon in Roles.ALL:
+        if canon in names:
+            return canon
+    return None
+
+
+def _serialize_staff(user):
+    return {
+        'id': user.id,
+        'username': user.username,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'full_name': f"{user.first_name} {user.last_name}".strip() or user.username,
+        'email': user.email,
+        'role': _user_role(user),
+        'is_active': user.is_active,
+        'date_joined': user.date_joined,
+    }
+
+
+class StaffManagementViewSet(viewsets.ViewSet):
+    """CRUD над сотрудниками (создание/деактивация/смена роли) — только Owner.
+
+    Роль — не поле модели User, а членство в Django Group (см.
+    atelier_erp.roles.Roles) — смена роли это groups.clear()+add(), не update
+    одного поля. Удаление — всегда деактивация (is_active=False), не DELETE
+    из БД: на пользователя могут ссылаться заказы/платежи/фотоотчёты, и
+    физическое удаление истории кто что делал недопустимо.
+    """
+    permission_classes = [IsManagerOrAdmin]
+
+    def _get_user(self, pk):
+        from django.contrib.auth.models import User
+        return User.objects.get(pk=pk)
+
+    def list(self, request):
+        from django.contrib.auth.models import User
+        users = User.objects.all().order_by('last_name', 'first_name', 'username')
+        return Response([_serialize_staff(u) for u in users])
+
+    def retrieve(self, request, pk=None):
+        from django.contrib.auth.models import User
+        try:
+            user = self._get_user(pk)
+        except User.DoesNotExist:
+            return Response({'detail': 'Сотрудник не найден', 'code': 'staff_not_found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(_serialize_staff(user))
+
+    def create(self, request):
+        from django.contrib.auth.models import User, Group
+        from django.utils.crypto import get_random_string
+
+        username = (request.data.get('username') or '').strip()
+        role = request.data.get('role')
+        first_name = (request.data.get('first_name') or '').strip()
+        last_name = (request.data.get('last_name') or '').strip()
+        email = (request.data.get('email') or '').strip()
+
+        if not username:
+            return Response({'detail': 'Укажите логин', 'code': 'username_required'}, status=status.HTTP_400_BAD_REQUEST)
+        if role not in Roles.ALL:
+            return Response({'detail': 'Укажите корректную роль', 'code': 'invalid_role'}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(username=username).exists():
+            return Response({'detail': 'Такой логин уже занят', 'code': 'username_taken'}, status=status.HTTP_400_BAD_REQUEST)
+
+        password = get_random_string(12)
+        user = User.objects.create(
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            is_active=True,
+        )
+        user.set_password(password)
+        user.save()
+        group = Group.objects.get(name=role)
+        user.groups.add(group)
+
+        data = _serialize_staff(user)
+        data['generated_password'] = password
+        return Response(data, status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, pk=None):
+        from django.contrib.auth.models import User, Group
+
+        try:
+            user = self._get_user(pk)
+        except User.DoesNotExist:
+            return Response({'detail': 'Сотрудник не найден', 'code': 'staff_not_found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if 'first_name' in request.data:
+            user.first_name = (request.data.get('first_name') or '').strip()
+        if 'last_name' in request.data:
+            user.last_name = (request.data.get('last_name') or '').strip()
+        if 'email' in request.data:
+            user.email = (request.data.get('email') or '').strip()
+
+        if 'role' in request.data:
+            role = request.data.get('role')
+            if role not in Roles.ALL:
+                return Response({'detail': 'Укажите корректную роль', 'code': 'invalid_role'}, status=status.HTTP_400_BAD_REQUEST)
+            if user.id == request.user.id and role != Roles.OWNER:
+                return Response(
+                    {'detail': 'Нельзя снять с себя роль владельца', 'code': 'cannot_change_own_role'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user.groups.clear()
+            user.groups.add(Group.objects.get(name=role))
+
+        if 'is_active' in request.data:
+            is_active = bool(request.data.get('is_active'))
+            if not is_active and user.id == request.user.id:
+                return Response(
+                    {'detail': 'Нельзя деактивировать самого себя', 'code': 'cannot_deactivate_self'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user.is_active = is_active
+
+        user.save()
+        return Response(_serialize_staff(user))
+
+    def destroy(self, request, pk=None):
+        from django.contrib.auth.models import User
+
+        try:
+            user = self._get_user(pk)
+        except User.DoesNotExist:
+            return Response({'detail': 'Сотрудник не найден', 'code': 'staff_not_found'}, status=status.HTTP_404_NOT_FOUND)
+        if user.id == request.user.id:
+            return Response(
+                {'detail': 'Нельзя деактивировать самого себя', 'code': 'cannot_deactivate_self'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user.is_active = False
+        user.save()
+        return Response(_serialize_staff(user))
