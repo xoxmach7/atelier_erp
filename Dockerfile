@@ -11,8 +11,13 @@ WORKDIR /app
 # Install system dependencies
 # libcairo2-dev + pkg-config — для сборки pycairo (тянется xhtml2pdf → svglib → rlpycairo)
 # postgresql-client-18 — pg_dump для команды backup_database (security-аудит #6);
-# сервер на Railway — Postgres 18.4, из debian bookworm тянем клиент через
-# официальный репозиторий PGDG (bookworm ещё не имеет client 18 в своих штатных пакетах).
+# сервер на Railway — Postgres 18.4. Кодовое имя Debian берём из /etc/os-release
+# ДИНАМИЧЕСКИ, а не хардкодим "bookworm": python:3.11-slim на момент первой
+# версии этого блока (2026-07-25) оказался уже на trixie (Debian 13) — жёстко
+# прописанный "bookworm-pgdg" подключил клиент, собранный против более старой
+# libpq5, чем уже стоит в базовом образе, и apt не смог решить зависимости
+# (сборка на Railway упала: "Depends: libpq5 (>= 18.4) but 17.10 is to be
+# installed"). Если базовый образ снова сменит релиз — эта строка не сломается.
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
@@ -22,7 +27,8 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     && install -d /usr/share/postgresql-common/pgdg \
     && curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && . /etc/os-release \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
     && apt-get update && apt-get install -y postgresql-client-18 \
     && rm -rf /var/lib/apt/lists/*
 
