@@ -366,6 +366,8 @@ export interface StaffCreateInput {
   first_name?: string;
   last_name?: string;
   email?: string;
+  /** Только для платформенного админа (is_superuser) — в каком ателье завести сотрудника. */
+  tenant_id?: string;
 }
 
 export interface StaffUpdateInput {
@@ -374,6 +376,32 @@ export interface StaffUpdateInput {
   first_name?: string;
   last_name?: string;
   email?: string;
+}
+
+// ============================================================================
+// Atelier (Tenant) DTOs — экран платформенного админа /platform
+// ============================================================================
+
+export interface AtelierDTO {
+  id: string;
+  name: string;
+  slug: string;
+  is_active: boolean;
+  created_at: string;
+  employee_count: number;
+}
+
+export interface AtelierCreateInput {
+  name: string;
+  slug?: string;
+  owner_username: string;
+  owner_first_name?: string;
+  owner_last_name?: string;
+  owner_email?: string;
+}
+
+export interface AtelierCreatedDTO extends AtelierDTO {
+  owner: StaffCreatedDTO;
 }
 
 // ============================================================================

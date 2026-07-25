@@ -18,6 +18,22 @@ class IsManagerOrAdmin(permissions.BasePermission):
         return user_in(request.user, Roles.OWNER)
 
 
+class IsPlatformAdmin(permissions.BasePermission):
+    """Только платформенный админ Sheber (Django is_superuser) — управление
+    ателье как юридическими клиентами платформы, а не Owner конкретного
+    ателье.
+
+    В отличие от остальных классов в этом файле, НЕ идёт через user_in()
+    (которая приравнивает is_superuser к Owner ради удобства владельца
+    ателье) — здесь is_superuser это ЕДИНСТВЕННЫЙ признак доступа. Обычный
+    Owner ателье (группа Owner, не superuser) сюда не проходит, иначе любой
+    Owner мог бы создавать/видеть чужие ателье.
+    """
+
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.is_superuser)
+
+
 class IsWorkerOrManagerOrAdmin(permissions.BasePermission):
     """Чтение — всем авторизованным; запись — любой рабочей роли."""
 

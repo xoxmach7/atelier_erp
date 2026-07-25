@@ -10,3 +10,8 @@ class AtelierErpConfig(AppConfig):
     def ready(self):
         # Import signal handlers
         import atelier_erp.signals  # noqa
+
+        # Патч DRF-аутентификации: правильный момент резолва tenant для JWT-
+        # запросов — см. docstring atelier_erp/tenant_drf.py.
+        from atelier_erp.tenant_drf import patch_drf_authentication
+        patch_drf_authentication()

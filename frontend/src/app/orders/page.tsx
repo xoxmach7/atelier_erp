@@ -26,7 +26,7 @@ function OrdersContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { role, isOwner } = useRole();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
   // Filters state
   const statusFromUrl = (searchParams.get("status") as ListStatusKey) || "";
@@ -154,6 +154,14 @@ function OrdersContent() {
                     className="flex items-center gap-1.5 text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
                   >
                     Сотрудники
+                  </Link>
+                )}
+                {user?.is_superuser && (
+                  <Link
+                    href="/platform"
+                    className="flex items-center gap-1.5 text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
+                  >
+                    Ателье
                   </Link>
                 )}
               </div>

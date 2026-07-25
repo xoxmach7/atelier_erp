@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2, MoreVertical, Copy, Check } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/protected-route";
@@ -37,13 +37,30 @@ const EMPTY_FORM = {
 
 function StaffContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const { isOwner } = useRole();
   const queryClient = useQueryClient();
 
+  // Платформенный админ (is_superuser), открывший конкретное ателье с
+  // экрана /platform, управляет ЕГО сотрудниками через ?tenant_id= — тот же
+  // экран, что и у обычного Owner для своего ателье, чтобы не дублировать
+  // всю форму/таблицу второй раз. Параметр значим только для реального
+  // is_superuser — обычный Owner ателье не должен суметь подставить чужой
+  // tenant_id в адресную строку и увидеть/менять сотрудников другого ателье.
+  const tenantIdParam = searchParams.get("tenant_id") || undefined;
+  const atelierNameParam = searchParams.get("name") || undefined;
+  const isPlatformAdminView = Boolean(tenantIdParam) && Boolean(user?.is_superuser);
+
   useEffect(() => {
-    if (!isOwner) router.replace("/orders");
-  }, [isOwner, router]);
+    if (!isOwner) {
+      router.replace("/orders");
+      return;
+    }
+    if (tenantIdParam && !user?.is_superuser) {
+      router.replace("/orders");
+    }
+  }, [isOwner, router, tenantIdParam, user?.is_superuser]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
@@ -70,8 +87,8 @@ function StaffContent() {
   }, [menu]);
 
   const { data: staff, isLoading } = useQuery({
-    queryKey: ["staff-management"],
-    queryFn: fetchStaffMembers,
+    queryKey: ["staff-management", tenantIdParam],
+    queryFn: () => fetchStaffMembers(isPlatformAdminView ? tenantIdParam : undefined),
     staleTime: 30 * 1000,
     enabled: isOwner,
   });
@@ -83,7 +100,8 @@ function StaffContent() {
   };
 
   const createMutation = useMutation({
-    mutationFn: createStaffMember,
+    mutationFn: (input: Parameters<typeof createStaffMember>[0]) =>
+      createStaffMember(isPlatformAdminView ? { ...input, tenant_id: tenantIdParam } : input),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ["staff-management"] });
       closeModal();
@@ -154,12 +172,14 @@ function StaffContent() {
         <div className="flex flex-wrap items-center justify-between gap-4 px-4 sm:px-[52px] py-5 sm:py-[30px]">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push("/orders")}
+              onClick={() => router.push(isPlatformAdminView ? "/platform" : "/orders")}
               className="text-[#475569] hover:text-[#0EA5E9] transition-colors"
             >
               <ArrowLeft size={24} />
             </button>
-            <h1 className="text-[26px] font-semibold text-[#0F172A] whitespace-nowrap">Сотрудники</h1>
+            <h1 className="text-[26px] font-semibold text-[#0F172A] whitespace-nowrap">
+              {isPlatformAdminView ? `Сотрудники: ${atelierNameParam ?? ""}` : "Сотрудники"}
+            </h1>
             <button
               onClick={() => setModalOpen(true)}
               className="ml-[48px] text-[15px] text-[#475569] hover:text-[#0EA5E9] transition-colors"
@@ -436,7 +456,9 @@ function StaffContent() {
 export default function StaffPage() {
   return (
     <ProtectedRoute>
-      <StaffContent />
+      <Suspense fallback={<div className="min-h-screen bg-[#F0F4F8] flex items-center justify-center"><div className="text-[#475569]">Загрузка...</div></div>}>
+        <StaffContent />
+      </Suspense>
     </ProtectedRoute>
   );
 }

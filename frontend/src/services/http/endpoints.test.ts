@@ -34,6 +34,7 @@ import * as payments from "./payments";
 import * as quotes from "./quotes";
 import * as tasks from "./tasks";
 import * as staffManagement from "./staff-management";
+import * as ateliers from "./ateliers";
 
 const ID = "11111111-2222-3333-4444-555555555555";
 
@@ -63,6 +64,7 @@ const CASES: [string, () => Promise<unknown>][] = [
   ["staffManagement.fetchStaffMembers", () => staffManagement.fetchStaffMembers()],
   ["staffManagement.updateStaffMember", () => staffManagement.updateStaffMember(1, { is_active: false })],
   ["staffManagement.deactivateStaffMember", () => staffManagement.deactivateStaffMember(1)],
+  ["ateliers.fetchAteliers", () => ateliers.fetchAteliers()],
 ];
 
 describe("http-сервисы: форма URL", () => {

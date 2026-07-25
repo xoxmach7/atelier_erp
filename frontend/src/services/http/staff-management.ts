@@ -1,8 +1,9 @@
 import { get, post, patch, del } from "./client";
 import type { StaffMemberDTO, StaffCreatedDTO, StaffCreateInput, StaffUpdateInput } from "@/types";
 
-export async function fetchStaffMembers(): Promise<StaffMemberDTO[]> {
-  return get<StaffMemberDTO[]>("/v1/staff-management/");
+/** tenantId — только для платформенного админа, чтобы смотреть сотрудников конкретного ателье. */
+export async function fetchStaffMembers(tenantId?: string): Promise<StaffMemberDTO[]> {
+  return get<StaffMemberDTO[]>("/v1/staff-management/", { params: tenantId ? { tenant_id: tenantId } : undefined });
 }
 
 export async function createStaffMember(input: StaffCreateInput): Promise<StaffCreatedDTO> {

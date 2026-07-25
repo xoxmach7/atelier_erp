@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 
-from atelier_erp.api.permissions import IsManagerOrAdmin, IsOwnerOrDesigner, IsWarehouseOrOwner, IsInstallationOrOwner, IsInstallationOrOwnerOrReadOnly, IsSeamstressOrOwner, CanAccessMeasurement
+from atelier_erp.api.permissions import IsManagerOrAdmin, IsOwnerOrDesigner, IsWarehouseOrOwner, IsInstallationOrOwner, IsInstallationOrOwnerOrReadOnly, IsSeamstressOrOwner, CanAccessMeasurement, IsPlatformAdmin
 from atelier_erp.api.v1.role_scope import scope_orders_for_role, filter_by_visible_orders
 from atelier_erp.tenant_utils import TenantModelMixin, TenantViaOrderMixin
 from atelier_erp.roles import Roles, user_in
@@ -2588,6 +2588,82 @@ def _serialize_staff(user):
     }
 
 
+def _staff_queryset_for_request(request):
+    """Сотрудники, которых текущий запрос имеет право видеть/менять.
+
+    request.tenant теперь корректно резолвится по JWT-пользователю (см.
+    atelier_erp/tenant_drf.py — до фикса 2026-07-25 он был всегда None для
+    любого API-запроса, изоляции между ателье не было вообще).
+
+    - Конкретный Tenant (обычный Owner ателье) → только сотрудники этого
+      ателье.
+    - Суперюзер без своего membership (платформенный админ) → видит всех, во
+      всех ателье — так он может открыть список сотрудников выбранного
+      ателье с экрана "Ателье" (см. AtelierManagementViewSet).
+    - Обычный пользователь без membership → легаси-режим (текущее состояние
+      прод-аккаунтов до реконсиляции, см. project_tenant_isolation): видит
+      только таких же "безтенантных" сотрудников, не всех подряд.
+    """
+    from django.contrib.auth.models import User
+
+    tenant = getattr(request, 'tenant', None)
+    if tenant is not None:
+        return User.objects.filter(tenant_membership__tenant=tenant)
+    if request.user.is_superuser:
+        # Платформенный админ на экране "Ателье" смотрит сотрудников ОДНОГО
+        # выбранного ателье, не всех подряд — ?tenant_id= сужает список.
+        tenant_id = request.query_params.get('tenant_id')
+        if tenant_id:
+            return User.objects.filter(tenant_membership__tenant_id=tenant_id)
+        return User.objects.all()
+    return User.objects.filter(tenant_membership__isnull=True)
+
+
+def _resolve_target_tenant_for_staff_create(request):
+    """Тенант, к которому будет привязан новый сотрудник. Возвращает
+    (tenant_or_None, error_response_or_None)."""
+    tenant = getattr(request, 'tenant', None)
+    if tenant is not None:
+        return tenant, None
+    if request.user.is_superuser:
+        from atelier_erp.models import Tenant
+        tenant_id = request.data.get('tenant_id')
+        if not tenant_id:
+            return None, Response(
+                {'detail': 'Укажите ателье (tenant_id)', 'code': 'tenant_id_required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            return Tenant.objects.get(pk=tenant_id), None
+        except (Tenant.DoesNotExist, ValueError, TypeError):
+            return None, Response({'detail': 'Ателье не найдено', 'code': 'tenant_not_found'}, status=status.HTTP_404_NOT_FOUND)
+    return None, None  # легаси-режим — сотрудник без тенанта, как и создающий его пользователь
+
+
+def _create_staff_user(tenant, username, role, first_name='', last_name='', email=''):
+    """Создать нового сотрудника: пароль генерируется здесь и возвращается
+    вызывающему один раз (нигде не хранится в открытом виде — только хэш).
+    tenant=None — легаси-режим, сотрудник создаётся без TenantMembership."""
+    from django.contrib.auth.models import User, Group
+    from django.utils.crypto import get_random_string
+    from atelier_erp.models import TenantMembership
+
+    password = get_random_string(12)
+    user = User.objects.create(
+        username=username,
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        is_active=True,
+    )
+    user.set_password(password)
+    user.save()
+    user.groups.add(Group.objects.get(name=role))
+    if tenant is not None:
+        TenantMembership.objects.create(user=user, tenant=tenant)
+    return user, password
+
+
 class StaffManagementViewSet(viewsets.ViewSet):
     """CRUD над сотрудниками (создание/деактивация/смена роли) — только Owner.
 
@@ -2596,29 +2672,32 @@ class StaffManagementViewSet(viewsets.ViewSet):
     одного поля. Удаление — всегда деактивация (is_active=False), не DELETE
     из БД: на пользователя могут ссылаться заказы/платежи/фотоотчёты, и
     физическое удаление истории кто что делал недопустимо.
+
+    Тенант-скоуп — см. _staff_queryset_for_request: Owner видит и меняет
+    только сотрудников своего ателье; суперюзер (платформенный админ) может
+    работать с сотрудниками любого ателье, передав tenant_id при создании
+    (list/retrieve/update/destroy опираются на pk, tenant там не нужен — он
+    уже определяет ГРАНИЦУ видимости, а не выбирается заново).
     """
     permission_classes = [IsManagerOrAdmin]
 
-    def _get_user(self, pk):
-        from django.contrib.auth.models import User
-        return User.objects.get(pk=pk)
+    def _get_scoped_user(self, request, pk):
+        return _staff_queryset_for_request(request).get(pk=pk)
 
     def list(self, request):
-        from django.contrib.auth.models import User
-        users = User.objects.all().order_by('last_name', 'first_name', 'username')
+        users = _staff_queryset_for_request(request).order_by('last_name', 'first_name', 'username')
         return Response([_serialize_staff(u) for u in users])
 
     def retrieve(self, request, pk=None):
         from django.contrib.auth.models import User
         try:
-            user = self._get_user(pk)
+            user = self._get_scoped_user(request, pk)
         except User.DoesNotExist:
             return Response({'detail': 'Сотрудник не найден', 'code': 'staff_not_found'}, status=status.HTTP_404_NOT_FOUND)
         return Response(_serialize_staff(user))
 
     def create(self, request):
-        from django.contrib.auth.models import User, Group
-        from django.utils.crypto import get_random_string
+        from django.contrib.auth.models import User
 
         username = (request.data.get('username') or '').strip()
         role = request.data.get('role')
@@ -2633,18 +2712,11 @@ class StaffManagementViewSet(viewsets.ViewSet):
         if User.objects.filter(username=username).exists():
             return Response({'detail': 'Такой логин уже занят', 'code': 'username_taken'}, status=status.HTTP_400_BAD_REQUEST)
 
-        password = get_random_string(12)
-        user = User.objects.create(
-            username=username,
-            first_name=first_name,
-            last_name=last_name,
-            email=email,
-            is_active=True,
-        )
-        user.set_password(password)
-        user.save()
-        group = Group.objects.get(name=role)
-        user.groups.add(group)
+        tenant, err = _resolve_target_tenant_for_staff_create(request)
+        if err:
+            return err
+
+        user, password = _create_staff_user(tenant, username, role, first_name, last_name, email)
 
         data = _serialize_staff(user)
         data['generated_password'] = password
@@ -2654,7 +2726,7 @@ class StaffManagementViewSet(viewsets.ViewSet):
         from django.contrib.auth.models import User, Group
 
         try:
-            user = self._get_user(pk)
+            user = self._get_scoped_user(request, pk)
         except User.DoesNotExist:
             return Response({'detail': 'Сотрудник не найден', 'code': 'staff_not_found'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -2693,7 +2765,7 @@ class StaffManagementViewSet(viewsets.ViewSet):
         from django.contrib.auth.models import User
 
         try:
-            user = self._get_user(pk)
+            user = self._get_scoped_user(request, pk)
         except User.DoesNotExist:
             return Response({'detail': 'Сотрудник не найден', 'code': 'staff_not_found'}, status=status.HTTP_404_NOT_FOUND)
         if user.id == request.user.id:
@@ -2704,3 +2776,85 @@ class StaffManagementViewSet(viewsets.ViewSet):
         user.is_active = False
         user.save()
         return Response(_serialize_staff(user))
+
+
+def _serialize_tenant(tenant):
+    from atelier_erp.models import TenantMembership
+    return {
+        'id': tenant.id,
+        'name': tenant.name,
+        'slug': tenant.slug,
+        'is_active': tenant.is_active,
+        'created_at': tenant.created_at,
+        'employee_count': TenantMembership.objects.filter(tenant=tenant).count(),
+    }
+
+
+class AtelierManagementViewSet(viewsets.ViewSet):
+    """Список/создание ателье (Tenant) — только платформенный админ Sheber
+    (is_superuser), не Owner конкретного ателье.
+
+    Единственный способ завести новое ателье до этой фичи — management-
+    команда `create_tenant` из консоли Railway (см. CLAUDE.md); она к тому же
+    рассчитана на одноразовую миграцию single-tenant → multi-tenant и
+    подхватывает ВСЕХ безтенантных пользователей при повторном запуске —
+    не годится для регулярного онбординга новых клиентов.
+
+    Создание ателье всегда идёт вместе с первым сотрудником-владельцем
+    (ателье без единого сотрудника бессмысленно) — переиспользует
+    _create_staff_user, тот же путь, что и StaffManagementViewSet.create.
+    Список сотрудников конкретного ателье смотреть/пополнять — через
+    /api/v1/staff-management/?tenant_id=<id> (тот же StaffManagementViewSet,
+    доступный суперюзеру для любого tenant_id).
+    """
+    permission_classes = [IsPlatformAdmin]
+
+    def list(self, request):
+        from atelier_erp.models import Tenant
+        tenants = Tenant.objects.all().order_by('name')
+        return Response([_serialize_tenant(t) for t in tenants])
+
+    def create(self, request):
+        from django.db import transaction
+        from django.utils.text import slugify
+        from django.utils.crypto import get_random_string
+        from django.contrib.auth.models import User
+        from atelier_erp.models import Tenant
+
+        name = (request.data.get('name') or '').strip()
+        owner_username = (request.data.get('owner_username') or '').strip()
+        owner_first_name = (request.data.get('owner_first_name') or '').strip()
+        owner_last_name = (request.data.get('owner_last_name') or '').strip()
+        owner_email = (request.data.get('owner_email') or '').strip()
+
+        if not name:
+            return Response({'detail': 'Укажите название ателье', 'code': 'name_required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not owner_username:
+            return Response({'detail': 'Укажите логин владельца', 'code': 'owner_username_required'}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(username=owner_username).exists():
+            return Response({'detail': 'Такой логин уже занят', 'code': 'username_taken'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # slugify() не транслитерирует кириллицу (даёт пустую строку на
+        # "Новое ателье" и т.п.) — а названия ателье почти всегда кириллица.
+        # Вместо требования ручного slug на каждое создание — короткий
+        # случайный идентификатор, если из названия ничего не вышло.
+        slug = (request.data.get('slug') or '').strip() or slugify(name) or get_random_string(
+            8, allowed_chars='abcdefghijklmnopqrstuvwxyz0123456789'
+        )
+        base_slug = slug
+        suffix = 1
+        while Tenant.objects.filter(slug=slug).exists():
+            suffix += 1
+            slug = f'{base_slug}-{suffix}'
+
+        with transaction.atomic():
+            tenant = Tenant.objects.create(name=name, slug=slug, is_active=True)
+            owner_user, password = _create_staff_user(
+                tenant, owner_username, Roles.OWNER,
+                first_name=owner_first_name, last_name=owner_last_name, email=owner_email,
+            )
+
+        data = _serialize_tenant(tenant)
+        data['owner'] = _serialize_staff(owner_user)
+        data['owner']['generated_password'] = password
+        return Response(data, status=status.HTTP_201_CREATED)
