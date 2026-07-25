@@ -14,7 +14,7 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 
-from atelier_erp.api.auth_views import ThrottledTokenObtainPairView, LogoutView, me
+from atelier_erp.api.auth_views import ThrottledTokenObtainPairView, LogoutView, ChangePasswordView, me
 
 # Health check endpoint
 @api_view(['GET'])
@@ -37,6 +37,7 @@ urlpatterns = [
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     path('api/auth/logout/', LogoutView.as_view(), name='logout'),
+    path('api/auth/change-password/', ChangePasswordView.as_view(), name='change_password'),
 
     # Current user endpoint
     path('api/me/', me, name='me'),
