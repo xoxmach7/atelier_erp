@@ -32,6 +32,14 @@ if SECRET_KEY == _SECRET_KEY_FALLBACK and not DEBUG and not TESTING:
         'Запуск с публичным дефолт-ключом в проде запрещён — задайте переменную окружения DJANGO_SECRET_KEY.'
     )
 
+# Security-аудит #10 (Medium, 2026-07-20): JWT подписывался тем же ключом,
+# что и Django-сессии/CSRF (SIGNING_KEY = SECRET_KEY) — компрометация одного
+# механизма давала оба. JWT_SIGNING_KEY — отдельная переменная окружения;
+# если не задана, безопасно откатывается на SECRET_KEY (как было раньше, не
+# ломает деплой, где её ещё не завели в Railway Variables) — но рекомендуется
+# задать отдельное значение при следующей ротации секретов.
+JWT_SIGNING_KEY = os.environ.get('JWT_SIGNING_KEY', SECRET_KEY)
+
 # Хосты только из окружения. Дефолт — локалка для разработки.
 # Прод-домены, LAN-IP и ngrok задавать через переменную ALLOWED_HOSTS (см. .env.example).
 ALLOWED_HOSTS = [
@@ -62,6 +70,9 @@ MIDDLEWARE = [
     # Отдаёт статику в проде (например, админка) без отдельного веб-сервера.
     # В dev (DEBUG=True) статику обслуживает Django, whitenoise не мешает.
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    # Лимит попыток входа на /admin/login/ и /api/auth/login/ — эти пути не
+    # покрываются DRF ScopedRateThrottle (см. login_throttle.py).
+    'atelier_erp.login_throttle.LoginThrottleMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -110,8 +121,12 @@ if DB_ENGINE == 'postgresql' or os.environ.get('DB_HOST'):
             'CONN_MAX_AGE': int(os.environ.get('DB_CONN_MAX_AGE', '60')),
             'CONN_HEALTH_CHECKS': True,
             'OPTIONS': {
-                # require/prefer/disable — для управляемых БД обычно 'require'
-                'sslmode': os.environ.get('DB_SSLMODE', 'prefer'),
+                # Security-аудит #15 (Medium, 2026-07-20): дефолт был 'prefer'
+                # даже в проде (сервер тихо принимает и незашифрованное
+                # соединение). Теперь дефолт зависит от DEBUG — 'require' вне
+                # локальной разработки; DB_SSLMODE в окружении по-прежнему
+                # имеет приоритет и переопределяет это значение явно.
+                'sslmode': os.environ.get('DB_SSLMODE', 'prefer' if DEBUG else 'require'),
             },
         }
     }
@@ -218,6 +233,9 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
+    # Security-аудит #12: логировать отказы в доступе (401/403) — см. docstring
+    # atelier_erp/api/exception_handler.py.
+    'EXCEPTION_HANDLER': 'atelier_erp.api.exception_handler.logging_exception_handler',
 }
 
 # CORS
@@ -247,7 +265,7 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': False,
     'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
+    'SIGNING_KEY': JWT_SIGNING_KEY,
     'VERIFYING_KEY': None,
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
