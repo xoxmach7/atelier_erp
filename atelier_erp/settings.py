@@ -236,6 +236,15 @@ REST_FRAMEWORK = {
     # Security-аудит #12: логировать отказы в доступе (401/403) — см. docstring
     # atelier_erp/api/exception_handler.py.
     'EXCEPTION_HANDLER': 'atelier_erp.api.exception_handler.logging_exception_handler',
+    # Security-аудит #19: browsable HTML-интерфейс DRF (формы для ручных
+    # запросов прямо в браузере) включён по умолчанию и раньше не был
+    # отключён в проде осознанно. Фронт (веб/мобилка) всегда ходит за JSON,
+    # HTML-рендер в проде не нужен и только расширяет поверхность атаки.
+    'DEFAULT_RENDERER_CLASSES': (
+        ['rest_framework.renderers.JSONRenderer', 'rest_framework.renderers.BrowsableAPIRenderer']
+        if DEBUG else
+        ['rest_framework.renderers.JSONRenderer']
+    ),
 }
 
 # CORS

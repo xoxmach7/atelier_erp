@@ -1,7 +1,8 @@
 """
 Тесты на пункты security-аудита (docs/security-audit/J1-consolidated-overview.md),
 закрытые 2026-07-25: #8 (Owner получал все Django-permissions), #9 (admin/DRF
-browsable login без throttle), #12 (403/401 нигде не логировались).
+browsable login без throttle), #12 (403/401 нигде не логировались), #19
+(browsable HTML API DRF был включён в проде без явного решения).
 
 Запуск: python manage.py test atelier_erp.tests.test_security_audit_2026_07_25 -v 2
 """
@@ -158,3 +159,41 @@ class AccessDeniedLoggingTests(_HostPatchMixin, APITestCase):
             with self.assertLogs(logger, level='WARNING'):
                 resp = self.client.get(reverse('v1-order-detail', args=[uuid.uuid4()]))
                 self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class BrowsableApiDisabledInProdTests(APITestCase):
+    """#19: DRF browsable HTML API (формы для запросов прямо в браузере) было
+    включено по умолчанию и никогда не отключалось в проде осознанно — лишняя
+    поверхность атаки, фронт всегда ходит за JSON."""
+
+    @classmethod
+    def setUpTestData(cls):
+        Group.objects.get_or_create(name=Roles.OWNER)
+        cls.owner = User.objects.create_user(username='owner_renderer_audit', password='x')
+        cls.owner.groups.add(Group.objects.get(name=Roles.OWNER))
+
+    def test_json_renderer_always_available(self):
+        self.assertIn(
+            'rest_framework.renderers.JSONRenderer',
+            settings.REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'],
+        )
+
+    def test_browsable_renderer_matches_debug_env_var(self):
+        # DEFAULT_RENDERER_CLASSES вычисляется один раз при импорте settings.py
+        # по значению env var DEBUG на момент старта процесса (не per-request).
+        # settings.DEBUG сам по себе не годится как эталон в тесте: тестовый
+        # раннер Django принудительно выставляет settings.DEBUG=False на время
+        # прогона (даже если реальный .env держит DEBUG=True для локальной
+        # разработки) — сверяемся с тем же источником, что читает settings.py.
+        import os
+        debug_env = os.environ.get('DEBUG', 'False').lower() == 'true'
+        renderers = settings.REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES']
+        if debug_env:
+            self.assertIn('rest_framework.renderers.BrowsableAPIRenderer', renderers)
+        else:
+            self.assertNotIn('rest_framework.renderers.BrowsableAPIRenderer', renderers)
+
+    def test_api_response_is_plain_json_not_html_form(self):
+        self.client.force_authenticate(user=self.owner)
+        resp = self.client.get(reverse('v1-staff-management-list'))
+        self.assertIn('application/json', resp['Content-Type'])
