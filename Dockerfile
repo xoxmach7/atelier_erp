@@ -10,11 +10,20 @@ WORKDIR /app
 
 # Install system dependencies
 # libcairo2-dev + pkg-config — для сборки pycairo (тянется xhtml2pdf → svglib → rlpycairo)
+# postgresql-client-18 — pg_dump для команды backup_database (security-аудит #6);
+# сервер на Railway — Postgres 18.4, из debian bookworm тянем клиент через
+# официальный репозиторий PGDG (bookworm ещё не имеет client 18 в своих штатных пакетах).
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
     libcairo2-dev \
     pkg-config \
+    curl \
+    gnupg \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y postgresql-client-18 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
