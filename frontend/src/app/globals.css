@@ -156,3 +156,24 @@
     @apply font-sans;
   }
 }
+
+/*
+ * Печать QR-этикетки материала: печатаем ТОЛЬКО #qr-print-area, а не всю
+ * страницу за модалкой. Без этого трюка браузер печатает фон страницы за
+ * оверлеем модалки (print CSS не учитывает визуальный z-index/stacking).
+ */
+@media print {
+  body.printing-qr-label * {
+    visibility: hidden;
+  }
+  body.printing-qr-label #qr-print-area,
+  body.printing-qr-label #qr-print-area * {
+    visibility: visible;
+  }
+  body.printing-qr-label #qr-print-area {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+}

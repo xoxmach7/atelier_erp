@@ -37,6 +37,11 @@ export async function fetchInventoryItems(): Promise<InventoryItem[]> {
   return res.results ?? [];
 }
 
+/** Одна позиция по id — для экрана скана QR (не тянуть весь список ради одной). */
+export async function fetchInventoryItemById(id: string): Promise<InventoryItem> {
+  return apiClient.get<InventoryItem>(`/api/v1/inventory-items/${id}/`);
+}
+
 export interface InventoryItemPayload {
   sku?: string;
   name: string;

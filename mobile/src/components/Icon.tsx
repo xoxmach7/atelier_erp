@@ -5,7 +5,7 @@ import Svg, { Path, Circle, Line, Rect, Polyline } from 'react-native-svg';
 export type IconName =
   | 'plus' | 'search' | 'user' | 'filter' | 'tenge' | 'edit' | 'trash'
   | 'dots' | 'calendar' | 'userAdd' | 'doc' | 'chevron' | 'minus' | 'menu'
-  | 'eye' | 'eyeOff' | 'check';
+  | 'eye' | 'eyeOff' | 'check' | 'scan';
 
 /**
  * Иконки на react-native-svg — outline-стиль (24×24 viewBox, stroke-based),
@@ -151,6 +151,18 @@ export function Icon({ name, size = 20, color = '#FFFFFF' }: { name: IconName; s
       return (
         <Svg {...common} strokeWidth={3}>
           <Polyline points="4 12.5 9.5 18 20 6.5" />
+        </Svg>
+      );
+
+    case 'scan':
+      // Уголки видоискателя — стандартная пиктограмма сканера QR/штрихкода.
+      return (
+        <Svg {...common}>
+          <Path d="M3 7V5a2 2 0 0 1 2-2h2" />
+          <Path d="M17 3h2a2 2 0 0 1 2 2v2" />
+          <Path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+          <Path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+          <Line x1="3" y1="12" x2="21" y2="12" />
         </Svg>
       );
 

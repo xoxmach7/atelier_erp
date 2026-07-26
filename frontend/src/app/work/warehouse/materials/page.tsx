@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useRole } from "@/hooks/useRole";
 import { ModalCloseX } from "@/components/shared/modal-close";
+import { PrintQrModal } from "@/components/inventory/print-qr-modal";
 import { fetchFabrics, deleteOrphanFabric } from "@/services/http/fabrics";
 import {
   fetchInventoryItems,
@@ -98,6 +99,7 @@ function MaterialsContent() {
   // отличный от visible вычисляет overflow-y в auto), поэтому обычный
   // position:absolute внутри <td> обрезался нижней границей контейнера.
   const [menu, setMenu] = useState<{ id: string; top: number; right: number } | null>(null);
+  const [qrItem, setQrItem] = useState<InventoryItemDTO | null>(null);
   const [addQtyId, setAddQtyId] = useState<string | null>(null);
   const [addQtyValue, setAddQtyValue] = useState("");
   const [addQtyError, setAddQtyError] = useState("");
@@ -534,6 +536,12 @@ function MaterialsContent() {
                   Редактировать
                 </button>
                 <button
+                  onClick={() => { setMenu(null); setQrItem(it); }}
+                  className="w-full px-4 py-2.5 text-left text-[14px] text-[#0F172A] hover:bg-[#F1F5F9] transition-colors"
+                >
+                  Печать QR
+                </button>
+                <button
                   onClick={() => handleMenuDelete(it)}
                   className="w-full px-4 py-2.5 text-left text-[14px] text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"
                 >
@@ -545,6 +553,8 @@ function MaterialsContent() {
         })(),
         document.body
       )}
+
+      {qrItem && <PrintQrModal item={qrItem} onClose={() => setQrItem(null)} />}
 
       {/* Добавить количество (приход) */}
       {addQtyId && (() => {

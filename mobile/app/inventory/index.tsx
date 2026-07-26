@@ -102,6 +102,7 @@ export default function InventoryScreen() {
         </TouchableOpacity>
         <Text style={s.title}>Материалы</Text>
         <View style={s.iconRow}>
+          <IconButton name="scan" size={38} onPress={() => router.push('/inventory/scan')} />
           <IconButton name="plus" size={38} onPress={() => router.push('/inventory/new')} />
           <IconButton name="search" size={38} onPress={() => setShowSearch(v => !v)} />
         </View>
